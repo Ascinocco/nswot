@@ -24,7 +24,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'openai/gpt-4',
-        config: { profileIds: ['p1', 'p2'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: ['p1', 'p2'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       expect(analysis.status).toBe('pending');
@@ -49,7 +49,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
       // Ensure distinct timestamps by updating created_at directly
       db.prepare('UPDATE analyses SET created_at = ? WHERE id = ?').run(
@@ -60,7 +60,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'senior_em',
         modelId: 'model-b',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       const analyses = await repo.findByWorkspace(workspaceId);
@@ -81,7 +81,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       const now = new Date().toISOString();
@@ -97,7 +97,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       await repo.updateStatus(analysis.id, 'failed', {
@@ -117,7 +117,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       const swotOutput = {
@@ -144,7 +144,15 @@ describe('AnalysisRepository', () => {
 
       await repo.storeResult(analysis.id, {
         swotOutput,
-        summariesOutput: { profiles: 'summary', jira: 'jira summary', confluence: null, github: null },
+        summariesOutput: { profiles: 'summary', jira: 'jira summary', confluence: null, github: null, codebase: null },
+        qualityMetrics: {
+          totalItems: 1,
+          multiSourceItems: 0,
+          sourceTypeCoverage: { profile: 1 },
+          confidenceDistribution: { high: 1, medium: 0, low: 0 },
+          averageEvidencePerItem: 1,
+          qualityScore: 50,
+        },
         rawLlmResponse: '{"raw": true}',
         warning: 'Stale cache used',
       });
@@ -166,7 +174,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
       await repo.delete(analysis.id);
       expect(await repo.findById(analysis.id)).toBeNull();
@@ -179,13 +187,13 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
       await repo.insert({
         workspaceId,
         role: 'senior_em',
         modelId: 'model-b',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       await repo.updateStatus(a1.id, 'running');
@@ -202,7 +210,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
       await repo.updateStatus(a1.id, 'running');
 
@@ -225,7 +233,7 @@ describe('AnalysisRepository', () => {
         workspaceId,
         role: 'staff_engineer',
         modelId: 'model-a',
-        config: { profileIds: [p1.id, p2.id], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: [p1.id, p2.id], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
 
       await repo.insertProfiles(analysis.id, [

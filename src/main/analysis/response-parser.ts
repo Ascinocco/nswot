@@ -3,7 +3,7 @@ import type { Result } from '../domain/result';
 import { DomainError, ERROR_CODES } from '../domain/errors';
 import type { SwotOutput, SummariesOutput, SwotItem, EvidenceEntry, EvidenceSourceType } from '../domain/types';
 
-const VALID_SOURCE_TYPES: Set<string> = new Set(['profile', 'jira', 'confluence', 'github']);
+const VALID_SOURCE_TYPES: Set<string> = new Set(['profile', 'jira', 'confluence', 'github', 'codebase']);
 
 export interface ParsedAnalysisOutput {
   swotOutput: SwotOutput;
@@ -200,7 +200,7 @@ function validateEvidenceEntry(
     return err(
       new DomainError(
         ERROR_CODES.LLM_PARSE_ERROR,
-        `${path}.sourceType: expected one of "profile", "jira", "confluence", "github"`,
+        `${path}.sourceType: expected one of "profile", "jira", "confluence", "github", "codebase"`,
       ),
     );
   }
@@ -264,14 +264,16 @@ function validateSummaries(
     );
   }
 
-  // Confluence and GitHub summaries are optional (null if source not connected)
+  // Confluence, GitHub, and Codebase summaries are optional (null if source not connected)
   const confluence = typeof s['confluence'] === 'string' ? s['confluence'] as string : null;
   const github = typeof s['github'] === 'string' ? s['github'] as string : null;
+  const codebase = typeof s['codebase'] === 'string' ? s['codebase'] as string : null;
 
   return ok({
     profiles: s['profiles'] as string,
     jira: s['jira'] as string,
     confluence,
     github,
+    codebase,
   });
 }

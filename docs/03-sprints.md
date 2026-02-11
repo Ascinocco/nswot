@@ -1,7 +1,7 @@
 # nswot - MVP Sprint Plan
 
 > **Canonical sprint plan for current development (6 weeks).** Full 13-week plan is preserved in `docs/future/full-sprint-plan.md`.
-> Phase 2 and Phase 3 sprints will be planned after MVP ships, based on user feedback.
+> Phase 2 sprints: `docs/10-phase2-sprints.md`. Phase 3b-3d parallel sprint plan: `docs/16-parallel-sprint-plan.md`.
 
 All sprints are **1 week** and assume a single developer.
 Goal: deliver the smallest trustworthy version of nswot in **6 weeks**.
@@ -190,17 +190,72 @@ MVP is done only if all are true:
 
 ---
 
-## Deferred to Phase 2+
+## Deferred to Phase 2+ (completed items struck through)
 
-- Confluence integration
-- GitHub integration
+- ~~Confluence integration~~ (Phase 2 — completed)
+- ~~GitHub integration~~ (Phase 2 — completed)
 - Multi-step theme/evidence prompt chain
 - Theme editor UI
 - CSV/PDF export
 - Mermaid/charts
 - Chat-driven file generation
-- Windows/Linux packaging
+- ~~Windows/Linux packaging~~ (covered by CI/CD release spec — `docs/13-ci-cd-and-release.md`)
 - VP of Engineering role
+
+---
+
+## Sprint 16 — CI/CD and Release Automation
+
+**Goal**: fully automated build and release pipeline — merging to `main` publishes a prerelease with macOS/Windows/Linux artifacts; merging to `release/*` publishes a production release.
+
+**Depends on**: None (can run in parallel with Sprint 13-15 work). No app code changes required.
+
+**Spec**: `docs/13-ci-cd-and-release.md` | **Runbook**: `docs/14-release-operations-runbook.md`
+
+### Tooling setup
+
+- [ ] Add `@electron/rebuild` to `devDependencies` (currently used via `npx`, must be pinned for CI)
+- [ ] Add `semantic-release`, `@semantic-release/commit-analyzer`, `@semantic-release/release-notes-generator`, `@semantic-release/github` to `devDependencies`
+- [ ] Create `.releaserc.json` with branch config:
+  ```json
+  {
+    "branches": [
+      { "name": "release/*" },
+      { "name": "main", "prerelease": "beta" }
+    ]
+  }
+  ```
+- [ ] Verify `electron-builder.yml` has `win` (NSIS) and `linux` (AppImage) targets alongside `mac` (arm64 dmg+zip)
+
+### CI workflow (`ci.yml`)
+
+- [ ] Trigger on `pull_request` targeting `main`/`release/*` and `push` to `main`/`release/*`
+- [ ] Jobs: `typecheck` (`pnpm typecheck`), `test` (`pnpm test`)
+- [ ] Enable pnpm dependency caching (`actions/setup-node` with `cache: 'pnpm'`)
+- [ ] Add concurrency group per branch with `cancel-in-progress: true`
+
+### Release workflow (`release.yml`)
+
+- [ ] Trigger via `workflow_run` on CI completion for `main`/`release/*` branches
+- [ ] Gate step: skip entire workflow if CI conclusion !== `success`
+- [ ] `release` job (ubuntu-latest): run `semantic-release`, emit `released`, `git_tag`, `version` as job outputs
+- [ ] `build` job (matrix: `macos-latest`, `windows-latest`, `ubuntu-latest`, needs `release`): checkout at tag, install with `--frozen-lockfile`, rebuild native modules, build, package, upload artifacts to GitHub Release
+- [ ] Set `permissions: contents: write` and `actions: read`
+- [ ] Add concurrency group per branch
+
+### Branch protection
+
+- [ ] Enable required status checks (`typecheck`, `test`) on `main` and `release/*`
+- [ ] Enforce squash merge for clean Conventional Commit history
+
+### Verification
+
+- [ ] Merge a `feat:` commit to `main` and confirm a prerelease appears on GitHub Releases with macOS (.dmg/.zip), Windows (.exe), and Linux (.AppImage) assets
+- [ ] Cut `release/1.0` from `main`, push a `fix:` commit, and confirm a production release appears with all 3 platform assets
+- [ ] Verify a failed CI run prevents `release.yml` from triggering
+- [ ] Verify rerunning a single failed build matrix leg uploads to the existing release without re-running `semantic-release`
+
+**Deliverable**: merging releasable commits produces versioned, multi-platform releases automatically. No manual orchestration required.
 
 ---
 

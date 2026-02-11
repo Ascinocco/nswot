@@ -9,7 +9,7 @@ import type { PromptDataSources } from './prompt-builder';
 import { calculateTokenBudget } from './token-budget';
 import type { AnonymizedProfile } from '../domain/types';
 
-const noData: PromptDataSources = { jiraDataMarkdown: null, confluenceDataMarkdown: null, githubDataMarkdown: null };
+const noData: PromptDataSources = { jiraDataMarkdown: null, confluenceDataMarkdown: null, githubDataMarkdown: null, codebaseDataMarkdown: null };
 
 describe('prompt-builder', () => {
   const budget = calculateTokenBudget(100_000, ['jira']);
@@ -78,6 +78,22 @@ describe('prompt-builder', () => {
       expect(prompt).toContain('Migration epic');
     });
 
+    it('includes codebase data when provided', () => {
+      const codebaseMarkdown = '### [owner/repo]\n**Architecture**: Clean architecture\n- Modules: api, core\n';
+      const budgetWithCodebase = calculateTokenBudget(100_000, ['jira', 'codebase']);
+      const prompt = buildUserPrompt('staff_engineer', profiles, { ...noData, codebaseDataMarkdown: codebaseMarkdown }, budgetWithCodebase);
+      expect(prompt).toContain('owner/repo');
+      expect(prompt).toContain('Clean architecture');
+      expect(prompt).toContain('Codebase Analysis Data');
+    });
+
+    it('includes codebase in summaries schema when data is present', () => {
+      const codebaseMarkdown = '### [owner/repo]\n**Architecture**: Clean\n';
+      const budgetWithCodebase = calculateTokenBudget(100_000, ['codebase']);
+      const prompt = buildUserPrompt('staff_engineer', profiles, { ...noData, codebaseDataMarkdown: codebaseMarkdown }, budgetWithCodebase);
+      expect(prompt).toContain('"codebase"');
+    });
+
     it('notes absence of Jira data when null', () => {
       const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('No Jira data is available');
@@ -107,8 +123,8 @@ describe('prompt-builder', () => {
   });
 
   describe('PROMPT_VERSION', () => {
-    it('is set to mvp-v1', () => {
-      expect(PROMPT_VERSION).toBe('phase2-v1');
+    it('is set to phase3a-v1', () => {
+      expect(PROMPT_VERSION).toBe('phase3a-v1');
     });
   });
 });

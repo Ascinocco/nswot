@@ -64,7 +64,7 @@ declare global {
   }
 
   interface EvidenceEntry {
-    sourceType: 'profile' | 'jira' | 'confluence' | 'github';
+    sourceType: 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
     sourceId: string;
     sourceLabel: string;
     quote: string;
@@ -82,6 +82,7 @@ declare global {
     jira: string;
     confluence: string | null;
     github: string | null;
+    codebase: string | null;
   }
 
   interface EvidenceQualityMetrics {
@@ -104,6 +105,7 @@ declare global {
       jiraProjectKeys: string[];
       confluenceSpaceKeys: string[];
       githubRepos: string[];
+      codebaseRepos: string[];
     };
     inputSnapshot: unknown;
     swotOutput: SwotOutput | null;
@@ -117,13 +119,13 @@ declare global {
     createdAt: string;
   }
 
-  type IntegrationProvider = 'jira' | 'confluence' | 'github';
+  type IntegrationProvider = 'jira' | 'confluence' | 'github' | 'codebase';
 
   interface Integration {
     id: string;
     workspaceId: string;
     provider: IntegrationProvider;
-    config: JiraConfig | ConfluenceConfig | GitHubConfig;
+    config: JiraConfig | ConfluenceConfig | GitHubConfig | CodebaseConfig;
     status: 'disconnected' | 'connected' | 'error';
     lastSyncedAt: string | null;
     createdAt: string;
@@ -144,6 +146,55 @@ declare global {
 
   interface GitHubConfig {
     selectedRepos: string[];
+  }
+
+  interface CodebaseConfig {
+    selectedRepos: string[];
+  }
+
+  interface CodebaseAnalysis {
+    repo: string;
+    analyzedAt: string;
+    architecture: {
+      summary: string;
+      modules: string[];
+      concerns: string[];
+    };
+    quality: {
+      summary: string;
+      strengths: string[];
+      weaknesses: string[];
+    };
+    technicalDebt: {
+      summary: string;
+      items: Array<{
+        description: string;
+        location: string;
+        severity: 'high' | 'medium' | 'low';
+        evidence: string;
+      }>;
+    };
+    risks: {
+      summary: string;
+      items: string[];
+    };
+    jiraCrossReference: {
+      summary: string;
+      correlations: string[];
+    } | null;
+  }
+
+  interface CodebasePrerequisites {
+    cli: boolean;
+    cliAuthenticated: boolean;
+    git: boolean;
+    jiraMcp: boolean;
+  }
+
+  interface CodebaseProgress {
+    repo: string;
+    stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed';
+    message: string;
   }
 
   interface JiraProject {
@@ -232,6 +283,17 @@ declare global {
       listRepos(): Promise<IPCResult<GitHubRepo[]>>;
       sync(repos: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
     };
+    codebase: {
+      checkPrerequisites(): Promise<IPCResult<CodebasePrerequisites>>;
+      analyze(
+        repos: string[],
+        options: Record<string, unknown>,
+        jiraProjectKeys: string[],
+      ): Promise<IPCResult<{ results: CodebaseAnalysis[]; failures: Array<{ repo: string; error: string }> }>>;
+      getCached(repo: string): Promise<IPCResult<CodebaseAnalysis | null>>;
+      clearRepos(): Promise<IPCResult<void>>;
+      onProgress(callback: (data: CodebaseProgress) => void): () => void;
+    };
     analysis: {
       list(): Promise<IPCResult<Analysis[]>>;
       get(id: string): Promise<IPCResult<Analysis>>;
@@ -241,6 +303,7 @@ declare global {
         jiraProjectKeys: string[];
         confluenceSpaceKeys: string[];
         githubRepos: string[];
+        codebaseRepos: string[];
         role: string;
         modelId: string;
         contextWindow: number;
@@ -250,6 +313,7 @@ declare global {
         jiraProjectKeys: string[],
         confluenceSpaceKeys: string[],
         githubRepos: string[],
+        codebaseRepos: string[],
         role: string,
         contextWindow: number,
       ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>>;

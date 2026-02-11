@@ -211,7 +211,7 @@ export class GitHubService {
             integration.id,
             GITHUB_RESOURCE_TYPES.PR,
             `${fullName}#${pr.number}`,
-            pr,
+            { ...pr, repoFullName: fullName },
           );
           syncedCount++;
 
@@ -235,7 +235,7 @@ export class GitHubService {
             integration.id,
             GITHUB_RESOURCE_TYPES.ISSUE,
             `${fullName}#${issue.number}`,
-            issue,
+            { ...issue, repoFullName: fullName },
           );
           syncedCount++;
         }

@@ -19,6 +19,18 @@ describe('token-budget', () => {
       expect(budget.jiraData).toBe(0);
       expect(budget.confluenceData).toBe(0);
       expect(budget.githubData).toBe(0);
+      expect(budget.codebaseData).toBe(0);
+    });
+
+    it('splits source budget equally among connected sources including codebase', () => {
+      const budget = calculateTokenBudget(100_000, ['jira', 'codebase']);
+      // available = 100000 - 15000 - 500 - 500 = 84000
+      // sourceBudget = 84000 * 0.6 = 50400
+      // perSource = 50400 / 2 = 25200
+      expect(budget.jiraData).toBe(Math.floor(84000 * 0.6 / 2));
+      expect(budget.codebaseData).toBe(Math.floor(84000 * 0.6 / 2));
+      expect(budget.confluenceData).toBe(0);
+      expect(budget.githubData).toBe(0);
     });
 
     it('caps output reserve at 15% for small models', () => {

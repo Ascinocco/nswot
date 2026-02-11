@@ -4,6 +4,8 @@ import type { FileEntry } from '../main/infrastructure/file-system';
 import type { JiraProject } from '../main/providers/jira/jira.types';
 import type { ConfluenceSpace } from '../main/providers/confluence/confluence.types';
 import type { GitHubRepo } from '../main/providers/github/github.types';
+import type { CodebaseAnalysis, CodebasePrerequisites, CodebaseAnalysisOptions } from '../main/providers/codebase/codebase.types';
+import type { CodebaseProgress } from '../main/services/codebase.service';
 
 export interface NswotAPI {
   system: {
@@ -57,6 +59,22 @@ export interface NswotAPI {
     listRepos(): Promise<IPCResult<GitHubRepo[]>>;
     sync(repos: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
   };
+  codebase?: {
+    checkPrerequisites(): Promise<IPCResult<CodebasePrerequisites>>;
+    analyze(
+      repos: string[],
+      options: Partial<CodebaseAnalysisOptions>,
+      jiraProjectKeys: string[],
+    ): Promise<
+      IPCResult<{
+        results: CodebaseAnalysis[];
+        failures: Array<{ repo: string; error: string }>;
+      }>
+    >;
+    getCached(repo: string): Promise<IPCResult<CodebaseAnalysis | null>>;
+    clearRepos(): Promise<IPCResult<void>>;
+    onProgress(callback: (data: CodebaseProgress) => void): () => void;
+  };
   analysis: {
     list(): Promise<IPCResult<Analysis[]>>;
     get(id: string): Promise<IPCResult<Analysis>>;
@@ -66,6 +84,7 @@ export interface NswotAPI {
       jiraProjectKeys: string[];
       confluenceSpaceKeys: string[];
       githubRepos: string[];
+      codebaseRepos: string[];
       role: string;
       modelId: string;
       contextWindow: number;
@@ -75,6 +94,7 @@ export interface NswotAPI {
       jiraProjectKeys: string[],
       confluenceSpaceKeys: string[],
       githubRepos: string[],
+      codebaseRepos: string[],
       role: string,
       contextWindow: number,
     ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>>;

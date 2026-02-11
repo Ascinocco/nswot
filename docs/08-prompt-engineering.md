@@ -25,11 +25,18 @@ const LLM_CONFIG = {
 };
 ```
 
-Token budget allocation for input:
+Token budget allocation for input (MVP):
 - System prompt: ~500 tokens
 - Anonymized profiles: ~40% of remaining context
 - Jira data: ~50% of remaining context
 - Output schema instructions: ~500 tokens
+- Buffer: 10%
+
+Token budget allocation (Phase 2+ — adaptive):
+- System prompt: ~500 tokens
+- Profiles: 30% of available
+- Connected sources (Jira, Confluence, GitHub, Codebase): 60% split proportionally
+- Output schema: ~500 tokens
 - Buffer: 10%
 
 ---
@@ -39,7 +46,7 @@ Token budget allocation for input:
 ### System Prompt
 
 ```
-You are an expert organizational analyst. You produce structured SWOT analyses for software engineering organizations based on stakeholder interview data and Jira project data.
+You are an expert organizational analyst. You produce structured SWOT analyses for software engineering organizations based on stakeholder interview data, Jira project data, and other organizational signals (Confluence, GitHub, codebase analysis).
 
 RULES — you must follow these exactly:
 1. Every claim in the SWOT must cite specific evidence from the provided data. Use the exact sourceId values provided.
@@ -110,6 +117,9 @@ The following Jira data is from the selected projects.
 Each piece of evidence you cite must use one of these sourceId values:
 - Profile sources: {list of "profile:{anonymized_label}" identifiers}
 - Jira sources: {list of "jira:{issue_key}" identifiers}
+- Confluence sources: {list of "confluence:{space_key}:{page_id}" identifiers} (Phase 2)
+- GitHub sources: {list of "github:{owner/repo}#{number}" identifiers} (Phase 2)
+- Codebase sources: {list of "codebase:{owner/repo}" identifiers} (Phase 3)
 
 ## Output Schema
 
@@ -132,8 +142,8 @@ Where each SwotItem is:
   "claim": "A specific, actionable statement about the organization",
   "evidence": [
     {
-      "sourceType": "profile" | "jira",
-      "sourceId": "profile:Stakeholder A" | "jira:PROJ-123",
+      "sourceType": "profile" | "jira" | "confluence" | "github" | "codebase",
+      "sourceId": "profile:Stakeholder A" | "jira:PROJ-123" | "codebase:owner/repo",
       "sourceLabel": "Human-readable label for this source",
       "quote": "Direct quote or specific data point supporting the claim"
     }
@@ -247,6 +257,29 @@ ANALYSIS DATA:
 (Note: real names are not provided to you. Use the anonymized labels.)
 ```
 
+### Chat Actions System Prompt Extension (Phase 3c)
+
+When chat actions are enabled (user has Claude CLI and connected integrations with MCP write access), the chat system prompt gains an `ACTIONS` section:
+
+```
+ACTIONS:
+You have tools available to create artifacts in the user's systems (Jira, Confluence, GitHub).
+When the user asks you to create something:
+1. Use the appropriate tool with well-structured, detailed content.
+2. Base all content on the SWOT analysis data — reference specific findings, evidence, and recommendations.
+3. Write descriptions in clear markdown with context from the analysis.
+4. For Jira issues, include acceptance criteria when relevant.
+5. For Confluence pages, structure content with headers, findings, and action items.
+6. The user will review your draft before it's created — be thorough rather than brief.
+7. When creating multiple related items (e.g., epic + stories), use create_jira_issues to batch them.
+
+Available Jira projects: {project_keys}
+Available Confluence spaces: {space_keys}
+Available GitHub repos: {repo_names}
+```
+
+The tool definitions are passed via the `tools` parameter in the OpenRouter API request. See `docs/12-chat-actions-plan.md` for the full tool schema definitions.
+
 ### Chat User Message Assembly
 
 Each user message is sent with this structure:
@@ -353,3 +386,89 @@ const PROMPT_VERSION = 'mvp-v1';
 4. **Role leakage**: Don't describe the user's specific company in the system prompt. The prompt should work for any organization.
 5. **Token waste**: Don't repeat the full schema in the corrective prompt. Reference it briefly.
 6. **Unstable source IDs**: Source IDs in the prompt must exactly match what the parser expects. Generate them deterministically.
+
+---
+
+## Codebase Analysis Prompt (Phase 3 — Claude CLI Tier 1)
+
+This prompt is sent to Claude CLI for per-repo code exploration. It runs as a separate agentic session before the main SWOT synthesis.
+
+### Purpose
+
+Claude CLI explores the cloned repo using `Read`, `Glob`, `Grep`, and read-only `Bash` (git log, find, wc). It produces structured findings that feed into the SWOT synthesis prompt as a "Codebase Analysis" section.
+
+### Prompt Template (Draft)
+
+```
+You are analyzing a software repository to produce structured findings for an organizational SWOT analysis. Your goal is to identify architecture patterns, code quality signals, technical debt, and delivery risks.
+
+REPO: {repo_path}
+
+ANALYSIS DIMENSIONS:
+
+1. **Architecture Assessment**: Describe the high-level module/service structure. Identify dependency patterns, layering violations, circular dependencies. Note API boundaries and separation of concerns.
+
+2. **Code Quality Signals**: Identify well-tested vs untested areas. Note error handling patterns (consistent or ad-hoc). Flag type safety issues (any usage, unsafe casts). Find code duplication hotspots.
+
+3. **Technical Debt**: Find TODO/FIXME/HACK comments — note density and what they describe. Identify deprecated dependencies. Flag large/complex files. Note dead code or unused exports.
+
+4. **Delivery Risk Signals**: Use git log to find recently changed hotspots (files with high churn). Cross-reference with test coverage. Check build/CI configuration health. Review dependency lockfile for known issues.
+
+{if jira_mcp_available}
+5. **Jira Cross-Reference**: Use the Jira MCP tools to check if areas with high TODO density or recent churn correlate with open Jira bugs or in-progress stories. Note any implementation gaps.
+{end}
+
+RULES:
+- Only report findings you can cite with specific file paths, line numbers, or git log output.
+- Do not speculate about business logic or organizational context — that comes from other data sources.
+- Be concise. Each finding should be 1-3 sentences with a specific file/module reference.
+- Exclude .env, credentials, secrets, and PII from your output.
+
+OUTPUT FORMAT:
+Respond with a single JSON object. The JSON must conform to this schema:
+
+{codebase_analysis_schema}
+```
+
+### How Codebase Data Appears in the SWOT Prompt
+
+The codebase analysis output is rendered as a markdown section in the root SWOT synthesis prompt:
+
+```
+## Codebase Analysis
+
+### owner/repo — Architecture
+{architecture.summary}
+
+Key concerns:
+{for each concern}
+- {concern}
+{end}
+
+### owner/repo — Code Quality
+{quality.summary}
+
+### owner/repo — Technical Debt
+{technicalDebt.summary}
+
+Top items:
+{for each item}
+- [{severity}] {description} ({location})
+{end}
+
+### owner/repo — Risks
+{risks.summary}
+
+### owner/repo — Jira Cross-Reference
+{jiraCrossReference.summary}
+```
+
+The SWOT LLM can then cite evidence like:
+```json
+{
+  "sourceType": "codebase",
+  "sourceId": "codebase:owner/repo",
+  "sourceLabel": "Codebase: owner/repo",
+  "quote": "The auth module has 0% test coverage — 47 TODO comments reference 'temporary auth bypass'"
+}
+```

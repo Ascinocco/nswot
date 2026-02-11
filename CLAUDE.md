@@ -17,6 +17,10 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - `docs/07-testing-strategy.md` — Testing pyramid and scope
 - `docs/08-prompt-engineering.md` — LLM prompt templates
 - `docs/09-adr/` — Architecture Decision Records
+- `docs/13-ci-cd-and-release.md` — CI/CD workflow and release automation spec
+- `docs/14-release-operations-runbook.md` — Release operations and failure triage runbook
+- `docs/15-local-prerequisites-and-mcp-setup.md` — Local prerequisites and MCP setup commands
+- `docs/16-parallel-sprint-plan.md` — Two-agent parallel execution plan for Sprints 13-21 (Phase 3b-3d)
 - `docs/future/` — Post-MVP vision docs (preserved, not active)
 
 ## Tech Stack

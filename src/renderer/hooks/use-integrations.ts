@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { unwrapResult } from '../lib/ipc-error';
 
@@ -8,6 +9,7 @@ const QUERY_KEYS = {
   confluenceSpaces: ['confluenceSpaces'] as const,
   githubIntegration: ['githubIntegration'] as const,
   githubRepos: ['githubRepos'] as const,
+  codebasePrerequisites: ['codebasePrerequisites'] as const,
 };
 
 // --- Jira ---
@@ -200,4 +202,67 @@ export function useSyncGitHub() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.githubIntegration });
     },
   });
+}
+
+// --- Codebase ---
+
+export function useCodebasePrerequisites(enabled: boolean) {
+  return useQuery({
+    queryKey: QUERY_KEYS.codebasePrerequisites,
+    queryFn: async () => {
+      const result = await window.nswot.codebase.checkPrerequisites();
+      return unwrapResult(result);
+    },
+    enabled,
+  });
+}
+
+export function useCodebaseAnalyze() {
+  return useMutation({
+    mutationFn: async (input: {
+      repos: string[];
+      options?: Record<string, unknown>;
+      jiraProjectKeys?: string[];
+    }) => {
+      const result = await window.nswot.codebase.analyze(
+        input.repos,
+        input.options ?? {},
+        input.jiraProjectKeys ?? [],
+      );
+      return unwrapResult(result);
+    },
+  });
+}
+
+export function useCodebaseCachedAnalysis(repo: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['codebaseCached', repo] as const,
+    queryFn: async () => {
+      const result = await window.nswot.codebase.getCached(repo);
+      return unwrapResult(result);
+    },
+    enabled,
+  });
+}
+
+export function useCodebaseClearRepos() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await window.nswot.codebase.clearRepos();
+      unwrapResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['codebaseCached'] });
+    },
+  });
+}
+
+export function useCodebaseProgress(
+  callback: (data: CodebaseProgress) => void,
+): void {
+  useEffect(() => {
+    const unsubscribe = window.nswot.codebase.onProgress(callback);
+    return unsubscribe;
+  }, [callback]);
 }

@@ -56,6 +56,9 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
           {analysis.summariesOutput.github && (
             <SummaryCard title="GitHub Patterns" content={analysis.summariesOutput.github} />
           )}
+          {analysis.summariesOutput.codebase && (
+            <SummaryCard title="Codebase Patterns" content={analysis.summariesOutput.codebase} />
+          )}
         </div>
       )}
 

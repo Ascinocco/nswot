@@ -49,6 +49,7 @@ export default function AnalysisPage(): React.JSX.Element {
   const [selectedJiraKeys, setSelectedJiraKeys] = useState<string[]>([]);
   const [selectedConfluenceKeys, setSelectedConfluenceKeys] = useState<string[]>([]);
   const [selectedGithubRepos, setSelectedGithubRepos] = useState<string[]>([]);
+  const [selectedCodebaseRepos, setSelectedCodebaseRepos] = useState<string[]>([]);
   const [role, setRole] = useState<string>('staff_engineer');
   const [progress, setProgress] = useState<{ stage: string; message: string } | null>(null);
   const [completedAnalysis, setCompletedAnalysis] = useState<Analysis | null>(null);
@@ -80,6 +81,9 @@ export default function AnalysisPage(): React.JSX.Element {
   const githubConfig = githubIntegration?.config as { selectedRepos?: string[] } | undefined;
   const githubRepos: string[] = githubConfig?.selectedRepos ?? [];
 
+  // Codebase repos — same as GitHub selected repos (analysis available if cached)
+  const codebaseRepos: string[] = githubRepos;
+
   // Auto-select all profiles when loaded
   useEffect(() => {
     if (profiles && selectedProfileIds.length === 0) {
@@ -107,6 +111,13 @@ export default function AnalysisPage(): React.JSX.Element {
       setSelectedGithubRepos(githubRepos);
     }
   }, [githubRepos]);
+
+  // Auto-select all codebase repos
+  useEffect(() => {
+    if (codebaseRepos.length > 0 && selectedCodebaseRepos.length === 0) {
+      setSelectedCodebaseRepos(codebaseRepos);
+    }
+  }, [codebaseRepos]);
 
   // Recover running or recently-completed analysis on mount
   useEffect(() => {
@@ -178,6 +189,7 @@ export default function AnalysisPage(): React.JSX.Element {
         jiraProjectKeys: selectedJiraKeys,
         confluenceSpaceKeys: selectedConfluenceKeys,
         githubRepos: selectedGithubRepos,
+        codebaseRepos: selectedCodebaseRepos,
         role,
         modelId: selectedModelId,
         contextWindow,
@@ -191,7 +203,7 @@ export default function AnalysisPage(): React.JSX.Element {
         setAnalysisRunning(false);
       }
     }
-  }, [selectedModelId, selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, role, contextWindow, runAnalysis]);
+  }, [selectedModelId, selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, selectedCodebaseRepos, role, contextWindow, runAnalysis]);
 
   const handlePreview = useCallback(async () => {
     if (selectedProfileIds.length === 0) return;
@@ -201,10 +213,11 @@ export default function AnalysisPage(): React.JSX.Element {
       jiraProjectKeys: selectedJiraKeys,
       confluenceSpaceKeys: selectedConfluenceKeys,
       githubRepos: selectedGithubRepos,
+      codebaseRepos: selectedCodebaseRepos,
       role,
       contextWindow,
     });
-  }, [selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, role, contextWindow, previewPayload]);
+  }, [selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, selectedCodebaseRepos, role, contextWindow, previewPayload]);
 
   if (!workspace) {
     return (
@@ -450,6 +463,55 @@ export default function AnalysisPage(): React.JSX.Element {
                 className={`rounded-full px-3 py-1 text-sm transition-colors ${
                   selectedGithubRepos.includes(repo)
                     ? 'bg-purple-900/30 text-purple-300 border border-purple-500'
+                    : 'bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-600'
+                }`}
+              >
+                {repo}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Codebase Repos */}
+      {codebaseRepos.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-300">
+              Codebase Analysis ({selectedCodebaseRepos.length} selected)
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedCodebaseRepos(codebaseRepos)}
+                disabled={isRunning}
+                className="text-xs text-blue-400 hover:text-blue-300"
+              >
+                Select all
+              </button>
+              <button
+                onClick={() => setSelectedCodebaseRepos([])}
+                disabled={isRunning}
+                className="text-xs text-gray-500 hover:text-gray-400"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {codebaseRepos.map((repo) => (
+              <button
+                key={repo}
+                onClick={() => {
+                  if (selectedCodebaseRepos.includes(repo)) {
+                    setSelectedCodebaseRepos(selectedCodebaseRepos.filter((r) => r !== repo));
+                  } else {
+                    setSelectedCodebaseRepos([...selectedCodebaseRepos, repo]);
+                  }
+                }}
+                disabled={isRunning}
+                className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                  selectedCodebaseRepos.includes(repo)
+                    ? 'bg-amber-900/30 text-amber-300 border border-amber-500'
                     : 'bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-600'
                 }`}
               >

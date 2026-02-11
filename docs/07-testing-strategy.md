@@ -23,6 +23,19 @@ This document defines what gets tested, how, and at what level of the architectu
 
 ---
 
+## CI and Release Gates
+
+Blocking quality gates for releasable branches (`main`, `release/*`):
+
+- Typecheck
+- Tests (unit + integration, run together via `pnpm test`)
+
+Lint is added as a gate when ESLint tooling is introduced. Per-OS builds are validated during the release workflow, not in CI. E2E tests are non-blocking for now and can run on a separate schedule or as opt-in validation before major releases.
+
+See `docs/13-ci-cd-and-release.md` for the release workflow contract.
+
+---
+
 ## Testing Pyramid
 
 ```text

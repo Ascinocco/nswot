@@ -56,18 +56,39 @@ const api: NswotAPI = {
     listRepos: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REPOS),
     sync: (repos) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_SYNC, repos),
   },
+  codebase: {
+    checkPrerequisites: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_CHECK_PREREQUISITES),
+    analyze: (
+      repos: string[],
+      options: Record<string, unknown>,
+      jiraProjectKeys: string[],
+    ) => ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_ANALYZE, repos, options, jiraProjectKeys),
+    getCached: (repo: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_GET_CACHED, repo),
+    clearRepos: () => ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_CLEAR_REPOS),
+    onProgress: (callback: (data: { repo: string; stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed'; message: string }) => void) => {
+      const handler = (
+        _event: unknown,
+        data: { repo: string; stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed'; message: string },
+      ) => callback(data);
+      ipcRenderer.on('codebase:progress', handler);
+      return () => ipcRenderer.removeListener('codebase:progress', handler);
+    },
+  },
   analysis: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_LIST),
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET, id),
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_DELETE, id),
     run: (input) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_RUN, input),
-    previewPayload: (profileIds, jiraProjectKeys, confluenceSpaceKeys, githubRepos, role, contextWindow) =>
+    previewPayload: (profileIds, jiraProjectKeys, confluenceSpaceKeys, githubRepos, codebaseRepos, role, contextWindow) =>
       ipcRenderer.invoke(
         IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD,
         profileIds,
         jiraProjectKeys,
         confluenceSpaceKeys,
         githubRepos,
+        codebaseRepos,
         role,
         contextWindow,
       ),

@@ -4,7 +4,7 @@
   "description": "Evidence-backed SWOT analysis from stakeholder interviews and Jira signals",
   "main": "./out/main/index.js",
   "scripts": {
-    "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
+    "rebuild:electron": "electron-rebuild -f -w better-sqlite3",
     "rebuild:node": "pnpm rebuild better-sqlite3",
     "dev": "pnpm rebuild:electron && electron-vite dev",
     "build": "pnpm rebuild:electron && electron-vite build",
@@ -33,6 +33,10 @@
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "@electron/rebuild": "^4.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/github": "^12.0.5",
+    "@semantic-release/release-notes-generator": "^14.1.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/better-sqlite3": "^7.6.12",
     "@types/react": "^18.3.12",
@@ -41,6 +45,7 @@
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "semantic-release": "^25.0.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",

@@ -35,6 +35,12 @@ export const IPC_CHANNELS = {
   GITHUB_LIST_REPOS: 'github:listRepos',
   GITHUB_SYNC: 'github:sync',
 
+  // Integrations — Codebase Analysis
+  CODEBASE_CHECK_PREREQUISITES: 'codebase:checkPrerequisites',
+  CODEBASE_ANALYZE: 'codebase:analyze',
+  CODEBASE_GET_CACHED: 'codebase:getCached',
+  CODEBASE_CLEAR_REPOS: 'codebase:clearRepos',
+
   // Analysis
   ANALYSIS_RUN: 'analysis:run',
   ANALYSIS_GET: 'analysis:get',

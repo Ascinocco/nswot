@@ -32,10 +32,11 @@ function makeAnalysis(): Analysis {
     role: 'staff_engineer',
     modelId: 'openai/gpt-4',
     status: 'pending',
-    config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+    config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
     inputSnapshot: null,
     swotOutput: null,
     summariesOutput: null,
+    qualityMetrics: null,
     rawLlmResponse: null,
     warning: null,
     error: null,
@@ -106,6 +107,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -128,6 +130,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -148,6 +151,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -169,6 +173,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -181,7 +186,7 @@ describe('AnalysisService', () => {
         workspaceId: 'ws-1',
         role: 'staff_engineer',
         modelId: 'openai/gpt-4',
-        config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
+        config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
       });
       expect(analysisRepo.updateStatus).toHaveBeenCalledWith(
         'analysis-1',
@@ -208,6 +213,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -225,6 +231,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -253,6 +260,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -276,6 +284,7 @@ describe('AnalysisService', () => {
           jiraProjectKeys: [],
           confluenceSpaceKeys: [],
           githubRepos: [],
+          codebaseRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -295,12 +304,12 @@ describe('AnalysisService', () => {
     it('returns error when no workspace is open', async () => {
       vi.mocked(workspaceService.getCurrentId).mockReturnValue(null);
 
-      const result = await service.getPayloadPreview(['p1'], [], 'staff_engineer', 128000);
+      const result = await service.getPayloadPreview(['p1'], [], [], [], [], 'staff_engineer', 128000);
       expect(result.ok).toBe(false);
     });
 
     it('builds preview with anonymized profiles', async () => {
-      const result = await service.getPayloadPreview(['p1'], [], 'staff_engineer', 128000);
+      const result = await service.getPayloadPreview(['p1'], [], [], [], [], 'staff_engineer', 128000);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -342,7 +351,7 @@ describe('AnalysisService', () => {
         },
       ]);
 
-      const result = await service.getPayloadPreview(['p1'], ['PROJ'], [], [], 'staff_engineer', 128000);
+      const result = await service.getPayloadPreview(['p1'], ['PROJ'], [], [], [], 'staff_engineer', 128000);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.userPrompt).toContain('PROJ-1');

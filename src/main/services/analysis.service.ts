@@ -16,6 +16,8 @@ import type { ConfluencePage, ConfluenceComment } from '../providers/confluence/
 import { CONFLUENCE_RESOURCE_TYPES } from '../providers/confluence/confluence.types';
 import type { GitHubPR, GitHubIssue, GitHubPRComment } from '../providers/github/github.types';
 import { GITHUB_RESOURCE_TYPES } from '../providers/github/github.types';
+import type { CodebaseAnalysis } from '../providers/codebase/codebase.types';
+import { CODEBASE_RESOURCE_TYPES } from '../providers/codebase/codebase.types';
 import type { AnalysisRepository } from '../repositories/analysis.repository';
 import type { ProfileRepository } from '../repositories/profile.repository';
 import type { IntegrationRepository } from '../repositories/integration.repository';
@@ -57,6 +59,7 @@ export interface RunAnalysisInput {
   jiraProjectKeys: string[];
   confluenceSpaceKeys: string[];
   githubRepos: string[];
+  codebaseRepos: string[];
   role: Analysis['role'];
   modelId: string;
   contextWindow: number;
@@ -100,6 +103,7 @@ export class AnalysisService {
         jiraProjectKeys: input.jiraProjectKeys,
         confluenceSpaceKeys: input.confluenceSpaceKeys,
         githubRepos: input.githubRepos,
+        codebaseRepos: input.codebaseRepos,
       },
     });
 
@@ -120,6 +124,7 @@ export class AnalysisService {
       const confluenceMarkdown = rawConfluenceMarkdown ? scrubIntegrationAuthors(rawConfluenceMarkdown) : null;
       const rawGithubMarkdown = await this.collectGithubData(workspaceId, input.githubRepos);
       const githubMarkdown = rawGithubMarkdown ? scrubIntegrationAuthors(rawGithubMarkdown) : null;
+      const codebaseMarkdown = await this.collectCodebaseData(workspaceId, input.codebaseRepos);
 
       // Stage 2: Anonymize
       onProgress({ analysisId: analysis.id, stage: 'anonymizing', message: 'Anonymizing stakeholder data...' });
@@ -130,6 +135,7 @@ export class AnalysisService {
         jiraData: jiraMarkdown ? { markdown: jiraMarkdown } : null,
         confluenceData: confluenceMarkdown ? { markdown: confluenceMarkdown } : null,
         githubData: githubMarkdown ? { markdown: githubMarkdown } : null,
+        codebaseData: codebaseMarkdown ? { markdown: codebaseMarkdown } : null,
         pseudonymMap,
       };
 
@@ -151,12 +157,14 @@ export class AnalysisService {
       if (jiraMarkdown) connectedSources.push('jira');
       if (confluenceMarkdown) connectedSources.push('confluence');
       if (githubMarkdown) connectedSources.push('github');
+      if (codebaseMarkdown) connectedSources.push('codebase');
       const budget = calculateTokenBudget(input.contextWindow, connectedSources);
       const systemPrompt = buildSystemPrompt();
       const dataSources: PromptDataSources = {
         jiraDataMarkdown: jiraMarkdown,
         confluenceDataMarkdown: confluenceMarkdown,
         githubDataMarkdown: githubMarkdown,
+        codebaseDataMarkdown: codebaseMarkdown,
       };
       const userPrompt = buildUserPrompt(input.role, anonymizedProfiles, dataSources, budget);
 
@@ -255,6 +263,7 @@ export class AnalysisService {
     jiraProjectKeys: string[],
     confluenceSpaceKeys: string[],
     githubRepos: string[],
+    codebaseRepos: string[],
     role: Analysis['role'],
     contextWindow: number,
   ): Promise<Result<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }, DomainError>> {
@@ -271,11 +280,13 @@ export class AnalysisService {
       const confluenceMarkdown = rawConfluence ? scrubIntegrationAuthors(rawConfluence) : null;
       const rawGithub = await this.collectGithubData(workspaceId, githubRepos);
       const githubMarkdown = rawGithub ? scrubIntegrationAuthors(rawGithub) : null;
+      const codebaseMarkdown = await this.collectCodebaseData(workspaceId, codebaseRepos);
 
       const previewSources: ConnectedSource[] = [];
       if (jiraMarkdown) previewSources.push('jira');
       if (confluenceMarkdown) previewSources.push('confluence');
       if (githubMarkdown) previewSources.push('github');
+      if (codebaseMarkdown) previewSources.push('codebase');
       const budget = calculateTokenBudget(contextWindow, previewSources);
 
       const systemPrompt = buildSystemPrompt();
@@ -283,6 +294,7 @@ export class AnalysisService {
         jiraDataMarkdown: jiraMarkdown,
         confluenceDataMarkdown: confluenceMarkdown,
         githubDataMarkdown: githubMarkdown,
+        codebaseDataMarkdown: codebaseMarkdown,
       };
       const userPrompt = buildUserPrompt(role, anonymizedProfiles, dataSources, budget);
 
@@ -380,6 +392,32 @@ export class AnalysisService {
         : false;
 
     return formatGithubMarkdown(prs, issues, prComments, githubRepos, isStale);
+  }
+
+  private async collectCodebaseData(
+    workspaceId: string,
+    codebaseRepos: string[],
+  ): Promise<string | null> {
+    if (codebaseRepos.length === 0) return null;
+
+    const integration = await this.integrationRepo.findByWorkspaceAndProvider(workspaceId, 'codebase');
+    if (!integration) return null;
+
+    const analyses: CodebaseAnalysis[] = [];
+    for (const repo of codebaseRepos) {
+      const entry = await this.integrationCacheRepo.findEntry(
+        integration.id,
+        CODEBASE_RESOURCE_TYPES.ANALYSIS,
+        repo,
+      );
+      if (entry) {
+        analyses.push(entry.data as CodebaseAnalysis);
+      }
+    }
+
+    if (analyses.length === 0) return null;
+
+    return formatCodebaseMarkdown(analyses);
   }
 
   private async callLlm(
@@ -700,7 +738,7 @@ function formatGithubMarkdown(
   } else {
     for (const entry of prs) {
       const pr = entry.data as GitHubPR & { repoFullName?: string };
-      const repo = pr.repoFullName ?? '';
+      const repo = pr.repoFullName ?? repoFromResourceId(entry.resourceId);
       const state = pr.merged_at ? 'merged' : pr.state;
       const labels = pr.labels.map((l) => l.name).join(', ');
       const labelStr = labels ? ` [${labels}]` : '';
@@ -730,7 +768,7 @@ function formatGithubMarkdown(
   } else {
     for (const entry of issues) {
       const issue = entry.data as GitHubIssue & { repoFullName?: string };
-      const repo = issue.repoFullName ?? '';
+      const repo = issue.repoFullName ?? repoFromResourceId(entry.resourceId);
       const labels = issue.labels.map((l) => l.name).join(', ');
       const labelStr = labels ? ` [${labels}]` : '';
       const body = issue.body ? `\n  Description: ${truncate(issue.body, 200)}` : '';
@@ -738,6 +776,55 @@ function formatGithubMarkdown(
         `- [${repo}#${issue.number}] ${issue.title} (State: ${issue.state}, Created: ${issue.created_at})${labelStr}${body}`,
       );
     }
+    sections.push('');
+  }
+
+  return sections.join('\n');
+}
+
+function formatCodebaseMarkdown(analyses: CodebaseAnalysis[]): string {
+  const sections: string[] = [];
+
+  for (const analysis of analyses) {
+    sections.push(`### [${analysis.repo}]\n`);
+
+    sections.push(`**Architecture**: ${analysis.architecture.summary}`);
+    if (analysis.architecture.modules.length > 0) {
+      sections.push(`- Modules: ${analysis.architecture.modules.join(', ')}`);
+    }
+    if (analysis.architecture.concerns.length > 0) {
+      sections.push(`- Concerns: ${analysis.architecture.concerns.join(', ')}`);
+    }
+    sections.push('');
+
+    sections.push(`**Code Quality**: ${analysis.quality.summary}`);
+    if (analysis.quality.strengths.length > 0) {
+      sections.push(`- Strengths: ${analysis.quality.strengths.join(', ')}`);
+    }
+    if (analysis.quality.weaknesses.length > 0) {
+      sections.push(`- Weaknesses: ${analysis.quality.weaknesses.join(', ')}`);
+    }
+    sections.push('');
+
+    sections.push(`**Technical Debt**: ${analysis.technicalDebt.summary}`);
+    for (const item of analysis.technicalDebt.items) {
+      sections.push(`- [${item.severity}] ${item.description} (${item.location})`);
+    }
+    sections.push('');
+
+    sections.push(`**Risks**: ${analysis.risks.summary}`);
+    for (const item of analysis.risks.items) {
+      sections.push(`- ${item}`);
+    }
+
+    if (analysis.jiraCrossReference) {
+      sections.push('');
+      sections.push(`**Jira Cross-Reference**: ${analysis.jiraCrossReference.summary}`);
+      for (const corr of analysis.jiraCrossReference.correlations) {
+        sections.push(`- ${corr}`);
+      }
+    }
+
     sections.push('');
   }
 
@@ -754,6 +841,12 @@ function stripHtml(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Extract "owner/repo" from a resourceId like "owner/repo#123" */
+function repoFromResourceId(resourceId: string): string {
+  const hashIdx = resourceId.indexOf('#');
+  return hashIdx > 0 ? resourceId.slice(0, hashIdx) : '';
 }
 
 function truncate(text: string, maxLength: number): string {

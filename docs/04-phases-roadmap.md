@@ -93,29 +93,70 @@ For each analysis cycle, a user should be able to answer:
 
 ---
 
-## Phase 3 - Comparability and Advanced Features
+## Phase 3 - Codebase Intelligence & Comparability
 
-**Goal**: trend awareness and repeated decision support.
+**Goal**: deep codebase analysis as a SWOT data source, plus trend awareness through run-to-run comparison.
+
+> Feature plan: `docs/11-codebase-analysis-plan.md`
 
 ### Scope
 
+**Codebase Analysis (Phase 3a)**
+- Claude CLI integration for agentic code exploration (architecture, quality, tech debt, risks)
+- Two-tier LLM architecture: Claude CLI (per-repo analysis) → OpenRouter (SWOT synthesis)
+- Local clone of selected repos with full Claude CLI tool access (Read, Glob, Grep, Bash)
+- Jira MCP cross-reference: correlate code patterns with Jira issues
+- Codebase analysis caching (24h TTL, manual re-analyze)
+- Claude CLI prerequisite validation (installed, authenticated, Jira MCP)
+- New evidence source type: `codebase:{owner/repo}`
+- Codebase Patterns summary card in results view
+- Progress reporting per repo (cloning → analyzing → done)
+
+**Chat Actions (Phase 3c)**
+- Tool-use bridge: OpenRouter drafts artifacts via tool_use, Claude CLI executes via MCP
+- Jira actions: create issues (epic/story/task/bug), batch create linked issues, add comments
+- Confluence actions: create pages
+- GitHub actions: create issues, create PRs
+- Mandatory user approval before every action (approval card UI with edit/reject/create)
+- Action audit trail (`chat_actions` table)
+- Available actions detected from connected integrations
+
+> Feature plan: `docs/12-chat-actions-plan.md`
+
+**Comparability & Advanced Features (Phase 3d)**
 - Run-to-run comparison view ("what changed since last analysis")
 - Themes layer / theme editor
 - CSV/PDF export
-- Optional chat actions for controlled artifact creation (guard-railed)
 - Multi-step LLM pipeline (extraction -> synthesis -> SWOT)
 - VP of Engineering role
-- Windows/Linux packaging
-- Advanced dashboards/visuals only if they improve decisions
+- macOS x64 (Intel) builds
+
+### Prerequisites (New)
+
+Users must have for codebase analysis and chat actions:
+- Claude CLI installed and authenticated (Pro, Max, or Team plan)
+- Jira MCP server configured in Claude CLI (for cross-referencing Jira issues with code, and for creating Jira artifacts from chat)
+- Confluence MCP server configured in Claude CLI (optional, for creating Confluence pages from chat)
+- GitHub MCP server configured in Claude CLI (optional, for creating GitHub issues/PRs from chat)
+- Git installed (for cloning repos)
+- OpenRouter API key (existing requirement)
 
 ### Decision Value Delivered
 
-- Supports trend detection, not just point-in-time snapshots
-- More granular control over analysis themes
+- Surfaces architecture health, technical debt, and code quality risks — evidence types invisible to process-only analysis
+- Staff engineers get code-level evidence for SWOT claims ("auth module has 0% test coverage" vs "there are auth-related bugs")
+- Jira-code cross-reference connects process signals to specific codebase locations
+- Chat actions close the insight-to-action gap — recommendations become tracked work without leaving the app
+- Run-to-run comparison supports trend detection, not just point-in-time snapshots
 - Broader audience through additional roles and platforms
 
 ### Exit Criteria
 
+- User can run codebase analysis on selected repos via Claude CLI
+- Codebase evidence appears in SWOT items with source citations
+- Analysis works with and without codebase data (graceful degradation)
+- User can create Jira issues/epics directly from chat recommendations with approval
+- Every chat action has an audit trail and visible status
 - Users can compare at least two runs side by side
 - Follow-through metrics improve (fewer stale recommendations)
 
@@ -149,9 +190,21 @@ When choosing between features, prioritize in this order:
 
 - **MVP (Phase 1)**: 6 weeks (completed)
 - **Phase 2**: +5 weeks (completed — Confluence, GitHub, quality metrics, multi-source pipeline)
-- **Phase 3**: +4 to 8 weeks (comparability, themes, export, multi-platform)
+- **Phase 3a**: +2 weeks (codebase analysis via Claude CLI — see `docs/11-codebase-analysis-plan.md`)
+- **Phase 3c**: +2 weeks (chat actions via tool-use bridge — see `docs/12-chat-actions-plan.md`)
+- **Phase 3b-3d**: +7 weeks with two-agent parallel execution (see `docs/16-parallel-sprint-plan.md`)
+
+> Phase 3b through 3d are planned for two concurrent agents. Sprint 13 (Phase 3b) and Sprint 14 (Phase 3c) run simultaneously. Phase 3d is decomposed into Sprints 16-21 with comparison, multi-step pipeline, themes, export, VP role, and x64 builds. See `docs/16-parallel-sprint-plan.md` for the full two-agent execution model, dependency gates, and merge plan.
 
 Re-evaluate after each phase based on user behavior, not feature count.
+
+Release channel and CI/CD policy (active):
+
+- `main` publishes prereleases
+- `release/*` publishes production releases
+- Quality gates before release: typecheck and tests (lint added when ESLint is introduced)
+- Canonical spec: `docs/13-ci-cd-and-release.md`
+- Operations runbook: `docs/14-release-operations-runbook.md`
 
 ---
 

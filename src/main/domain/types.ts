@@ -32,7 +32,7 @@ export interface ProfileInput {
   sourceFile?: string;
 }
 
-export type IntegrationProvider = 'jira' | 'confluence' | 'github';
+export type IntegrationProvider = 'jira' | 'confluence' | 'github' | 'codebase';
 
 export interface Integration {
   id: string;
@@ -61,7 +61,11 @@ export interface GitHubConfig {
   selectedRepos: string[]; // "owner/repo" format
 }
 
-export type IntegrationConfig = JiraConfig | ConfluenceConfig | GitHubConfig;
+export interface CodebaseConfig {
+  selectedRepos: string[]; // "owner/repo" format
+}
+
+export type IntegrationConfig = JiraConfig | ConfluenceConfig | GitHubConfig | CodebaseConfig;
 
 export interface IntegrationCacheEntry {
   id: string;
@@ -96,6 +100,7 @@ export interface AnalysisConfig {
   jiraProjectKeys: string[];
   confluenceSpaceKeys: string[];
   githubRepos: string[];
+  codebaseRepos: string[];
 }
 
 export interface SwotOutput {
@@ -113,7 +118,7 @@ export interface SwotItem {
   confidence: 'high' | 'medium' | 'low';
 }
 
-export type EvidenceSourceType = 'profile' | 'jira' | 'confluence' | 'github';
+export type EvidenceSourceType = 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
 
 export interface EvidenceEntry {
   sourceType: EvidenceSourceType;
@@ -127,6 +132,7 @@ export interface SummariesOutput {
   jira: string;
   confluence: string | null;
   github: string | null;
+  codebase: string | null;
 }
 
 export interface AnonymizedPayload {
@@ -134,6 +140,7 @@ export interface AnonymizedPayload {
   jiraData: unknown;
   confluenceData: unknown;
   githubData: unknown;
+  codebaseData: unknown;
   pseudonymMap: Record<string, string>;
 }
 

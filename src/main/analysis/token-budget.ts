@@ -3,12 +3,13 @@ export interface TokenBudget {
   jiraData: number;
   confluenceData: number;
   githubData: number;
+  codebaseData: number;
   buffer: number;
   outputReserve: number;
   total: number;
 }
 
-export type ConnectedSource = 'jira' | 'confluence' | 'github';
+export type ConnectedSource = 'jira' | 'confluence' | 'github' | 'codebase';
 
 const SYSTEM_PROMPT_OVERHEAD = 500;
 const SCHEMA_OVERHEAD = 500;
@@ -39,6 +40,7 @@ export function calculateTokenBudget(
     jiraData: connectedSources.includes('jira') ? perSourceTokens : 0,
     confluenceData: connectedSources.includes('confluence') ? perSourceTokens : 0,
     githubData: connectedSources.includes('github') ? perSourceTokens : 0,
+    codebaseData: connectedSources.includes('codebase') ? perSourceTokens : 0,
     buffer: bufferTokens,
     outputReserve,
     total: modelContextWindow,

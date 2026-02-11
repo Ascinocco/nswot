@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, 'release/*']
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      released: ${{ steps.check.outputs.new_release_published }}
+      git_tag: ${{ steps.check.outputs.new_release_git_tag }}
+      version: ${{ steps.check.outputs.new_release_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Get latest tag before release
+        id: before
+        run: echo "tag=$(git tag --sort=-v:refname | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Run semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm exec semantic-release
+
+      - name: Check for new release
+        id: check
+        run: |
+          git fetch --tags
+          NEW_TAG=$(git tag --sort=-v:refname | head -n 1)
+          OLD_TAG="${{ steps.before.outputs.tag }}"
+          if [ "$NEW_TAG" != "$OLD_TAG" ] && [ -n "$NEW_TAG" ]; then
+            echo "new_release_published=true" >> "$GITHUB_OUTPUT"
+            echo "new_release_git_tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+            echo "new_release_version=${NEW_TAG#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "new_release_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: release
+    if: ${{ needs.release.outputs.released == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.git_tag }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Rebuild native modules for Electron
+        run: pnpm rebuild:electron
+
+      - name: Build app
+        run: pnpm build
+
+      - name: Package
+        run: pnpm exec electron-builder --publish never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ needs.release.outputs.git_tag }}"
+          for file in dist/*.dmg dist/*.zip dist/*.exe dist/*.AppImage; do
+            [ -f "$file" ] && gh release upload "$TAG" "$file" --clobber
+          done

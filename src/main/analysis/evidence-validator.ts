@@ -66,6 +66,11 @@ function buildValidSourceIds(snapshot: AnonymizedPayload): Set<string> {
     extractGithubSourceIds(snapshot.githubData, ids);
   }
 
+  // Codebase source IDs are of the form "codebase:owner/repo"
+  if (snapshot.codebaseData && typeof snapshot.codebaseData === 'object') {
+    extractCodebaseSourceIds(snapshot.codebaseData, ids);
+  }
+
   return ids;
 }
 
@@ -110,5 +115,17 @@ function extractGithubSourceIds(githubData: unknown, ids: Set<string>): void {
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(markdown)) !== null) {
     ids.add(`github:${match[1]}`);
+  }
+}
+
+function extractCodebaseSourceIds(codebaseData: unknown, ids: Set<string>): void {
+  const markdown = getMarkdown(codebaseData);
+  if (!markdown) return;
+
+  // Markdown format: "### [owner/repo]"
+  const pattern = /### \[([^\]]+\/[^\]]+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(markdown)) !== null) {
+    ids.add(`codebase:${match[1]}`);
   }
 }

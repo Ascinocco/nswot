@@ -28,6 +28,8 @@ import { ConfluenceProvider } from './providers/confluence/confluence.provider';
 import { ConfluenceService } from './services/confluence.service';
 import { GitHubProvider } from './providers/github/github.provider';
 import { GitHubService } from './services/github.service';
+import { CodebaseProvider } from './providers/codebase/codebase.provider';
+import { CodebaseService } from './services/codebase.service';
 
 const NSWOT_DIR = join(homedir(), '.nswot');
 
@@ -101,6 +103,7 @@ const openRouterProvider = new OpenRouterProvider();
 const jiraProvider = new JiraProvider();
 const confluenceProvider = new ConfluenceProvider();
 const githubProvider = new GitHubProvider();
+const codebaseProvider = new CodebaseProvider();
 
 const llmCircuitBreaker = new CircuitBreaker({
   failureThreshold: 5,
@@ -163,6 +166,13 @@ const githubService = new GitHubService(
   githubCircuitBreaker,
   secureStorage,
 );
+const codebaseService = new CodebaseService(
+  integrationRepo,
+  integrationCacheRepo,
+  workspaceService,
+  codebaseProvider,
+  secureStorage,
+);
 const analysisService = new AnalysisService(
   analysisRepo,
   profileRepo,
@@ -188,6 +198,7 @@ registerIpcHandlers({
   integrationService,
   confluenceService,
   githubService,
+  codebaseService,
 });
 
 app.whenReady().then(() => {

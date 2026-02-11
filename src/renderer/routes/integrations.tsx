@@ -1,6 +1,7 @@
 import JiraSetup from '../components/integrations/jira-setup';
 import ConfluenceSetup from '../components/integrations/confluence-setup';
 import GitHubSetup from '../components/integrations/github-setup';
+import CodebaseSetup from '../components/integrations/codebase-setup';
 
 export default function IntegrationsPage(): React.JSX.Element {
   return (
@@ -13,6 +14,9 @@ export default function IntegrationsPage(): React.JSX.Element {
         </div>
         <div className="pt-8">
           <GitHubSetup />
+        </div>
+        <div className="pt-8">
+          <CodebaseSetup />
         </div>
       </div>
     </div>

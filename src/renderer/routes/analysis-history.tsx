@@ -116,6 +116,8 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
                           ` · ${analysis.config.confluenceSpaceKeys.length} Confluence space${analysis.config.confluenceSpaceKeys.length !== 1 ? 's' : ''}`}
                         {analysis.config.githubRepos?.length > 0 &&
                           ` · ${analysis.config.githubRepos.length} GitHub repo${analysis.config.githubRepos.length !== 1 ? 's' : ''}`}
+                        {analysis.config.codebaseRepos?.length > 0 &&
+                          ` · ${analysis.config.codebaseRepos.length} codebase repo${analysis.config.codebaseRepos.length !== 1 ? 's' : ''}`}
                       </p>
                     )}
                     {analysis.error && (

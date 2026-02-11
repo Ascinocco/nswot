@@ -19,6 +19,7 @@ const SOURCE_LABELS: Record<string, string> = {
   jira: 'Jira',
   confluence: 'Confluence',
   github: 'GitHub',
+  codebase: 'Codebase',
 };
 
 export default function QualityMetrics({ metrics }: QualityMetricsProps): React.JSX.Element {

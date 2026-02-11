@@ -49,6 +49,7 @@ export function useRunAnalysis() {
       jiraProjectKeys: string[];
       confluenceSpaceKeys: string[];
       githubRepos: string[];
+      codebaseRepos: string[];
       role: string;
       modelId: string;
       contextWindow: number;
@@ -69,6 +70,7 @@ export function usePayloadPreview() {
       jiraProjectKeys: string[];
       confluenceSpaceKeys: string[];
       githubRepos: string[];
+      codebaseRepos: string[];
       role: string;
       contextWindow: number;
     }) => {
@@ -77,6 +79,7 @@ export function usePayloadPreview() {
         input.jiraProjectKeys,
         input.confluenceSpaceKeys,
         input.githubRepos,
+        input.codebaseRepos,
         input.role,
         input.contextWindow,
       );

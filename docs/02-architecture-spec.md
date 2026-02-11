@@ -31,7 +31,7 @@ Each concern lives in a distinct layer. Dependencies flow downward only.
 │    (data access — SQLite queries, domain mapping)    │
 ├─────────────────────────────────────────────────────┤
 │                   Providers                          │
-│     (external system clients — Jira, OpenRouter)     │
+│  (external clients — Jira, OpenRouter, Claude CLI)   │
 ├─────────────────────────────────────────────────────┤
 │                 Infrastructure                       │
 │   (SQLite, safeStorage, fs, circuit breaker, retry)  │
@@ -109,6 +109,14 @@ src/
       llm/
         openrouter.provider.ts       # OpenRouter API client
         llm.types.ts                 # LLM request/response types
+      codebase/                      # Phase 3a
+        codebase.provider.ts         # Spawns Claude CLI, captures structured output
+        codebase.types.ts            # CodebaseAnalysis schema types
+        codebase-prompt.ts           # Analysis prompt sent to Claude CLI
+      actions/                       # Phase 3c
+        action-executor.ts           # Spawns Claude CLI for MCP action execution
+        action-tools.ts              # Tool definitions for OpenRouter tool-use
+        action.types.ts              # ChatAction, ActionResult types
     domain/
       types.ts                       # Core domain types (Profile, Analysis, SwotItem, etc.)
       errors.ts                      # Domain error types
@@ -236,6 +244,16 @@ class JiraProvider {
 }
 ```
 
+**Phase 3 — CodebaseProvider**: Spawns Claude CLI as a child process to perform agentic code analysis on cloned repos. Unlike HTTP-based providers, this wraps a local subprocess with structured JSON output. See `docs/11-codebase-analysis-plan.md` for the full design.
+
+```ts
+// Phase 3: codebase.provider.ts
+class CodebaseProvider {
+  async analyze(repoPath: string, prompt: string): Promise<CodebaseAnalysis> { ... }
+  async isAvailable(): Promise<boolean> { ... }  // Claude CLI installed + authed
+}
+```
+
 ### 4.5 Infrastructure
 
 Shared utilities that services and providers depend on. Circuit breaker, retry, database connection, file system access.
@@ -260,6 +278,7 @@ Core channels:
 - `integration:jira:auth`, `integration:jira:test`, `integration:jira:projects`, `integration:jira:fetch`
 - `analysis:run`, `analysis:progress`, `analysis:list`, `analysis:get`, `analysis:delete`
 - `chat:send`, `chat:chunk`, `chat:history`
+- `chat:action:pending` (event), `chat:action:approve`, `chat:action:reject`, `chat:action:edit`, `chat:action:list`
 - `settings:getKey`, `settings:setKey`, `settings:getPrefs`, `settings:setPrefs`, `llm:listModels`
 - `export:markdown`
 
@@ -366,6 +385,7 @@ Collect -> Preprocess -> Prompt/Send -> Parse/Validate -> Store
 
 - Load selected profiles from repository
 - Load Jira data from cache (via integration-cache repository) and/or fresh fetch (via Jira provider)
+- Load codebase analysis results from cache (Phase 3 — pre-computed by Claude CLI)
 - Normalize to internal shape
 
 ### 7.2 Preprocess
@@ -383,9 +403,12 @@ One structured prompt containing:
 - role context
 - anonymized profile content
 - Jira summaries and selected evidence snippets
+- Confluence page/comment summaries (Phase 2)
+- GitHub PR/issue summaries (Phase 2)
+- Codebase analysis findings (Phase 3 — architecture, quality, tech debt, risks)
 - strict output schema requirements
 
-Sent via OpenRouter provider, wrapped in circuit breaker.
+Sent via OpenRouter provider, wrapped in circuit breaker. Codebase analysis data is pre-computed by Claude CLI (Tier 1) running against locally cloned repos, and fed to the SWOT synthesis (Tier 2) as condensed markdown — see `docs/11-codebase-analysis-plan.md`.
 
 ### 7.4 Parse and Validate
 
@@ -413,20 +436,39 @@ On second parse failure, analysis is stored as `failed` with diagnostic message.
 
 ---
 
-## 8. Chat Architecture (MVP)
+## 8. Chat Architecture
 
 Chat is grounded only in:
 
 - selected analysis output
 - recent chat messages (last N, token-bounded)
 
-MVP chat is **read/advise only**:
+### 8.1 Read/Advise Mode (MVP)
 
 - no file writes
 - no action tools
 - no integration fetch from chat
 
 Streaming chunks are emitted through `chat:chunk` and persisted after completion via chat repository.
+
+### 8.2 Chat Actions — Tool-Use Bridge (Phase 3c)
+
+Chat gains the ability to create artifacts in external systems via a tool-use bridge. See `docs/12-chat-actions-plan.md` for the full design.
+
+```text
+OpenRouter (tool_use) → nswot (approval UI) → Claude CLI (MCP execution)
+```
+
+- **OpenRouter** receives tool definitions (Jira, Confluence, GitHub create actions) and returns `tool_use` content blocks when the LLM decides to create an artifact
+- **nswot** intercepts tool calls in the SSE stream, presents an approval card to the user, and waits for explicit approval
+- **Claude CLI** executes the approved action via its MCP servers (Jira, Confluence, GitHub)
+- Results are fed back to OpenRouter as `tool_result` messages for conversational continuity
+
+Key constraints:
+- User approval is mandatory — no auto-execution
+- Only create/add operations — no updates, no deletes
+- Audit trail stored in `chat_actions` table
+- Available tools are scoped to the user's connected integrations
 
 ---
 
@@ -534,10 +576,35 @@ These interfaces are designed for Phase 2/3 extension without modifying existing
 - **New LLM provider**: Implement `LLMProvider` interface, swap in `AnalysisService`. No pipeline changes needed.
 - **New export format**: Add a new method to `ExportService`. No upstream changes.
 - **Multi-step pipeline**: Replace the single prompt call in the orchestrator with a step chain. Input/output types for each stage are already defined.
+- **Subprocess-based provider (Phase 3)**: `CodebaseProvider` demonstrates a new provider pattern — spawning a local CLI tool (Claude CLI) as a child process instead of making HTTP calls. The same service/cache/pipeline integration applies.
+- **Chat tool-use actions (Phase 3c)**: The `ActionExecutor` reuses the Claude CLI subprocess pattern from `CodebaseProvider` but with MCP-scoped write access. Adding a new action type requires only a tool definition in `action-tools.ts` and a Claude CLI prompt template. See `docs/12-chat-actions-plan.md`.
 
 ---
 
-## 14. Delivery Priorities
+## 14. Build and Release Architecture
+
+Build and release delivery is automated through GitHub Actions.
+
+Release channel mapping:
+
+- `main` branch publishes prereleases (beta)
+- `release/*` branches publish production releases
+
+Workflow architecture (2 workflows):
+
+1. `ci.yml` validates typecheck and tests on PR/push. Lint is added when ESLint tooling is introduced.
+2. `release.yml` triggers after CI success via `workflow_run`. Computes SemVer from Conventional Commit history, creates release tag/notes, then builds and uploads macOS (arm64)/Windows/Linux artifacts to GitHub Releases in a parallel OS matrix.
+
+Distribution policy:
+
+- Current releases are unsigned and include per-platform bypass instructions.
+- Signing/notarization is deferred and can be layered onto the same workflow model later.
+
+See `docs/13-ci-cd-and-release.md` for the complete contract and `docs/14-release-operations-runbook.md` for operations.
+
+---
+
+## 15. Delivery Priorities
 
 Priority order for implementation and trade-offs:
 

@@ -156,6 +156,41 @@ describe('parseAnalysisResponse', () => {
     expect(result.ok).toBe(false);
   });
 
+  it('parses codebase sourceType and summaries with codebase field', () => {
+    const output = {
+      strengths: [
+        {
+          claim: 'Clean architecture',
+          evidence: [
+            {
+              sourceType: 'codebase',
+              sourceId: 'codebase:owner/repo',
+              sourceLabel: 'owner/repo',
+              quote: 'Well-structured modules',
+            },
+          ],
+          impact: 'Maintainability',
+          recommendation: 'Continue',
+          confidence: 'high',
+        },
+      ],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+      summaries: {
+        profiles: 'Team is strong.',
+        jira: 'No Jira data.',
+        codebase: 'Clean architecture with modular design.',
+      },
+    };
+    const result = parseAnalysisResponse(JSON.stringify(output));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.swotOutput.strengths[0]!.evidence[0]!.sourceType).toBe('codebase');
+      expect(result.value.summariesOutput.codebase).toBe('Clean architecture with modular design.');
+    }
+  });
+
   it('handles empty quadrant arrays', () => {
     const output = {
       strengths: [],

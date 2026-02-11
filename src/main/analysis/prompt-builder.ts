@@ -2,7 +2,7 @@ import type { AnonymizedProfile } from '../domain/types';
 import { estimateTokens, trimToTokenBudget } from './token-budget';
 import type { TokenBudget } from './token-budget';
 
-export const PROMPT_VERSION = 'phase2-v1';
+export const PROMPT_VERSION = 'phase3a-v1';
 
 const ROLE_DISPLAY_NAMES: Record<string, string> = {
   staff_engineer: 'Staff Engineer',
@@ -26,10 +26,11 @@ export interface PromptDataSources {
   jiraDataMarkdown: string | null;
   confluenceDataMarkdown: string | null;
   githubDataMarkdown: string | null;
+  codebaseDataMarkdown: string | null;
 }
 
 export function buildSystemPrompt(): string {
-  return `You are an expert organizational analyst. You produce structured SWOT analyses for software engineering organizations based on stakeholder interview data and external data sources (Jira, Confluence, GitHub).
+  return `You are an expert organizational analyst. You produce structured SWOT analyses for software engineering organizations based on stakeholder interview data and external data sources (Jira, Confluence, GitHub, codebase analysis).
 
 RULES — you must follow these exactly:
 1. Every claim in the SWOT must cite specific evidence from the provided data. Use the exact sourceId values provided.
@@ -106,10 +107,22 @@ export function buildUserPrompt(
     githubSection = 'No GitHub data is available for this analysis.';
   }
 
+  // Build Codebase section
+  let codebaseSection = '';
+  if (dataSources.codebaseDataMarkdown) {
+    codebaseSection = dataSources.codebaseDataMarkdown;
+    if (budget.codebaseData > 0 && estimateTokens(codebaseSection) > budget.codebaseData) {
+      codebaseSection = trimToTokenBudget(codebaseSection, budget.codebaseData);
+    }
+  } else {
+    codebaseSection = 'No codebase analysis data is available for this analysis.';
+  }
+
   // Build source types list for the schema
   const availableSourceTypes = ['profile', 'jira'];
   if (dataSources.confluenceDataMarkdown) availableSourceTypes.push('confluence');
   if (dataSources.githubDataMarkdown) availableSourceTypes.push('github');
+  if (dataSources.codebaseDataMarkdown) availableSourceTypes.push('codebase');
   const sourceTypeUnion = availableSourceTypes.map((s) => `"${s}"`).join(' | ');
 
   // Summaries schema
@@ -124,6 +137,10 @@ export function buildUserPrompt(
   if (dataSources.githubDataMarkdown) {
     summariesSchema['github'] =
       '"markdown string summarizing key patterns from GitHub data"';
+  }
+  if (dataSources.codebaseDataMarkdown) {
+    summariesSchema['codebase'] =
+      '"markdown string summarizing key patterns from codebase analysis"';
   }
   const summariesSchemaStr = Object.entries(summariesSchema)
     .map(([k, v]) => `    "${k}": ${v}`)
@@ -153,6 +170,10 @@ ${confluenceSection}
 
 ${githubSection}
 
+## Codebase Analysis Data
+
+${codebaseSection}
+
 ## Data Sources Reference
 
 Each piece of evidence you cite must use one of these sourceId values:
@@ -161,6 +182,7 @@ ${profileSourceIds.join('\n')}
 For Jira evidence, use sourceIds like \`jira:PROJ-123\`.
 ${dataSources.confluenceDataMarkdown ? 'For Confluence evidence, use sourceIds like `confluence:PAGE-TITLE` or `confluence:page-id`.' : ''}
 ${dataSources.githubDataMarkdown ? 'For GitHub evidence, use sourceIds like `github:owner/repo#123`.' : ''}
+${dataSources.codebaseDataMarkdown ? 'For codebase evidence, use sourceIds like `codebase:owner/repo`.' : ''}
 
 ## Output Schema
 
@@ -183,7 +205,7 @@ Where each SwotItem is:
   "evidence": [
     {
       "sourceType": ${sourceTypeUnion},
-      "sourceId": "profile:Stakeholder A" | "jira:PROJ-123"${dataSources.confluenceDataMarkdown ? ' | "confluence:page-title"' : ''}${dataSources.githubDataMarkdown ? ' | "github:owner/repo#123"' : ''},
+      "sourceId": "profile:Stakeholder A" | "jira:PROJ-123"${dataSources.confluenceDataMarkdown ? ' | "confluence:page-title"' : ''}${dataSources.githubDataMarkdown ? ' | "github:owner/repo#123"' : ''}${dataSources.codebaseDataMarkdown ? ' | "codebase:owner/repo"' : ''},
       "sourceLabel": "Human-readable label for this source",
       "quote": "Direct quote or specific data point supporting the claim"
     }
@@ -229,5 +251,5 @@ Common issues to avoid:
 - Missing closing braces or brackets
 - Using single quotes instead of double quotes
 
-The JSON must have this top-level shape: { "strengths": [...], "weaknesses": [...], "opportunities": [...], "threats": [...], "summaries": { "profiles": "...", "jira": "..."[, "confluence": "..."][, "github": "..."] } }`;
+The JSON must have this top-level shape: { "strengths": [...], "weaknesses": [...], "opportunities": [...], "threats": [...], "summaries": { "profiles": "...", "jira": "..."[, "confluence": "..."][, "github": "..."][, "codebase": "..."] } }`;
 }

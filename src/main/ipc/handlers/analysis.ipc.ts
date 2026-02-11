@@ -102,6 +102,7 @@ export function registerAnalysisHandlers(
       jiraProjectKeys: string[],
       confluenceSpaceKeys: string[],
       githubRepos: string[],
+      codebaseRepos: string[],
       role: string,
       contextWindow: number,
     ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>> => {
@@ -110,6 +111,7 @@ export function registerAnalysisHandlers(
         jiraProjectKeys,
         confluenceSpaceKeys ?? [],
         githubRepos ?? [],
+        codebaseRepos ?? [],
         role as Analysis['role'],
         contextWindow,
       );
