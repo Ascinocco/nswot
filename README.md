@@ -23,7 +23,7 @@ Download prebuilt desktop artifacts from GitHub Releases:
 
 ## Development Prerequisites
 
-- **Node.js 20+**
+- **Node.js 22+**
 - **pnpm 9+**
 - **Git**
 - See `docs/15-local-prerequisites-and-mcp-setup.md` for full command-based setup.

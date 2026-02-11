@@ -7,7 +7,7 @@
 
 ## 1. Minimum Supported Versions
 
-- Node.js `>=20`
+- Node.js `>=22`
 - pnpm `>=9`
 - Git (latest stable recommended)
 - Claude Code CLI (latest stable recommended)

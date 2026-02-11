@@ -169,7 +169,7 @@ os: [macos-latest, windows-latest, ubuntu-latest]
 ##### Steps per OS
 
 1. Checkout repository at the release tag (`release.outputs.git_tag`).
-2. Setup Node (>=20) + pnpm (>=9) with dependency caching.
+2. Setup Node (>=22) + pnpm (>=9) with dependency caching.
 3. Install dependencies with `--frozen-lockfile`.
 4. Rebuild native modules: `pnpm rebuild:electron`.
 5. Build and package: `pnpm build && pnpm exec electron-builder --publish never`.
