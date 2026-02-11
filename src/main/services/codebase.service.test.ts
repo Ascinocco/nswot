@@ -198,6 +198,7 @@ describe('CodebaseService', () => {
         expect.stringContaining('owner/repo'), // prompt contains repo name
         expect.objectContaining({ model: 'sonnet' }),
         false, // jiraMcp from ALL_PREREQS
+        expect.any(Function),
       );
 
       // Verify cached
@@ -474,6 +475,7 @@ describe('CodebaseService', () => {
         expect.stringContaining('Jira Cross-Reference'), // prompt includes Jira section
         expect.any(Object),
         true, // jiraMcpAvailable
+        expect.any(Function),
       );
     });
 
@@ -485,6 +487,7 @@ describe('CodebaseService', () => {
         expect.not.stringContaining('Jira Cross-Reference'),
         expect.any(Object),
         false,
+        expect.any(Function),
       );
     });
   });
@@ -500,6 +503,7 @@ describe('CodebaseService', () => {
         expect.stringContaining('Git History Analysis'),
         expect.objectContaining({ shallow: false }),
         expect.any(Boolean),
+        expect.any(Function),
       );
     });
 
@@ -511,6 +515,7 @@ describe('CodebaseService', () => {
         expect.not.stringContaining('Git History Analysis'),
         expect.objectContaining({ shallow: true }),
         expect.any(Boolean),
+        expect.any(Function),
       );
     });
   });

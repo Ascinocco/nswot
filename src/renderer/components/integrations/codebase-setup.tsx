@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   useGitHubIntegration,
   useGitHubRepos,
@@ -194,38 +194,43 @@ function RepoAnalysisCard({
               : false;
 
             return (
-              <div key={repo} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-800">
-                <label className="flex flex-1 cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedRepos.includes(repo)}
-                    onChange={() => handleToggleRepo(repo)}
-                    className="rounded border-gray-600"
-                  />
-                  <span className="text-sm text-gray-200">{repo}</span>
-                </label>
-                <div className="flex items-center gap-1.5">
-                  {analysisInfo && (
-                    <span className="text-xs text-gray-500" title={`Analyzed: ${new Date(analysisInfo.analyzedAt).toLocaleString()}`}>
-                      {formatRelativeTime(analysisInfo.analyzedAt)}
-                    </span>
-                  )}
-                  {isStale && (
-                    <span className="rounded bg-yellow-900/50 px-1.5 py-0.5 text-xs text-yellow-400" title="Repository has been updated since last analysis">
-                      stale
-                    </span>
-                  )}
-                  {analysisInfo && !analyzeCodebase.isPending && (
-                    <button
-                      onClick={() => handleReanalyze(repo)}
-                      className="rounded px-1.5 py-0.5 text-xs text-blue-400 hover:bg-blue-900/30"
-                      title="Re-analyze this repository"
-                    >
-                      re-analyze
-                    </button>
-                  )}
-                  {progress && <ProgressBadge stage={progress.stage} message={progress.message} />}
+              <div key={repo} className="rounded px-2 py-1 hover:bg-gray-800">
+                <div className="flex items-center gap-2">
+                  <label className="flex flex-1 cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedRepos.includes(repo)}
+                      onChange={() => handleToggleRepo(repo)}
+                      className="rounded border-gray-600"
+                    />
+                    <span className="text-sm text-gray-200">{repo}</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {analysisInfo && (
+                      <span className="text-xs text-gray-500" title={`Analyzed: ${new Date(analysisInfo.analyzedAt).toLocaleString()}`}>
+                        {formatRelativeTime(analysisInfo.analyzedAt)}
+                      </span>
+                    )}
+                    {isStale && (
+                      <span className="rounded bg-yellow-900/50 px-1.5 py-0.5 text-xs text-yellow-400" title="Repository has been updated since last analysis">
+                        stale
+                      </span>
+                    )}
+                    {analysisInfo && !analyzeCodebase.isPending && (
+                      <button
+                        onClick={() => handleReanalyze(repo)}
+                        className="rounded px-1.5 py-0.5 text-xs text-blue-400 hover:bg-blue-900/30"
+                        title="Re-analyze this repository"
+                      >
+                        re-analyze
+                      </button>
+                    )}
+                    {progress && <ProgressBadge stage={progress.stage} message={progress.message} />}
+                  </div>
                 </div>
+                {progress && progress.stage === 'analyzing' && progress.message && (
+                  <p className="ml-6 mt-0.5 truncate text-xs text-gray-500">{progress.message}</p>
+                )}
               </div>
             );
           })}
@@ -331,12 +336,53 @@ function ProgressBadge({
     failed: 'bg-red-900/50 text-red-400',
   };
 
+  const isActive = stage === 'analyzing' || stage === 'cloning';
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    startRef.current = Date.now();
+    setElapsed(0);
+  }, [stage]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isActive]);
+
+  const elapsedLabel = elapsed > 0
+    ? elapsed < 60
+      ? `${elapsed}s`
+      : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
+    : '';
+
+  if (stage === 'failed') {
+    return (
+      <span className="rounded bg-red-900/50 px-2 py-0.5 text-xs text-red-400" title={message}>
+        failed
+      </span>
+    );
+  }
+
+  if (stage === 'done') {
+    return (
+      <span className="rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400" title={message}>
+        done
+      </span>
+    );
+  }
+
   return (
     <span
-      className={`rounded px-2 py-0.5 text-xs ${colors[stage] ?? 'bg-gray-700 text-gray-400'}`}
+      className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs ${colors[stage] ?? 'bg-gray-700 text-gray-400'}`}
       title={message}
     >
-      {stage}
+      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+      <span>{stage}</span>
+      {elapsedLabel && <span className="tabular-nums text-[10px] opacity-70">{elapsedLabel}</span>}
     </span>
   );
 }

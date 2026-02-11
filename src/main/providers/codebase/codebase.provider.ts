@@ -41,6 +41,7 @@ export class CodebaseProvider {
     prompt: string,
     options: CodebaseAnalysisOptions,
     jiraMcpAvailable: boolean = false,
+    onStderr?: (line: string) => void,
   ): Promise<CodebaseAnalysis> {
     const tools = [
       'Read',
@@ -78,6 +79,7 @@ export class CodebaseProvider {
       args,
       repoPath,
       options.timeoutMs,
+      onStderr,
     );
 
     if (exitCode !== 0) {
@@ -213,6 +215,7 @@ export class CodebaseProvider {
     args: string[],
     cwd: string | undefined,
     timeoutMs: number,
+    onStderr?: (line: string) => void,
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       const controller = new AbortController();
@@ -226,13 +229,24 @@ export class CodebaseProvider {
 
       let stdout = '';
       let stderr = '';
+      let stderrBuffer = '';
 
       child.stdout.on('data', (chunk: Buffer) => {
         stdout += chunk.toString();
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
+        const text = chunk.toString();
+        stderr += text;
+        if (onStderr) {
+          stderrBuffer += text;
+          const lines = stderrBuffer.split('\n');
+          stderrBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed) onStderr(trimmed);
+          }
+        }
       });
 
       child.on('close', (code) => {
