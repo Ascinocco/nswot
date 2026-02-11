@@ -104,5 +104,7 @@ jobs:
         run: |
           TAG="${{ needs.release.outputs.git_tag }}"
           for file in dist/*.dmg dist/*.zip dist/*.exe dist/*.AppImage; do
-            [ -f "$file" ] && gh release upload "$TAG" "$file" --clobber
+            if [ -f "$file" ]; then
+              gh release upload "$TAG" "$file" --clobber
+            fi
           done
