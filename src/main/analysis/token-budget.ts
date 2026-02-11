@@ -22,7 +22,7 @@ export function calculateTokenBudget(
   modelContextWindow: number,
   connectedSources: ConnectedSource[] = [],
 ): TokenBudget {
-  const outputReserve = Math.min(4096, Math.floor(modelContextWindow * 0.1));
+  const outputReserve = Math.min(8192, Math.floor(modelContextWindow * 0.15));
   const available =
     modelContextWindow - outputReserve - SCHEMA_OVERHEAD - SYSTEM_PROMPT_OVERHEAD;
 
