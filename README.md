@@ -1,4 +1,4 @@
-# nswot
+# nswot - Org wide SWOT analysis
 
 A local-first Electron desktop app that turns stakeholder interview notes, Jira signals, and codebase intelligence into evidence-backed SWOT analyses. Built for staff engineers in org-level problem-solving roles.
 
@@ -49,13 +49,13 @@ For full contributor setup (Claude CLI, MCP servers, and OpenRouter key flow), s
 
 ## Available Scripts
 
-| Script | Description |
-| --- | --- |
-| `pnpm dev` | Start the app in development mode |
-| `pnpm build` | Build the app for production |
-| `pnpm test` | Run the test suite |
-| `pnpm typecheck` | Run TypeScript type checking |
-| `pnpm package` | Package the app for macOS (dmg + zip) |
+| Script           | Description                           |
+| ---------------- | ------------------------------------- |
+| `pnpm dev`       | Start the app in development mode     |
+| `pnpm build`     | Build the app for production          |
+| `pnpm test`      | Run the test suite                    |
+| `pnpm typecheck` | Run TypeScript type checking          |
+| `pnpm package`   | Package the app for macOS (dmg + zip) |
 
 ## CI/CD and Releases
 
@@ -81,17 +81,17 @@ See `docs/02-architecture-spec.md` for the full architecture specification. Key 
 
 ## Documentation
 
-| Doc | Purpose |
-| --- | --- |
-| `docs/01-product-spec.md` | MVP product scope |
-| `docs/02-architecture-spec.md` | Layered architecture specification |
-| `docs/03-sprints.md` | Phase 1 (MVP) sprint plan |
-| `docs/04-phases-roadmap.md` | Phase 1/2/3 roadmap |
-| `docs/08-prompt-engineering.md` | LLM prompt templates |
-| `docs/09-adr/` | Architecture Decision Records |
-| `docs/10-phase2-sprints.md` | Phase 2 sprint plan |
-| `docs/11-codebase-analysis-plan.md` | Codebase analysis feature plan (Phase 3a) |
-| `docs/12-chat-actions-plan.md` | Chat actions feature plan (Phase 3c) |
-| `docs/13-ci-cd-and-release.md` | CI/CD workflows, release channels, and automation contract |
-| `docs/14-release-operations-runbook.md` | Day-2 release operations and failure triage |
-| `docs/15-local-prerequisites-and-mcp-setup.md` | Local command-based setup for contributors |
+| Doc                                            | Purpose                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `docs/01-product-spec.md`                      | MVP product scope                                          |
+| `docs/02-architecture-spec.md`                 | Layered architecture specification                         |
+| `docs/03-sprints.md`                           | Phase 1 (MVP) sprint plan                                  |
+| `docs/04-phases-roadmap.md`                    | Phase 1/2/3 roadmap                                        |
+| `docs/08-prompt-engineering.md`                | LLM prompt templates                                       |
+| `docs/09-adr/`                                 | Architecture Decision Records                              |
+| `docs/10-phase2-sprints.md`                    | Phase 2 sprint plan                                        |
+| `docs/11-codebase-analysis-plan.md`            | Codebase analysis feature plan (Phase 3a)                  |
+| `docs/12-chat-actions-plan.md`                 | Chat actions feature plan (Phase 3c)                       |
+| `docs/13-ci-cd-and-release.md`                 | CI/CD workflows, release channels, and automation contract |
+| `docs/14-release-operations-runbook.md`        | Day-2 release operations and failure triage                |
+| `docs/15-local-prerequisites-and-mcp-setup.md` | Local command-based setup for contributors                 |
