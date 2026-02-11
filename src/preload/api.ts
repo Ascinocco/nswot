@@ -1,6 +1,7 @@
-import type { IPCResult, Workspace, Profile, ProfileInput } from '../main/domain/types';
+import type { IPCResult, Workspace, Profile, ProfileInput, Analysis, ChatMessage, Integration } from '../main/domain/types';
 import type { LlmModel } from '../main/providers/llm/llm.types';
 import type { FileEntry } from '../main/infrastructure/file-system';
+import type { JiraProject } from '../main/providers/jira/jira.types';
 
 export interface NswotAPI {
   system: {
@@ -31,5 +32,26 @@ export interface NswotAPI {
     update(id: string, input: ProfileInput): Promise<IPCResult<Profile>>;
     delete(id: string): Promise<IPCResult<void>>;
     importMarkdown(filePath: string): Promise<IPCResult<Profile[]>>;
+  };
+  integrations: {
+    get(): Promise<IPCResult<Integration | null>>;
+    connectJira(clientId: string, clientSecret: string): Promise<IPCResult<Integration>>;
+    disconnect(): Promise<IPCResult<void>>;
+    sync(projectKeys: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
+    listProjects(): Promise<IPCResult<JiraProject[]>>;
+  };
+  analysis: {
+    list(): Promise<IPCResult<Analysis[]>>;
+    get(id: string): Promise<IPCResult<Analysis>>;
+    delete(id: string): Promise<IPCResult<void>>;
+  };
+  chat: {
+    getMessages(analysisId: string): Promise<IPCResult<ChatMessage[]>>;
+    send(analysisId: string, content: string): Promise<IPCResult<ChatMessage>>;
+    delete(analysisId: string): Promise<IPCResult<void>>;
+    onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
+  };
+  export: {
+    markdown(analysisId: string): Promise<IPCResult<string>>;
   };
 }

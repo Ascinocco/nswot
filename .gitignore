@@ -4,3 +4,4 @@ dist/
 .nswot/
 *.log
 .DS_Store
+jira-mcp.json

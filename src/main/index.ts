@@ -9,12 +9,20 @@ import { createSecureStorage } from './infrastructure/safe-storage';
 import { PreferencesRepository } from './repositories/preferences.repository';
 import { WorkspaceRepository } from './repositories/workspace.repository';
 import { ProfileRepository } from './repositories/profile.repository';
+import { AnalysisRepository } from './repositories/analysis.repository';
+import { ChatRepository } from './repositories/chat.repository';
 import { OpenRouterProvider } from './providers/llm/openrouter.provider';
 import { CircuitBreaker } from './infrastructure/circuit-breaker';
 import { SettingsService } from './services/settings.service';
 import { WorkspaceService } from './services/workspace.service';
 import { FileService } from './services/file.service';
 import { ProfileService } from './services/profile.service';
+import { ChatService } from './services/chat.service';
+import { ExportService } from './services/export.service';
+import { IntegrationRepository } from './repositories/integration.repository';
+import { IntegrationCacheRepository } from './repositories/integration-cache.repository';
+import { JiraProvider } from './providers/jira/jira.provider';
+import { IntegrationService } from './services/integration.service';
 
 const NSWOT_DIR = join(homedir(), '.nswot');
 
@@ -78,10 +86,20 @@ const db = initializeDatabase(join(NSWOT_DIR, 'nswot.db'));
 const preferencesRepo = new PreferencesRepository(db);
 const workspaceRepo = new WorkspaceRepository(db);
 const profileRepo = new ProfileRepository(db);
+const analysisRepo = new AnalysisRepository(db);
+const chatRepo = new ChatRepository(db);
+const integrationRepo = new IntegrationRepository(db);
+const integrationCacheRepo = new IntegrationCacheRepository(db);
 
 // Providers & infrastructure
 const openRouterProvider = new OpenRouterProvider();
+const jiraProvider = new JiraProvider();
 const llmCircuitBreaker = new CircuitBreaker({
+  failureThreshold: 5,
+  cooldownMs: 60_000,
+  monitorWindowMs: 120_000,
+});
+const jiraCircuitBreaker = new CircuitBreaker({
   failureThreshold: 5,
   cooldownMs: 60_000,
   monitorWindowMs: 120_000,
@@ -100,9 +118,32 @@ const settingsService = new SettingsService(
 const workspaceService = new WorkspaceService(workspaceRepo, preferencesRepo);
 const fileService = new FileService(workspaceService);
 const profileService = new ProfileService(profileRepo, workspaceService);
+const chatService = new ChatService(chatRepo, analysisRepo, settingsService);
+const exportService = new ExportService(analysisRepo);
+const integrationService = new IntegrationService(
+  integrationRepo,
+  integrationCacheRepo,
+  workspaceService,
+  jiraProvider,
+  jiraCircuitBreaker,
+  secureStorage,
+  preferencesRepo,
+);
+
+// Recovery: mark stale running analyses as failed
+analysisRepo.recoverRunning();
 
 // IPC
-registerIpcHandlers({ settingsService, workspaceService, fileService, profileService });
+registerIpcHandlers({
+  settingsService,
+  workspaceService,
+  fileService,
+  profileService,
+  analysisRepo,
+  chatService,
+  exportService,
+  integrationService,
+});
 
 app.whenReady().then(() => {
   createWindow();

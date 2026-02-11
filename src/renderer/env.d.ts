@@ -55,6 +55,83 @@ declare global {
     isDirectory: boolean;
   }
 
+  interface SwotItem {
+    claim: string;
+    evidence: EvidenceEntry[];
+    impact: string;
+    recommendation: string;
+    confidence: 'high' | 'medium' | 'low';
+  }
+
+  interface EvidenceEntry {
+    sourceType: 'profile' | 'jira';
+    sourceId: string;
+    sourceLabel: string;
+    quote: string;
+  }
+
+  interface SwotOutput {
+    strengths: SwotItem[];
+    weaknesses: SwotItem[];
+    opportunities: SwotItem[];
+    threats: SwotItem[];
+  }
+
+  interface SummariesOutput {
+    profiles: string;
+    jira: string;
+  }
+
+  interface Analysis {
+    id: string;
+    workspaceId: string;
+    role: 'staff_engineer' | 'senior_em';
+    modelId: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    config: { profileIds: string[]; jiraProjectKeys: string[] };
+    inputSnapshot: unknown;
+    swotOutput: SwotOutput | null;
+    summariesOutput: SummariesOutput | null;
+    rawLlmResponse: string | null;
+    warning: string | null;
+    error: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+  }
+
+  interface Integration {
+    id: string;
+    workspaceId: string;
+    provider: 'jira';
+    config: JiraConfig;
+    status: 'disconnected' | 'connected' | 'error';
+    lastSyncedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }
+
+  interface JiraConfig {
+    cloudId: string;
+    siteUrl: string;
+    selectedProjectKeys: string[];
+  }
+
+  interface JiraProject {
+    id: string;
+    key: string;
+    name: string;
+    projectTypeKey: string;
+  }
+
+  interface ChatMessage {
+    id: string;
+    analysisId: string;
+    role: 'user' | 'assistant';
+    content: string;
+    createdAt: string;
+  }
+
   interface NswotAPI {
     system: {
       ping(): Promise<IPCResult<string>>;
@@ -84,6 +161,27 @@ declare global {
       update(id: string, input: ProfileInput): Promise<IPCResult<Profile>>;
       delete(id: string): Promise<IPCResult<void>>;
       importMarkdown(filePath: string): Promise<IPCResult<Profile[]>>;
+    };
+    integrations: {
+      get(): Promise<IPCResult<Integration | null>>;
+      connectJira(clientId: string, clientSecret: string): Promise<IPCResult<Integration>>;
+      disconnect(): Promise<IPCResult<void>>;
+      sync(projectKeys: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
+      listProjects(): Promise<IPCResult<JiraProject[]>>;
+    };
+    analysis: {
+      list(): Promise<IPCResult<Analysis[]>>;
+      get(id: string): Promise<IPCResult<Analysis>>;
+      delete(id: string): Promise<IPCResult<void>>;
+    };
+    chat: {
+      getMessages(analysisId: string): Promise<IPCResult<ChatMessage[]>>;
+      send(analysisId: string, content: string): Promise<IPCResult<ChatMessage>>;
+      delete(analysisId: string): Promise<IPCResult<void>>;
+      onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
+    };
+    export: {
+      markdown(analysisId: string): Promise<IPCResult<string>>;
     };
   }
 

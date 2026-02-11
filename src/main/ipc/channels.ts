@@ -18,6 +18,7 @@ export const IPC_CHANNELS = {
   INTEGRATION_CONNECT_JIRA: 'integration:connectJira',
   INTEGRATION_DISCONNECT: 'integration:disconnect',
   INTEGRATION_SYNC: 'integration:sync',
+  INTEGRATION_LIST_PROJECTS: 'integration:listProjects',
 
   // Analysis
   ANALYSIS_RUN: 'analysis:run',
@@ -27,7 +28,8 @@ export const IPC_CHANNELS = {
 
   // Chat
   CHAT_SEND: 'chat:send',
-  CHAT_HISTORY: 'chat:history',
+  CHAT_GET_MESSAGES: 'chat:getMessages',
+  CHAT_DELETE: 'chat:delete',
 
   // Settings
   SETTINGS_GET: 'settings:get',
