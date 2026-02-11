@@ -4,18 +4,21 @@
   "description": "Evidence-backed SWOT analysis from stakeholder interviews and Jira signals",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "rebuild:electron": "npx @electron/rebuild -f -w better-sqlite3",
+    "rebuild:node": "pnpm rebuild better-sqlite3",
+    "dev": "pnpm rebuild:electron && electron-vite dev",
+    "build": "pnpm rebuild:electron && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "test": "pnpm rebuild:node && vitest run",
+    "test:watch": "pnpm rebuild:node && vitest",
+    "pack": "pnpm rebuild:electron && electron-builder --dir",
+    "dist": "pnpm rebuild:electron && electron-builder"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.90.20",
     "better-sqlite3": "^11.7.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -4,11 +4,19 @@ import { mkdirSync } from 'fs';
 import { homedir } from 'os';
 import { is } from '@electron-toolkit/utils';
 import { registerIpcHandlers } from './ipc/registry';
+import { initializeDatabase } from './infrastructure/database';
+import { createSecureStorage } from './infrastructure/safe-storage';
+import { PreferencesRepository } from './repositories/preferences.repository';
+import { WorkspaceRepository } from './repositories/workspace.repository';
+import { OpenRouterProvider } from './providers/llm/openrouter.provider';
+import { CircuitBreaker } from './infrastructure/circuit-breaker';
+import { SettingsService } from './services/settings.service';
+
+const NSWOT_DIR = join(homedir(), '.nswot');
 
 function bootstrapAppDirs(): void {
-  const nswotDir = join(homedir(), '.nswot');
-  const logsDir = join(nswotDir, 'logs');
-  mkdirSync(nswotDir, { recursive: true });
+  const logsDir = join(NSWOT_DIR, 'logs');
+  mkdirSync(NSWOT_DIR, { recursive: true });
   mkdirSync(logsDir, { recursive: true });
 }
 
@@ -58,7 +66,35 @@ function createWindow(): void {
 }
 
 bootstrapAppDirs();
-registerIpcHandlers();
+
+// Initialize database
+const db = initializeDatabase(join(NSWOT_DIR, 'nswot.db'));
+
+// Repositories
+const preferencesRepo = new PreferencesRepository(db);
+const _workspaceRepo = new WorkspaceRepository(db);
+
+// Providers & infrastructure
+const openRouterProvider = new OpenRouterProvider();
+const llmCircuitBreaker = new CircuitBreaker({
+  failureThreshold: 5,
+  cooldownMs: 60_000,
+  monitorWindowMs: 120_000,
+});
+
+// Secure storage
+const secureStorage = createSecureStorage(join(NSWOT_DIR, 'keystore'));
+
+// Services
+const settingsService = new SettingsService(
+  preferencesRepo,
+  secureStorage,
+  openRouterProvider,
+  llmCircuitBreaker,
+);
+
+// IPC
+registerIpcHandlers({ settingsService });
 
 app.whenReady().then(() => {
   createWindow();

@@ -35,6 +35,9 @@ export const IPC_CHANNELS = {
   SETTINGS_GET_API_KEY: 'settings:getApiKey',
   SETTINGS_SET_API_KEY: 'settings:setApiKey',
 
+  // LLM
+  LLM_LIST_MODELS: 'llm:listModels',
+
   // Export
   EXPORT_MARKDOWN: 'export:markdown',
 } as const;
