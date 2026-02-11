@@ -110,5 +110,7 @@ export interface NswotAPI {
   };
   export: {
     markdown(analysisId: string): Promise<IPCResult<string>>;
+    csv(analysisId: string): Promise<IPCResult<string>>;
+    pdf(analysisId: string): Promise<IPCResult<string>>;
   };
 }

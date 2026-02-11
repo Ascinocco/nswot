@@ -8,6 +8,7 @@
 
 **Sprint 13: Completed by Agent A, Week 1.**
 **Sprint 14 Foundation: Completed by Agent B, Week 1. Gate 1 artifacts ready for review.**
+**Sprint 20: Completed by Agent B, Week 4. CSV/PDF export, VP Engineering role, macOS x64 build target.**
 
 ---
 
@@ -122,11 +123,11 @@ No detailed sprint doc existed prior to this plan. The stated Phase 3d scope is 
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
-| 20.1 | CSV export method in ExportService | Independent | `src/main/services/export.service.ts` |
-| 20.2 | PDF generation (add dependency, template) | Independent | `export.service.ts`, `package.json` |
-| 20.3 | Export UI: format picker (MD/CSV/PDF) | Soft dep on 20.1-20.2 | renderer export components |
-| 20.4 | VP of Engineering role definition | Independent | `domain/types.ts` (role union), `prompt-builder.ts`, `docs/08-prompt-engineering.md` |
-| 20.5 | macOS x64 (Intel) build target | Independent | `electron-builder.yml`, CI workflow |
+| 20.1 | ~~CSV export method in ExportService~~ [x] | Independent | `src/main/services/export.service.ts` |
+| 20.2 | ~~PDF generation (add dependency, template)~~ [x] | Independent | `export.service.ts`, `package.json` |
+| 20.3 | ~~Export UI: format picker (MD/CSV/PDF)~~ [x] | Soft dep on 20.1-20.2 | renderer export components |
+| 20.4 | ~~VP of Engineering role definition~~ [x] | Independent | `domain/types.ts` (role union), `prompt-builder.ts`, `docs/08-prompt-engineering.md` |
+| 20.5 | ~~macOS x64 (Intel) build target~~ [x] | Independent | `electron-builder.yml`, CI workflow |
 
 **Sprint 21: Integration Testing + Documentation**
 
@@ -509,7 +510,7 @@ main (stable)
 | 1 | Sprint 14 Foundation: ActionExecutor, ChatActionRepo, migration, types, tool defs | Ready now | Sprint 12 merged |
 | 2 | Sprint 14 Frontend: Approval card, action status, chat panel integration | Blocked | Gate 1 (type contract) |
 | 3 | Sprint 15 Frontend: Edit cards, action history, testing | Blocked | Week 2 Agent B merge |
-| 4 | Sprint 20: CSV/PDF export, VP Engineering role, macOS x64 build target | Ready now | None |
+| 4 | Sprint 20: CSV/PDF export, VP Engineering role, macOS x64 build target | Complete | None |
 | 5 | Sprint 18a: Multi-step pipeline architecture refactor (**CRITICAL PATH**) | Ready now | None |
 | 6 | Sprint 19a: Themes data layer + extraction step | Blocked | Week 5 Agent B merge (Gate 2) |
 | 7 | Sprint 21: E2E testing, documentation updates, exit criteria | Blocked | All prior merges |

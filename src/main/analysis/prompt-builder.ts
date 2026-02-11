@@ -7,6 +7,7 @@ export const PROMPT_VERSION = 'phase3a-v1';
 const ROLE_DISPLAY_NAMES: Record<string, string> = {
   staff_engineer: 'Staff Engineer',
   senior_em: 'Senior Engineering Manager',
+  vp_engineering: 'VP of Engineering',
 };
 
 const ROLE_INSTRUCTIONS: Record<string, string> = {
@@ -20,6 +21,13 @@ const ROLE_INSTRUCTIONS: Record<string, string> = {
 - Frame recommendations as management actions: "Consider reallocating...", "Initiate a retrospective on...", "Escalate to leadership...", "Establish a working group for..."
 - Highlight team health, capacity risks, organizational misalignment, and planning gaps
 - When citing technical issues, frame through the lens of team impact and resourcing`,
+  vp_engineering: `- Focus on portfolio-level strategy and multi-quarter investment priorities
+- Recommend organizational structure changes, technology bets, and cross-org coordination initiatives
+- Frame recommendations as executive actions: "Invest in...", "Consolidate...", "Establish an architecture review board for...", "Propose a technology radar covering...", "Fund a dedicated team for..."
+- Highlight systemic risks across teams, technology fragmentation, platform vs product investment balance, and talent gaps
+- When citing team-level issues, frame through the lens of organizational leverage and strategic alignment
+- Identify patterns that span multiple teams or services — these are VP-level concerns
+- Recommend metrics and governance structures, not individual fixes`,
 };
 
 export interface PromptDataSources {

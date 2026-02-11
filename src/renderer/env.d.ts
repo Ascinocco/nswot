@@ -97,7 +97,7 @@ declare global {
   interface Analysis {
     id: string;
     workspaceId: string;
-    role: 'staff_engineer' | 'senior_em';
+    role: 'staff_engineer' | 'senior_em' | 'vp_engineering';
     modelId: string;
     status: 'pending' | 'running' | 'completed' | 'failed';
     config: {
@@ -340,6 +340,8 @@ declare global {
     };
     export: {
       markdown(analysisId: string): Promise<IPCResult<string>>;
+      csv(analysisId: string): Promise<IPCResult<string>>;
+      pdf(analysisId: string): Promise<IPCResult<string>>;
     };
   }
 

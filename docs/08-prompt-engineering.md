@@ -177,6 +177,17 @@ Produce the analysis now.
 - When citing technical issues, frame through the lens of team impact and resourcing
 ```
 
+**VP of Engineering:**
+```
+- Focus on portfolio-level strategy and multi-quarter investment priorities
+- Recommend organizational structure changes, technology bets, and cross-org coordination initiatives
+- Frame recommendations as executive actions: "Invest in...", "Consolidate...", "Establish an architecture review board for...", "Propose a technology radar covering...", "Fund a dedicated team for..."
+- Highlight systemic risks across teams, technology fragmentation, platform vs product investment balance, and talent gaps
+- When citing team-level issues, frame through the lens of organizational leverage and strategic alignment
+- Identify patterns that span multiple teams or services — these are VP-level concerns
+- Recommend metrics and governance structures, not individual fixes
+```
+
 ---
 
 ## Corrective Prompt (On Parse Failure)

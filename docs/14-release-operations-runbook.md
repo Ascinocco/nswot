@@ -20,17 +20,16 @@ Use this document for:
 
 ## 2. Release Model
 
-- `main` publishes **prereleases** (beta channel)
-- `release/*` publishes **production releases**
+- `main` publishes **production releases**
 - Releases are fully automated: CI success triggers release + build
 - GitHub Releases page is the canonical download location
 
 ### Workflow chain
 
 ```text
-push to main/release/* -> ci.yml -> (on success) -> release.yml
-                                                      ├── release job (semantic-release)
-                                                      └── build job (OS matrix, uploads artifacts)
+push to main -> ci.yml -> (on success) -> release.yml
+                                            ├── release job (semantic-release)
+                                            └── build job (OS matrix, uploads artifacts)
 ```
 
 ---
@@ -52,7 +51,7 @@ After each release run:
 1. Confirm `ci.yml` completed successfully.
 2. Confirm `release.yml` completed — both the `release` job and all `build` matrix legs.
 3. Open the GitHub Release and verify:
-   - version and channel are correct (prerelease vs production)
+   - version is correct
    - release notes are present
    - macOS (`.dmg`/`.zip`), Windows (`.exe`), and Linux (`.AppImage`) assets exist
 4. Download and run one artifact locally as a smoke install.
@@ -135,17 +134,10 @@ Avoid deleting production tags unless absolutely necessary.
 
 There is no binary overwrite rollback in place. Use forward-fix releases.
 
-### 7.1 Prerelease channel rollback
-
-- Mark prerelease as prerelease-only and add warning text to release notes.
-- Publish next prerelease with fixes.
-
-### 7.2 Production channel rollback
-
 - If severe issue:
   - edit release notes to mark release as problematic
   - optionally hide/deprecate release in GitHub UI
-  - ship immediate patch release from `release/*`
+  - ship immediate patch release from `main`
 
 Policy: prefer **fast patch release** over history rewrite.
 

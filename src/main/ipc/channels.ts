@@ -71,6 +71,8 @@ export const IPC_CHANNELS = {
 
   // Export
   EXPORT_MARKDOWN: 'export:markdown',
+  EXPORT_CSV: 'export:csv',
+  EXPORT_PDF: 'export:pdf',
 
   // Chat Actions
   CHAT_ACTION_PENDING: 'chat:action:pending',

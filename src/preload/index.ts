@@ -114,6 +114,8 @@ const api: NswotAPI = {
   },
   export: {
     markdown: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_MARKDOWN, analysisId),
+    csv: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_CSV, analysisId),
+    pdf: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_PDF, analysisId),
   },
 };
 

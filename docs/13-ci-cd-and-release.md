@@ -16,14 +16,11 @@
 
 ---
 
-## 2. Release Channels
+## 2. Release Channel
 
-Two channels are required:
+- `main` -> **production release**
 
-- `main` -> **prerelease** (beta)
-- `release/*` -> **production release**
-
-No manual release orchestration should be required for normal delivery.
+All releases come from `main`. No manual release orchestration is required. A prerelease channel (e.g., `beta` or `next` branch) can be added later by expanding the semantic-release `branches` config.
 
 ---
 
@@ -39,18 +36,11 @@ No manual release orchestration should be required for normal delivery.
   - version bumping (SemVer)
   - git tags
   - changelog/release notes generation
-  - prerelease vs production channel handling by branch
-
 #### Required semantic-release configuration
-
-The `branches` config must be set so that `main` produces prereleases and `release/*` produces production releases:
 
 ```json
 {
-  "branches": [
-    { "name": "release/*" },
-    { "name": "main", "prerelease": "beta" }
-  ],
+  "branches": ["main"],
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
@@ -59,11 +49,9 @@ The `branches` config must be set so that `main` produces prereleases and `relea
 }
 ```
 
-This produces:
-- On `main`: versions like `v1.2.0-beta.1`, `v1.2.0-beta.2`, ...
-- On `release/*`: versions like `v1.2.0`, `v1.2.1`, ...
+This produces production versions from `main`: `v1.0.0`, `v1.1.0`, `v1.1.1`, etc.
 
-The `@semantic-release/npm` plugin is intentionally omitted — this is a desktop app, not a published npm package.
+The `@semantic-release/npm` plugin is intentionally omitted — this is a desktop app, not a published npm package. A prerelease channel can be added later by expanding `branches` (e.g., `{ "name": "next", "prerelease": "beta" }`).
 
 ### 3.3 Commit Style Requirement
 
@@ -94,8 +82,8 @@ This keeps CI fast for PR feedback while gating releases on CI success. Version 
 
 #### Triggers
 
-- `pull_request` targeting `main` and `release/*`
-- `push` to `main` and `release/*`
+- `pull_request` targeting `main`
+- `push` to `main`
 
 #### Required jobs
 
@@ -106,7 +94,7 @@ Lint is deferred until ESLint tooling is added to the project. When added, inclu
 
 #### Required status checks
 
-All jobs above are required for merge into `main` and `release/*`.
+All jobs above are required for merge into `main`.
 
 No per-OS smoke builds in CI — platform builds are validated during release only. This keeps PR feedback fast.
 
@@ -121,10 +109,10 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [main, "release/*"]
+    branches: [main]
 ```
 
-This ensures `release.yml` runs only after `ci.yml` completes on a push to a releasable branch. PR-triggered CI runs do not match the branch filter and will not trigger a release.
+This ensures `release.yml` runs only after `ci.yml` completes on a push to `main`. PR-triggered CI runs do not match the branch filter and will not trigger a release.
 
 #### Gate check
 
@@ -141,13 +129,12 @@ If CI failed, the entire workflow is skipped.
 
 #### Job 1: `release` (runs on `ubuntu-latest`)
 
-- Checkout the repository at the commit from the triggering CI run.
+- Checkout the `main` branch with full history.
 - Run `semantic-release` once (single authoritative version decision).
-- On `main`, create **prerelease** with generated notes.
-- On `release/*`, create **production release** with generated notes.
+- Create a **production release** with generated notes.
 - Emit job outputs:
   - `released` (boolean)
-  - `git_tag` (example: `v1.4.0-beta.2` or `v1.4.0`)
+  - `git_tag` (example: `v1.4.0`)
   - `version`
 
 If no releasable commits are present, the job exits cleanly with `released=false` and the build matrix is skipped.
@@ -189,36 +176,27 @@ Use electron-builder default deliverables per OS:
 ### Branch model
 
 ```text
-main (prerelease channel)
+main (production releases)
   │
-  ├── feature branches (PR -> main)
-  │
-  └── release/X.Y (cut from main when ready for production)
-        │
-        └── hotfix branches (PR -> release/X.Y)
+  └── feature branches (PR -> main)
 ```
 
-### Creating a release branch
+All feature work targets `main` via pull request. Every merge to `main` with releasable commits (`feat:`, `fix:`, etc.) triggers a production release.
 
-1. When `main` is ready for a production release, create `release/X.Y` from `main`:
-   ```bash
-   git checkout main && git pull
-   git checkout -b release/1.0
-   git push -u origin release/1.0
-   ```
-2. The first releasable commit on `release/1.0` triggers a production release (e.g., `v1.0.0`).
-3. Subsequent commits to `release/1.0` produce patch releases (`v1.0.1`, `v1.0.2`, ...).
+### Future: prerelease channel
 
-### Hotfixes
+When a prerelease channel is needed, add a `next` or `beta` branch and expand `.releaserc.json`:
 
-- Create a branch from `release/X.Y`, fix the issue, open a PR targeting `release/X.Y`.
-- After merge, semantic-release creates a patch release automatically.
-- If the fix also applies to `main`, cherry-pick or open a separate PR to `main`.
+```json
+{
+  "branches": [
+    "main",
+    { "name": "next", "prerelease": "beta" }
+  ]
+}
+```
 
-### Constraints
-
-- Only one `release/*` branch should be active at a time for simplicity. Archive old release branches after the next major/minor production release.
-- `main` continues to accumulate features and produce prereleases independently.
+Then update `ci.yml` and `release.yml` branch filters to include the new branch.
 
 ---
 
@@ -298,7 +276,7 @@ Do not gate current releases on signing secrets while unsigned policy is active.
 
 ## 11. Branch Protection Requirements
 
-For `main` and `release/*`:
+For `main`:
 
 - Require CI status checks (`typecheck`, `test`) to pass before merge.
 - Require squash merge to keep commit history clean and Conventional Commits unambiguous.
@@ -308,8 +286,7 @@ For `main` and `release/*`:
 
 ## 12. Implementation Acceptance Criteria
 
-- Merging a releasable commit to `main` automatically publishes a prerelease with assets for macOS/Windows/Linux.
-- Merging a releasable commit to `release/*` automatically publishes a production release with assets for macOS/Windows/Linux.
+- Merging a releasable commit to `main` automatically publishes a production release with assets for macOS/Windows/Linux.
 - Releases are versioned by SemVer from Conventional Commit history.
 - Release notes/changelog are generated automatically.
 - If no releasable commit exists, no release is created and workflow exits successfully.

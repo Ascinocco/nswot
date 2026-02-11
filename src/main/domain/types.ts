@@ -79,7 +79,7 @@ export interface IntegrationCacheEntry {
 export interface Analysis {
   id: string;
   workspaceId: string;
-  role: 'staff_engineer' | 'senior_em';
+  role: 'staff_engineer' | 'senior_em' | 'vp_engineering';
   modelId: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   config: AnalysisConfig;

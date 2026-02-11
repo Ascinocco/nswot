@@ -178,4 +178,123 @@ describe('ExportService', () => {
       expect(result.value).toContain('Senior Engineering Manager');
     }
   });
+
+  it('formats VP of Engineering role correctly', async () => {
+    vi.mocked(analysisRepo.findById).mockResolvedValue(
+      makeCompletedAnalysis({ role: 'vp_engineering' }),
+    );
+    const result = await service.exportMarkdown('analysis-1');
+    if (result.ok) {
+      expect(result.value).toContain('VP of Engineering');
+    }
+  });
+
+  describe('exportCSV', () => {
+    it('produces CSV with correct headers', async () => {
+      const result = await service.exportCSV('analysis-1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const lines = result.value.split('\n');
+      expect(lines[0]).toBe('quadrant,claim,confidence,evidence_count,recommendation,sources');
+    });
+
+    it('includes all SWOT items with correct quadrant labels', async () => {
+      const result = await service.exportCSV('analysis-1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const lines = result.value.split('\n');
+      // Header + 1 strength + 1 weakness + 0 opp + 0 threats = 3 lines
+      expect(lines).toHaveLength(3);
+      expect(lines[1]).toContain('Strengths');
+      expect(lines[1]).toContain('Strong technical leadership');
+      expect(lines[1]).toContain('high');
+      expect(lines[2]).toContain('Weaknesses');
+      expect(lines[2]).toContain('Slow CI pipeline');
+    });
+
+    it('includes correct evidence count', async () => {
+      const result = await service.exportCSV('analysis-1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const lines = result.value.split('\n');
+      // Strengths row: 1 evidence entry
+      expect(lines[1]).toContain(',1,');
+    });
+
+    it('escapes CSV values with commas', async () => {
+      vi.mocked(analysisRepo.findById).mockResolvedValue(
+        makeCompletedAnalysis({
+          swotOutput: {
+            strengths: [
+              {
+                claim: 'Test, with commas',
+                evidence: [],
+                impact: 'None',
+                recommendation: 'Fix it',
+                confidence: 'low',
+              },
+            ],
+            weaknesses: [],
+            opportunities: [],
+            threats: [],
+          },
+        }),
+      );
+      const result = await service.exportCSV('analysis-1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toContain('"Test, with commas"');
+    });
+
+    it('returns error for non-existent analysis', async () => {
+      vi.mocked(analysisRepo.findById).mockResolvedValue(null);
+      const result = await service.exportCSV('missing');
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error for incomplete analysis', async () => {
+      vi.mocked(analysisRepo.findById).mockResolvedValue(
+        makeCompletedAnalysis({ status: 'running', swotOutput: null }),
+      );
+      const result = await service.exportCSV('analysis-1');
+      expect(result.ok).toBe(false);
+    });
+  });
+
+  describe('exportPDF', () => {
+    it('produces a non-empty Buffer', async () => {
+      const result = await service.exportPDF('analysis-1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value).toBeInstanceOf(Buffer);
+      expect(result.value.length).toBeGreaterThan(0);
+    });
+
+    it('produces a valid PDF (starts with %PDF)', async () => {
+      const result = await service.exportPDF('analysis-1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const header = result.value.subarray(0, 5).toString('ascii');
+      expect(header).toBe('%PDF-');
+    });
+
+    it('returns error for non-existent analysis', async () => {
+      vi.mocked(analysisRepo.findById).mockResolvedValue(null);
+      const result = await service.exportPDF('missing');
+      expect(result.ok).toBe(false);
+    });
+
+    it('returns error for incomplete analysis', async () => {
+      vi.mocked(analysisRepo.findById).mockResolvedValue(
+        makeCompletedAnalysis({ status: 'failed', swotOutput: null }),
+      );
+      const result = await service.exportPDF('analysis-1');
+      expect(result.ok).toBe(false);
+    });
+  });
 });

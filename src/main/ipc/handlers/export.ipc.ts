@@ -20,4 +20,22 @@ export function registerExportHandlers(exportService: ExportService): void {
       return toIpcError(result.error);
     },
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.EXPORT_CSV,
+    async (_event, analysisId: string): Promise<IPCResult<string>> => {
+      const result = await exportService.exportCSV(analysisId);
+      if (result.ok) return toIpcResult(result.value);
+      return toIpcError(result.error);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.EXPORT_PDF,
+    async (_event, analysisId: string): Promise<IPCResult<string>> => {
+      const result = await exportService.exportPDF(analysisId);
+      if (result.ok) return toIpcResult(result.value.toString('base64'));
+      return toIpcError(result.error);
+    },
+  );
 }
