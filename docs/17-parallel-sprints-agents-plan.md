@@ -1,8 +1,10 @@
----
+# Parallel Sprints Agents Plan
 
-Week 1
+<details>
+<summary><strong>Week 1</strong></summary>
 
-Agent A — Sprint 13: Codebase Analysis Polish
+<details>
+<summary>Agent A — Sprint 13: Codebase Analysis Polish</summary>
 
 You are executing Sprint 13 (Phase 3b — Codebase Analysis Polish) from the
 nswot parallel sprint plan.
@@ -60,7 +62,10 @@ docs/16-parallel-sprint-plan.md by changing the Sprint 13 section to show
 [x] for each completed task. Add a note at the top: "Sprint 13: Completed
 by Agent A, Week 1". Then run pnpm typecheck && pnpm test to confirm green.
 
-Agent B — Sprint 14 Foundation: Actions Infrastructure
+</details>
+
+<details>
+<summary>Agent B — Sprint 14 Foundation: Actions Infrastructure</summary>
 
 You are executing Sprint 14 Foundation (Phase 3c — Chat Actions
 infrastructure) from the nswot parallel sprint plan.
@@ -127,11 +132,15 @@ additions) as complete in docs/16-parallel-sprint-plan.md. Add a note:
 "Sprint 14 Foundation: Completed by Agent B, Week 1. Gate 1 artifacts ready
 for review." Then run pnpm typecheck && pnpm test to confirm green.
 
----
+</details>
 
-Week 2
+</details>
 
-Agent A — Sprint 14 Backend: Tool-Use Bridge
+<details>
+<summary><strong>Week 2</strong></summary>
+
+<details>
+<summary>Agent A — Sprint 14 Backend: Tool-Use Bridge</summary>
 
 You are executing Sprint 14 Backend (Phase 3c — tool-use bridge wiring)
 from the nswot parallel sprint plan.
@@ -197,7 +206,10 @@ WHEN DONE: Mark Sprint 14 tasks 14.1, 14.3, 14.4, 14.9 as complete in
 docs/16-parallel-sprint-plan.md. Add note: "Sprint 14 Backend: Completed by
 Agent A, Week 2." Then run pnpm typecheck && pnpm test to confirm green.
 
-Agent B — Sprint 14 Frontend: Approval Card UI
+</details>
+
+<details>
+<summary>Agent B — Sprint 14 Frontend: Approval Card UI</summary>
 
 You are executing Sprint 14 Frontend (Phase 3c — approval card and action
 status UI) from the nswot parallel sprint plan.
@@ -263,11 +275,15 @@ WHEN DONE: Mark Sprint 14 tasks 14.6, 14.7 as complete in
 docs/16-parallel-sprint-plan.md. Add note: "Sprint 14 Frontend: Completed
 by Agent B, Week 2." Then run pnpm typecheck && pnpm test to confirm green.
 
----
+</details>
 
-Week 3
+</details>
 
-Agent A — Sprint 15 Backend: Extended Actions
+<details>
+<summary><strong>Week 3</strong></summary>
+
+<details>
+<summary>Agent A — Sprint 15 Backend: Extended Actions</summary>
 
 You are executing Sprint 15 Backend (Phase 3c — Confluence/GitHub actions,
 available actions detection, error handling) from the nswot parallel sprint
@@ -325,7 +341,10 @@ WHEN DONE: Mark Sprint 15 tasks 15.1, 15.2, 15.5, 15.6 as complete in
 docs/16-parallel-sprint-plan.md. Add note: "Sprint 15 Backend: Completed by
 Agent A, Week 3." Then run pnpm typecheck && pnpm test to confirm green.
 
-Agent B — Sprint 15 Frontend: Actions Polish + Testing
+</details>
+
+<details>
+<summary>Agent B — Sprint 15 Frontend: Actions Polish + Testing</summary>
 
 You are executing Sprint 15 Frontend (Phase 3c — edit capability, action
 history, full testing) from the nswot parallel sprint plan.
@@ -383,11 +402,15 @@ docs/16-parallel-sprint-plan.md. Add note: "Sprint 15 Frontend: Completed
 by Agent B, Week 3. Phase 3c complete." Then run pnpm typecheck && pnpm
 test to confirm green.
 
----
+</details>
 
-Week 4
+</details>
 
-Agent A — Sprint 16: Comparison Backend
+<details>
+<summary><strong>Week 4</strong></summary>
+
+<details>
+<summary>Agent A — Sprint 16: Comparison Backend</summary>
 
 You are executing Sprint 16 (Phase 3d — run-to-run comparison backend) from
 the nswot parallel sprint plan.
@@ -455,7 +478,10 @@ WHEN DONE: Mark Sprint 16 tasks 16.1–16.4 as complete in
 docs/16-parallel-sprint-plan.md. Add note: "Sprint 16: Completed by Agent
 A, Week 4." Then run pnpm typecheck && pnpm test to confirm green.
 
-Agent B — Sprint 20: CSV/PDF Export + VP Role + x64
+</details>
+
+<details>
+<summary>Agent B — Sprint 20: CSV/PDF Export + VP Role + x64</summary>
 
 You are executing Sprint 20 (Phase 3d — CSV/PDF export, VP of Engineering
 role, macOS x64 build) from the nswot parallel sprint plan.
@@ -527,11 +553,15 @@ WHEN DONE: Mark Sprint 20 tasks 20.1–20.5 as complete in
 docs/16-parallel-sprint-plan.md. Add note: "Sprint 20: Completed by Agent
 B, Week 4." Then run pnpm typecheck && pnpm test to confirm green.
 
----
+</details>
 
-Week 5
+</details>
 
-Agent A — Sprint 17: Comparison UI
+<details>
+<summary><strong>Week 5</strong></summary>
+
+<details>
+<summary>Agent A — Sprint 17: Comparison UI</summary>
 
 You are executing Sprint 17 (Phase 3d — run-to-run comparison UI) from the
 nswot parallel sprint plan.
@@ -590,7 +620,10 @@ WHEN DONE: Mark Sprint 17 tasks 17.1–17.3 as complete in
 docs/16-parallel-sprint-plan.md. Add note: "Sprint 17: Completed by Agent
 A, Week 5." Then run pnpm typecheck && pnpm test to confirm green.
 
-Agent B — Sprint 18a: Multi-Step Pipeline Architecture (CRITICAL PATH)
+</details>
+
+<details>
+<summary>Agent B — Sprint 18a: Multi-Step Pipeline Architecture (CRITICAL PATH)</summary>
 
 You are executing Sprint 18a (Phase 3d — multi-step pipeline architecture
 refactor) from the nswot parallel sprint plan. THIS IS THE CRITICAL PATH —
@@ -666,11 +699,15 @@ by Agent B, Week 5. Pipeline refactor is behavior-preserving. All existing
 tests pass unchanged." Then run pnpm typecheck && pnpm test to confirm
 green. THIS MUST MERGE BEFORE WEEK 6 STARTS.
 
----
+</details>
 
-Week 6
+</details>
 
-Agent A — Sprint 18b: Pipeline Step Implementation
+<details>
+<summary><strong>Week 6</strong></summary>
+
+<details>
+<summary>Agent A — Sprint 18b: Pipeline Step Implementation</summary>
 
 You are executing Sprint 18b (Phase 3d — extraction and synthesis pipeline
 steps) from the nswot parallel sprint plan.
@@ -743,7 +780,10 @@ docs/16-parallel-sprint-plan.md. Add note: "Sprint 18b: Completed by Agent
 A, Week 6. Extraction and synthesis steps operational." Then run pnpm
 typecheck && pnpm test to confirm green.
 
-Agent B — Sprint 19a: Themes Backend
+</details>
+
+<details>
+<summary>Agent B — Sprint 19a: Themes Backend</summary>
 
 You are executing Sprint 19a (Phase 3d — themes data layer and extraction
 step) from the nswot parallel sprint plan.
@@ -818,11 +858,15 @@ docs/16-parallel-sprint-plan.md. Add note: "Sprint 19a (Gate 3 partial):
 Completed by Agent B, Week 6. Theme extraction step and data layer ready."
 Then run pnpm typecheck && pnpm test to confirm green.
 
----
+</details>
 
-Week 7
+</details>
 
-Agent A — Sprint 19b: Themes Editor UI
+<details>
+<summary><strong>Week 7</strong></summary>
+
+<details>
+<summary>Agent A — Sprint 19b: Themes Editor UI</summary>
 
 You are executing Sprint 19b (Phase 3d — themes editor UI) from the nswot
 parallel sprint plan.
@@ -892,7 +936,10 @@ docs/16-parallel-sprint-plan.md. Add note: "Sprint 19b: Completed by Agent
 A, Week 7. Themes UI operational." Then run pnpm typecheck && pnpm test to
 confirm green.
 
-Agent B — Sprint 21: E2E Testing + Documentation
+</details>
+
+<details>
+<summary>Agent B — Sprint 21: E2E Testing + Documentation</summary>
 
 You are executing Sprint 21 (Phase 3d — final integration testing and
 documentation) from the nswot parallel sprint plan.
@@ -969,3 +1016,7 @@ docs/16-parallel-sprint-plan.md. Update the top of the file with: "All
 sprints complete. Phase 3b-3d delivered in 7 weeks with two-agent parallel
 execution." Then run pnpm typecheck && pnpm test one final time to confirm
 everything is green.
+
+</details>
+
+</details>
