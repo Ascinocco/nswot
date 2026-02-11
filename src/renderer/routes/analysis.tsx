@@ -14,17 +14,19 @@ const ROLES = [
   { value: 'senior_em', label: 'Senior Engineering Manager' },
 ] as const;
 
-const STAGE_LABELS: Record<string, string> = {
-  collecting: 'Step 1/7 — Loading data...',
-  anonymizing: 'Step 2/7 — Anonymizing profiles...',
-  building_prompt: 'Step 3/7 — Building prompt...',
-  sending: 'Step 4/7 — LLM generating...',
-  parsing: 'Step 5/7 — Parsing response...',
-  validating: 'Step 6/7 — Validating evidence...',
-  storing: 'Step 7/7 — Storing results...',
-  completed: 'Analysis complete!',
-  failed: 'Analysis failed',
-};
+const PIPELINE_STEPS = [
+  { key: 'collecting', label: 'Load data' },
+  { key: 'anonymizing', label: 'Anonymize' },
+  { key: 'building_prompt', label: 'Build prompt' },
+  { key: 'sending', label: 'LLM generating' },
+  { key: 'parsing', label: 'Parse response' },
+  { key: 'validating', label: 'Validate evidence' },
+  { key: 'storing', label: 'Store results' },
+] as const;
+
+const STAGE_INDEX: Record<string, number> = Object.fromEntries(
+  PIPELINE_STEPS.map((s, i) => [s.key, i]),
+);
 
 // Module-level state — survives SPA navigation (component unmount/remount)
 let activeAnalysisId: string | null = null;
@@ -479,15 +481,35 @@ export default function AnalysisPage(): React.JSX.Element {
       {/* Progress */}
       {isRunning && progress && (
         <div className="rounded-lg border border-blue-800 bg-blue-900/20 p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" />
-            <div>
-              <p className="text-sm font-medium text-blue-300">
-                {STAGE_LABELS[progress.stage] ?? progress.stage}
-              </p>
-              <p className="text-xs text-blue-400/70">{progress.message}</p>
-            </div>
+          <div className="mb-3 flex items-center gap-2">
+            {PIPELINE_STEPS.map((step, i) => {
+              const currentIdx = STAGE_INDEX[progress.stage] ?? -1;
+              const done = i < currentIdx;
+              const active = i === currentIdx;
+              return (
+                <div key={step.key} className="flex items-center gap-2">
+                  {i > 0 && (
+                    <div className={`h-px w-4 ${done || active ? 'bg-blue-500' : 'bg-gray-700'}`} />
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    {done ? (
+                      <svg className="h-4 w-4 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : active ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border border-gray-600" />
+                    )}
+                    <span className={`text-xs ${done ? 'text-blue-400' : active ? 'font-medium text-blue-300' : 'text-gray-600'}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          <p className="text-xs text-blue-400/70">{progress.message}</p>
         </div>
       )}
 
