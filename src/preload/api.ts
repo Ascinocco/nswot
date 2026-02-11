@@ -5,7 +5,7 @@ import type { JiraProject } from '../main/providers/jira/jira.types';
 import type { ConfluenceSpace } from '../main/providers/confluence/confluence.types';
 import type { GitHubRepo } from '../main/providers/github/github.types';
 import type { CodebaseAnalysis, CodebasePrerequisites, CodebaseAnalysisOptions } from '../main/providers/codebase/codebase.types';
-import type { CodebaseProgress } from '../main/services/codebase.service';
+import type { CodebaseProgress, RepoAnalysisInfo, CodebaseStorageInfo } from '../main/services/codebase.service';
 
 export interface NswotAPI {
   system: {
@@ -73,6 +73,8 @@ export interface NswotAPI {
     >;
     getCached(repo: string): Promise<IPCResult<CodebaseAnalysis | null>>;
     clearRepos(): Promise<IPCResult<void>>;
+    listCached(): Promise<IPCResult<RepoAnalysisInfo[]>>;
+    storageSize(): Promise<IPCResult<CodebaseStorageInfo>>;
     onProgress(callback: (data: CodebaseProgress) => void): () => void;
   };
   analysis: {

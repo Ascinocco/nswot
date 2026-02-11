@@ -192,11 +192,12 @@ describe('CodebaseService', () => {
         true,
       );
 
-      // Verify analysis was called
+      // Verify analysis was called with jiraMcpAvailable flag
       expect(codebaseProvider.analyze).toHaveBeenCalledWith(
         expect.stringContaining('owner/repo'),
         expect.stringContaining('owner/repo'), // prompt contains repo name
         expect.objectContaining({ model: 'sonnet' }),
+        false, // jiraMcp from ALL_PREREQS
       );
 
       // Verify cached
@@ -448,6 +449,138 @@ describe('CodebaseService', () => {
       vi.mocked(workspaceService.getCurrentId).mockReturnValue(null);
 
       const result = await service.getCachedAnalysis('owner/repo');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('WORKSPACE_NOT_FOUND');
+      }
+    });
+  });
+
+  describe('analyzeRepos — jiraMcp passthrough', () => {
+    const onProgress = vi.fn<(progress: CodebaseProgress) => void>();
+
+    it('passes jiraMcp=true to provider.analyze when MCP is available', async () => {
+      vi.mocked(codebaseProvider.checkPrerequisites).mockResolvedValue({
+        cli: true,
+        cliAuthenticated: true,
+        git: true,
+        jiraMcp: true,
+      });
+
+      await service.analyzeRepos(['owner/repo'], {}, ['PROJ'], onProgress);
+
+      expect(codebaseProvider.analyze).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('Jira Cross-Reference'), // prompt includes Jira section
+        expect.any(Object),
+        true, // jiraMcpAvailable
+      );
+    });
+
+    it('passes jiraMcp=false to provider.analyze when MCP is unavailable', async () => {
+      await service.analyzeRepos(['owner/repo'], {}, [], onProgress);
+
+      expect(codebaseProvider.analyze).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.stringContaining('Jira Cross-Reference'),
+        expect.any(Object),
+        false,
+      );
+    });
+  });
+
+  describe('analyzeRepos — full clone prompt', () => {
+    const onProgress = vi.fn<(progress: CodebaseProgress) => void>();
+
+    it('includes git history section in prompt when shallow=false', async () => {
+      await service.analyzeRepos(['owner/repo'], { shallow: false }, [], onProgress);
+
+      expect(codebaseProvider.analyze).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('Git History Analysis'),
+        expect.objectContaining({ shallow: false }),
+        expect.any(Boolean),
+      );
+    });
+
+    it('excludes git history section in prompt when shallow=true', async () => {
+      await service.analyzeRepos(['owner/repo'], { shallow: true }, [], onProgress);
+
+      expect(codebaseProvider.analyze).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.stringContaining('Git History Analysis'),
+        expect.objectContaining({ shallow: true }),
+        expect.any(Boolean),
+      );
+    });
+  });
+
+  describe('listCachedAnalyses', () => {
+    it('returns analysis info for all cached entries', async () => {
+      vi.mocked(cacheRepo.findByType).mockResolvedValue([
+        {
+          id: 'c1',
+          integrationId: 'codebase-int-1',
+          resourceType: 'codebase_analysis',
+          resourceId: 'owner/repo1',
+          data: { ...VALID_ANALYSIS, repo: 'owner/repo1', analyzedAt: '2024-06-01T00:00:00Z' },
+          fetchedAt: '2024-06-01T00:01:00Z',
+        },
+        {
+          id: 'c2',
+          integrationId: 'codebase-int-1',
+          resourceType: 'codebase_analysis',
+          resourceId: 'owner/repo2',
+          data: { ...VALID_ANALYSIS, repo: 'owner/repo2', analyzedAt: '2024-06-02T00:00:00Z' },
+          fetchedAt: '2024-06-02T00:01:00Z',
+        },
+      ]);
+
+      const result = await service.listCachedAnalyses();
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(2);
+        expect(result.value[0]!.repo).toBe('owner/repo1');
+        expect(result.value[0]!.analyzedAt).toBe('2024-06-01T00:00:00Z');
+        expect(result.value[1]!.repo).toBe('owner/repo2');
+      }
+    });
+
+    it('returns empty array when no integration exists', async () => {
+      vi.mocked(integrationRepo.findByWorkspaceAndProvider).mockResolvedValue(null);
+      const result = await service.listCachedAnalyses();
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(0);
+      }
+    });
+
+    it('returns error when no workspace is open', async () => {
+      vi.mocked(workspaceService.getCurrentId).mockReturnValue(null);
+      const result = await service.listCachedAnalyses();
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('WORKSPACE_NOT_FOUND');
+      }
+    });
+  });
+
+  describe('getStorageSize', () => {
+    it('returns zero when repos directory does not exist', async () => {
+      const { existsSync } = await import('fs');
+      vi.mocked(existsSync).mockReturnValue(false);
+
+      const result = await service.getStorageSize();
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.totalBytes).toBe(0);
+        expect(result.value.repoCount).toBe(0);
+      }
+    });
+
+    it('returns error when no workspace is open', async () => {
+      vi.mocked(workspaceService.getCurrent).mockResolvedValue(ok(null));
+      const result = await service.getStorageSize();
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('WORKSPACE_NOT_FOUND');

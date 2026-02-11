@@ -182,6 +182,35 @@ export interface Preference {
   value: string;
 }
 
+export type ActionStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'rejected';
+
+export type ActionToolName =
+  | 'create_jira_issue'
+  | 'create_jira_issues'
+  | 'add_jira_comment'
+  | 'create_confluence_page'
+  | 'create_github_issue'
+  | 'create_github_pr';
+
+export interface ActionResult {
+  success: boolean;
+  id?: string;
+  url?: string;
+  error?: string;
+}
+
+export interface ChatAction {
+  id: string;
+  analysisId: string;
+  chatMessageId: string | null;
+  toolName: ActionToolName;
+  toolInput: Record<string, unknown>;
+  status: ActionStatus;
+  result: ActionResult | null;
+  createdAt: string;
+  executedAt: string | null;
+}
+
 export interface IPCResult<T> {
   success: boolean;
   data?: T;

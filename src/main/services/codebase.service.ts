@@ -19,13 +19,24 @@ import {
 import { buildCodebaseAnalysisPrompt } from '../providers/codebase/codebase-prompt';
 import { validateWorkspacePath } from '../infrastructure/file-system';
 import { join } from 'path';
-import { rm } from 'fs/promises';
+import { rm, stat, readdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
 export interface CodebaseProgress {
   repo: string;
   stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed';
   message: string;
+}
+
+export interface RepoAnalysisInfo {
+  repo: string;
+  analyzedAt: string;
+  fetchedAt: string;
+}
+
+export interface CodebaseStorageInfo {
+  totalBytes: number;
+  repoCount: number;
 }
 
 export class CodebaseService {
@@ -139,14 +150,19 @@ export class CodebaseService {
         const repoDir = this.getRepoDir(workspace.path, repo);
         await this.codebaseProvider.cloneOrPull(repo, repoDir, pat, mergedOptions.shallow);
 
-        // Build prompt
-        const prompt = buildCodebaseAnalysisPrompt(repo, prereqs.jiraMcp, jiraProjectKeys);
+        // Build prompt — include git history section when full clone is used
+        const prompt = buildCodebaseAnalysisPrompt(
+          repo,
+          prereqs.jiraMcp,
+          jiraProjectKeys,
+          !mergedOptions.shallow,
+        );
 
         // Analyze
         onProgress({ repo, stage: 'analyzing', message: `Claude is analyzing ${repo}...` });
         let analysis: CodebaseAnalysis;
         try {
-          analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions);
+          analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions, prereqs.jiraMcp);
         } catch (firstError) {
           // Retry once on parse failure
           if (this.isParseError(firstError)) {
@@ -155,7 +171,7 @@ export class CodebaseService {
               stage: 'analyzing',
               message: `Retrying analysis of ${repo} (parse error)...`,
             });
-            analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions);
+            analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions, prereqs.jiraMcp);
           } else {
             throw firstError;
           }
@@ -251,6 +267,105 @@ export class CodebaseService {
         new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to clear cloned repos', cause),
       );
     }
+  }
+
+  async listCachedAnalyses(): Promise<Result<RepoAnalysisInfo[], DomainError>> {
+    const workspaceId = this.workspaceService.getCurrentId();
+    if (!workspaceId) {
+      return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
+    }
+
+    try {
+      const integration = await this.integrationRepo.findByWorkspaceAndProvider(
+        workspaceId,
+        'codebase',
+      );
+      if (!integration) {
+        return ok([]);
+      }
+
+      const entries = await this.cacheRepo.findByType(
+        integration.id,
+        CODEBASE_RESOURCE_TYPES.ANALYSIS,
+      );
+
+      const infos: RepoAnalysisInfo[] = entries.map((entry) => {
+        const analysis = entry.data as CodebaseAnalysis;
+        return {
+          repo: entry.resourceId,
+          analyzedAt: analysis.analyzedAt,
+          fetchedAt: entry.fetchedAt,
+        };
+      });
+
+      return ok(infos);
+    } catch (cause) {
+      return err(
+        new DomainError(ERROR_CODES.DB_ERROR, 'Failed to list cached analyses', cause),
+      );
+    }
+  }
+
+  async getStorageSize(): Promise<Result<CodebaseStorageInfo, DomainError>> {
+    const workspaceResult = await this.workspaceService.getCurrent();
+    if (!workspaceResult.ok) {
+      return err(workspaceResult.error);
+    }
+    const workspace = workspaceResult.value;
+    if (!workspace) {
+      return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
+    }
+
+    try {
+      const reposDir = join(workspace.path, '.nswot', 'repos');
+      if (!existsSync(reposDir)) {
+        return ok({ totalBytes: 0, repoCount: 0 });
+      }
+
+      const { totalBytes, repoCount } = await this.calculateDirSize(reposDir);
+      return ok({ totalBytes, repoCount });
+    } catch (cause) {
+      return err(
+        new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to calculate storage size', cause),
+      );
+    }
+  }
+
+  private async calculateDirSize(dirPath: string): Promise<{ totalBytes: number; repoCount: number }> {
+    let totalBytes = 0;
+    let repoCount = 0;
+
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        // Count owner/repo directories (depth 2)
+        const subEntries = await readdir(fullPath, { withFileTypes: true });
+        for (const subEntry of subEntries) {
+          if (subEntry.isDirectory()) {
+            repoCount++;
+            totalBytes += await this.getDirectorySize(join(fullPath, subEntry.name));
+          }
+        }
+      }
+    }
+
+    return { totalBytes, repoCount };
+  }
+
+  private async getDirectorySize(dirPath: string): Promise<number> {
+    let size = 0;
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        size += await this.getDirectorySize(fullPath);
+      } else {
+        const fileStat = await stat(fullPath);
+        size += fileStat.size;
+      }
+    }
+    return size;
   }
 
   private async getOrCreateIntegration(workspaceId: string): Promise<Integration> {

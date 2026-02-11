@@ -40,6 +40,8 @@ export const IPC_CHANNELS = {
   CODEBASE_ANALYZE: 'codebase:analyze',
   CODEBASE_GET_CACHED: 'codebase:getCached',
   CODEBASE_CLEAR_REPOS: 'codebase:clearRepos',
+  CODEBASE_LIST_CACHED: 'codebase:listCached',
+  CODEBASE_STORAGE_SIZE: 'codebase:storageSize',
 
   // Analysis
   ANALYSIS_RUN: 'analysis:run',
@@ -69,6 +71,13 @@ export const IPC_CHANNELS = {
 
   // Export
   EXPORT_MARKDOWN: 'export:markdown',
+
+  // Chat Actions
+  CHAT_ACTION_PENDING: 'chat:action:pending',
+  CHAT_ACTION_APPROVE: 'chat:action:approve',
+  CHAT_ACTION_REJECT: 'chat:action:reject',
+  CHAT_ACTION_EDIT: 'chat:action:edit',
+  CHAT_ACTION_LIST: 'chat:action:list',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

@@ -105,4 +105,24 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE analyses ADD COLUMN quality_metrics TEXT;
     `,
   },
+  {
+    version: 3,
+    description: 'Add chat_actions table for chat action audit trail',
+    sql: `
+      CREATE TABLE IF NOT EXISTS chat_actions (
+        id TEXT PRIMARY KEY,
+        analysis_id TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+        chat_message_id TEXT REFERENCES chat_messages(id),
+        tool_name TEXT NOT NULL,
+        tool_input TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'approved', 'executing', 'completed', 'failed', 'rejected')),
+        result TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        executed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_chat_actions_analysis_id ON chat_actions(analysis_id);
+      CREATE INDEX IF NOT EXISTS idx_chat_actions_status ON chat_actions(status);
+    `,
+  },
 ];

@@ -10,12 +10,13 @@ function getTableNames(db: Database.Database): string[] {
 }
 
 describe('initializeDatabase', () => {
-  it('creates all 8 tables', () => {
+  it('creates all 9 tables', () => {
     const db = initializeDatabase(':memory:');
     const tables = getTableNames(db);
     expect(tables).toEqual([
       'analyses',
       'analysis_profiles',
+      'chat_actions',
       'chat_messages',
       'integration_cache',
       'integrations',
@@ -29,7 +30,7 @@ describe('initializeDatabase', () => {
   it('sets user_version to latest migration version', () => {
     const db = initializeDatabase(':memory:');
     const version = db.pragma('user_version', { simple: true });
-    expect(version).toBe(2);
+    expect(version).toBe(3);
     db.close();
   });
 

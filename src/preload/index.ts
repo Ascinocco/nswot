@@ -67,6 +67,8 @@ const api: NswotAPI = {
     getCached: (repo: string) =>
       ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_GET_CACHED, repo),
     clearRepos: () => ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_CLEAR_REPOS),
+    listCached: () => ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_LIST_CACHED),
+    storageSize: () => ipcRenderer.invoke(IPC_CHANNELS.CODEBASE_STORAGE_SIZE),
     onProgress: (callback: (data: { repo: string; stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed'; message: string }) => void) => {
       const handler = (
         _event: unknown,

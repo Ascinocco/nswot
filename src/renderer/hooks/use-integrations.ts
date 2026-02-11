@@ -218,6 +218,7 @@ export function useCodebasePrerequisites(enabled: boolean) {
 }
 
 export function useCodebaseAnalyze() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       repos: string[];
@@ -230,6 +231,11 @@ export function useCodebaseAnalyze() {
         input.jiraProjectKeys ?? [],
       );
       return unwrapResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['codebaseCached'] });
+      queryClient.invalidateQueries({ queryKey: ['codebaseListCached'] });
+      queryClient.invalidateQueries({ queryKey: ['codebaseStorageSize'] });
     },
   });
 }
@@ -254,6 +260,28 @@ export function useCodebaseClearRepos() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['codebaseCached'] });
+      queryClient.invalidateQueries({ queryKey: ['codebaseListCached'] });
+      queryClient.invalidateQueries({ queryKey: ['codebaseStorageSize'] });
+    },
+  });
+}
+
+export function useCodebaseListCached() {
+  return useQuery({
+    queryKey: ['codebaseListCached'] as const,
+    queryFn: async () => {
+      const result = await window.nswot.codebase.listCached();
+      return unwrapResult(result);
+    },
+  });
+}
+
+export function useCodebaseStorageSize() {
+  return useQuery({
+    queryKey: ['codebaseStorageSize'] as const,
+    queryFn: async () => {
+      const result = await window.nswot.codebase.storageSize();
+      return unwrapResult(result);
     },
   });
 }

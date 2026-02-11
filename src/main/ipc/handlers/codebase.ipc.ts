@@ -75,4 +75,26 @@ export function registerCodebaseHandlers(codebaseService: CodebaseService): void
       });
     },
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODEBASE_LIST_CACHED,
+    async (): Promise<IPCResult<unknown>> => {
+      const result = await codebaseService.listCachedAnalyses();
+      return match(result, {
+        ok: (data) => toIpcResult(data),
+        err: (error) => toIpcError(error),
+      });
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CODEBASE_STORAGE_SIZE,
+    async (): Promise<IPCResult<unknown>> => {
+      const result = await codebaseService.getStorageSize();
+      return match(result, {
+        ok: (data) => toIpcResult(data),
+        err: (error) => toIpcError(error),
+      });
+    },
+  );
 }

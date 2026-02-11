@@ -1,10 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   useGitHubIntegration,
+  useGitHubRepos,
   useCodebasePrerequisites,
   useCodebaseAnalyze,
   useCodebaseClearRepos,
   useCodebaseProgress,
+  useCodebaseListCached,
+  useCodebaseStorageSize,
 } from '../../hooks/use-integrations';
 
 interface RepoProgress {
@@ -18,6 +21,8 @@ export default function CodebaseSetup(): React.JSX.Element {
 
   const { data: prereqs, isLoading: prereqsLoading } = useCodebasePrerequisites(true);
 
+  const allPrereqsMet = Boolean(prereqs?.cli && prereqs?.cliAuthenticated && prereqs?.git);
+
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold">Codebase Analysis</h3>
@@ -27,11 +32,13 @@ export default function CodebaseSetup(): React.JSX.Element {
 
       <PrerequisitesCard prereqs={prereqs ?? null} isLoading={prereqsLoading} />
 
-      {prereqs?.cli && prereqs?.cliAuthenticated && prereqs?.git && githubConnected && (
-        <RepoAnalysisCard githubIntegration={githubIntegration!} />
+      {allPrereqsMet && githubConnected && (
+        <RepoAnalysisCard githubIntegration={githubIntegration!} jiraMcpAvailable={prereqs?.jiraMcp ?? false} />
       )}
 
-      {!githubConnected && prereqs?.cli && prereqs?.cliAuthenticated && prereqs?.git && (
+      {allPrereqsMet && githubConnected && <StorageCard />}
+
+      {!githubConnected && allPrereqsMet && (
         <p className="text-sm text-yellow-400">
           Connect GitHub first to select repositories for codebase analysis.
         </p>
@@ -94,17 +101,23 @@ function PrereqItem({
 
 function RepoAnalysisCard({
   githubIntegration,
+  jiraMcpAvailable,
 }: {
   githubIntegration: Integration;
+  jiraMcpAvailable: boolean;
 }): React.JSX.Element {
   const config = githubIntegration.config as GitHubConfig;
   const repos = config.selectedRepos;
+
+  const { data: githubRepos } = useGitHubRepos(true);
+  const { data: cachedAnalyses } = useCodebaseListCached();
 
   const analyzeCodebase = useCodebaseAnalyze();
   const clearRepos = useCodebaseClearRepos();
 
   const [progressMap, setProgressMap] = useState<Record<string, RepoProgress>>({});
   const [selectedRepos, setSelectedRepos] = useState<string[]>(repos);
+  const [fullClone, setFullClone] = useState(false);
 
   const handleProgress = useCallback((data: CodebaseProgress) => {
     setProgressMap((prev) => ({
@@ -115,9 +128,42 @@ function RepoAnalysisCard({
 
   useCodebaseProgress(handleProgress);
 
+  // Build a map of repo -> analysis info for staleness detection
+  const analysisMap = useMemo(() => {
+    const map = new Map<string, RepoAnalysisInfo>();
+    if (cachedAnalyses) {
+      for (const info of cachedAnalyses) {
+        map.set(info.repo, info);
+      }
+    }
+    return map;
+  }, [cachedAnalyses]);
+
+  // Build a map of repo -> GitHub updated_at for staleness comparison
+  const repoUpdatedMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (githubRepos) {
+      for (const repo of githubRepos) {
+        map.set(repo.full_name, repo.updated_at);
+      }
+    }
+    return map;
+  }, [githubRepos]);
+
   const handleAnalyze = (reposToAnalyze: string[]): void => {
     setProgressMap({});
-    analyzeCodebase.mutate({ repos: reposToAnalyze });
+    analyzeCodebase.mutate({
+      repos: reposToAnalyze,
+      options: { shallow: !fullClone },
+    });
+  };
+
+  const handleReanalyze = (repo: string): void => {
+    setProgressMap({});
+    analyzeCodebase.mutate({
+      repos: [repo],
+      options: { shallow: !fullClone },
+    });
   };
 
   const handleToggleRepo = (fullName: string): void => {
@@ -141,6 +187,12 @@ function RepoAnalysisCard({
         <div className="max-h-64 space-y-1 overflow-y-auto">
           {repos.map((repo) => {
             const progress = progressMap[repo];
+            const analysisInfo = analysisMap.get(repo);
+            const repoUpdatedAt = repoUpdatedMap.get(repo);
+            const isStale = analysisInfo && repoUpdatedAt
+              ? new Date(repoUpdatedAt) > new Date(analysisInfo.analyzedAt)
+              : false;
+
             return (
               <div key={repo} className="flex items-center gap-2 rounded px-2 py-1 hover:bg-gray-800">
                 <label className="flex flex-1 cursor-pointer items-center gap-2">
@@ -152,11 +204,50 @@ function RepoAnalysisCard({
                   />
                   <span className="text-sm text-gray-200">{repo}</span>
                 </label>
-                {progress && <ProgressBadge stage={progress.stage} message={progress.message} />}
+                <div className="flex items-center gap-1.5">
+                  {analysisInfo && (
+                    <span className="text-xs text-gray-500" title={`Analyzed: ${new Date(analysisInfo.analyzedAt).toLocaleString()}`}>
+                      {formatRelativeTime(analysisInfo.analyzedAt)}
+                    </span>
+                  )}
+                  {isStale && (
+                    <span className="rounded bg-yellow-900/50 px-1.5 py-0.5 text-xs text-yellow-400" title="Repository has been updated since last analysis">
+                      stale
+                    </span>
+                  )}
+                  {analysisInfo && !analyzeCodebase.isPending && (
+                    <button
+                      onClick={() => handleReanalyze(repo)}
+                      className="rounded px-1.5 py-0.5 text-xs text-blue-400 hover:bg-blue-900/30"
+                      title="Re-analyze this repository"
+                    >
+                      re-analyze
+                    </button>
+                  )}
+                  {progress && <ProgressBadge stage={progress.stage} message={progress.message} />}
+                </div>
               </div>
             );
           })}
         </div>
+      </div>
+
+      {/* Analysis options */}
+      <div className="flex items-center gap-4">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={fullClone}
+            onChange={(e) => setFullClone(e.target.checked)}
+            className="rounded border-gray-600"
+          />
+          Full clone (includes git history for churn analysis)
+        </label>
+        {!jiraMcpAvailable && (
+          <span className="text-xs text-gray-500">
+            Jira MCP not configured — cross-reference will be skipped
+          </span>
+        )}
       </div>
 
       <div className="flex gap-2">
@@ -208,6 +299,23 @@ function RepoAnalysisCard({
   );
 }
 
+function StorageCard(): React.JSX.Element {
+  const { data: storageInfo } = useCodebaseStorageSize();
+
+  if (!storageInfo || (storageInfo.totalBytes === 0 && storageInfo.repoCount === 0)) {
+    return <></>;
+  }
+
+  return (
+    <div className="rounded border border-gray-700 p-4">
+      <h4 className="text-sm font-medium text-gray-300">Cloned Repository Storage</h4>
+      <p className="mt-1 text-sm text-gray-400">
+        {storageInfo.repoCount} repo(s) cloned, using {formatBytes(storageInfo.totalBytes)}
+      </p>
+    </div>
+  );
+}
+
 function ProgressBadge({
   stage,
   message,
@@ -231,4 +339,23 @@ function ProgressBadge({
       {stage}
     </span>
   );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+function formatRelativeTime(isoDate: string): string {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }

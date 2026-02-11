@@ -197,6 +197,17 @@ declare global {
     message: string;
   }
 
+  interface RepoAnalysisInfo {
+    repo: string;
+    analyzedAt: string;
+    fetchedAt: string;
+  }
+
+  interface CodebaseStorageInfo {
+    totalBytes: number;
+    repoCount: number;
+  }
+
   interface JiraProject {
     id: string;
     key: string;
@@ -292,6 +303,8 @@ declare global {
       ): Promise<IPCResult<{ results: CodebaseAnalysis[]; failures: Array<{ repo: string; error: string }> }>>;
       getCached(repo: string): Promise<IPCResult<CodebaseAnalysis | null>>;
       clearRepos(): Promise<IPCResult<void>>;
+      listCached(): Promise<IPCResult<RepoAnalysisInfo[]>>;
+      storageSize(): Promise<IPCResult<CodebaseStorageInfo>>;
       onProgress(callback: (data: CodebaseProgress) => void): () => void;
     };
     analysis: {

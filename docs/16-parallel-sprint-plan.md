@@ -6,6 +6,9 @@
 
 **Prerequisite**: Sprint 12 (Phase 3a pipeline integration) is complete and merged to `main`.
 
+**Sprint 13: Completed by Agent A, Week 1.**
+**Sprint 14 Foundation: Completed by Agent B, Week 1. Gate 1 artifacts ready for review.**
+
 ---
 
 ## Overview
@@ -23,16 +26,16 @@ Key insight: Sprint 13 (Phase 3b — codebase polish) and Sprint 14 (Phase 3c �
 
 *Source: `docs/11-codebase-analysis-plan.md` § Phase 3b*
 
-| # | Task | Dep Type | Conflict-Risk Files |
-|---|------|----------|---------------------|
-| 13.1 | Jira MCP detection + conditional cross-reference prompt | Independent | `src/main/providers/codebase/codebase-prompt.ts`, `codebase.provider.ts` |
-| 13.2 | Stale analysis detection (compare `pushed_at` vs `analyzedAt`) | Independent | `src/main/services/codebase.service.ts` |
-| 13.3 | Re-analyze from UI | Soft dep on 13.2 | `src/renderer/components/integrations/`, `src/main/ipc/handlers/codebase.ipc.ts` |
-| 13.4 | Cloned repo cleanup UI (storage display, clear all) | Independent | `src/renderer/components/integrations/`, `codebase.service.ts` |
-| 13.5 | Full clone option for git history analysis | Independent | `codebase.service.ts`, `codebase.provider.ts` |
-| 13.6 | Prompt tuning based on real output quality | Independent | `codebase-prompt.ts` |
-| 13.7 | Testing: various repo sizes, languages, monorepo | Independent | `codebase.provider.test.ts`, `codebase.service.test.ts` |
-| 13.8 | Documentation updates | Independent | `docs/*` |
+| # | Task | Dep Type | Conflict-Risk Files | Status |
+|---|------|----------|---------------------|--------|
+| 13.1 | Jira MCP detection + conditional cross-reference prompt | Independent | `src/main/providers/codebase/codebase-prompt.ts`, `codebase.provider.ts` | [x] |
+| 13.2 | Stale analysis detection (compare `pushed_at` vs `analyzedAt`) | Independent | `src/main/services/codebase.service.ts` | [x] |
+| 13.3 | Re-analyze from UI | Soft dep on 13.2 | `src/renderer/components/integrations/`, `src/main/ipc/handlers/codebase.ipc.ts` | [x] |
+| 13.4 | Cloned repo cleanup UI (storage display, clear all) | Independent | `src/renderer/components/integrations/`, `codebase.service.ts` | [x] |
+| 13.5 | Full clone option for git history analysis | Independent | `codebase.service.ts`, `codebase.provider.ts` | [x] |
+| 13.6 | Prompt tuning based on real output quality | Independent | `codebase-prompt.ts` | [x] |
+| 13.7 | Testing: various repo sizes, languages, monorepo | Independent | `codebase.provider.test.ts`, `codebase.service.test.ts` | [x] |
+| 13.8 | Documentation updates | Independent | `docs/*` | [x] |
 
 **Critical observation**: Sprint 13 does NOT block Sprint 14. Phase 3c depends on Phase 3a infrastructure (Sprints 11-12), not Phase 3b. Confirmed by `docs/12-chat-actions-plan.md` § Scope: "Depends on: Phase 3a (codebase analysis) for Claude CLI infrastructure."
 
@@ -45,13 +48,13 @@ Key insight: Sprint 13 (Phase 3b — codebase polish) and Sprint 14 (Phase 3c �
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
 | 14.1 | OpenRouter tool-use integration in chat service (stream parsing for `tool_calls`, `finish_reason` detection) | Hard dep on Sprint 12 (existing chat service) | **`src/main/services/chat.service.ts`** (HOT) |
-| 14.2 | ActionExecutor: spawn Claude CLI with MCP-scoped prompt, parse result | Independent (reuses CodebaseProvider pattern) | NEW `src/main/providers/actions/action-executor.ts` |
+| 14.2 | ~~ActionExecutor: spawn Claude CLI with MCP-scoped prompt, parse result~~ [x] | Independent (reuses CodebaseProvider pattern) | NEW `src/main/providers/actions/action-executor.ts` |
 | 14.3 | Pending action IPC event flow (main → renderer) | Soft dep on 14.1 | `src/main/ipc/handlers/chat.ipc.ts`, `src/main/ipc/channels.ts` |
 | 14.4 | Approval/rejection IPC handlers (renderer → main) | Soft dep on 14.3 | `chat.ipc.ts`, `channels.ts`, `src/preload/api.ts` |
-| 14.5 | `chat_actions` table (migration) + ChatActionRepository | Independent | NEW migration, NEW `src/main/repositories/chat-action.repository.ts` |
+| 14.5 | ~~`chat_actions` table (migration) + ChatActionRepository~~ [x] | Independent | NEW migration, NEW `src/main/repositories/chat-action.repository.ts` |
 | 14.6 | Approval card component in chat panel | Soft dep on 14.3 IPC contract | NEW `src/renderer/components/chat/approval-card.tsx`, `chat-panel.tsx` |
 | 14.7 | Action status display (executing, success, failed) | Soft dep on 14.6 | NEW `src/renderer/components/chat/action-status.tsx` |
-| 14.8 | Jira actions: tool definitions + CLI prompts | Independent | NEW `src/main/providers/actions/action-tools.ts`, `action.types.ts` |
+| 14.8 | ~~Jira actions: tool definitions + CLI prompts~~ [x] | Independent | NEW `src/main/providers/actions/action-tools.ts`, `action.types.ts` |
 | 14.9 | Chat system prompt update with action instructions | Soft dep on 14.1 | `src/main/analysis/prompt-builder.ts` or `chat.service.ts` |
 
 ---
@@ -163,7 +166,7 @@ No detailed sprint doc existed prior to this plan. The stated Phase 3d scope is 
 
 | Field | Detail |
 |-------|--------|
-| Scope | Tasks 14.2, 14.5, 14.8 — ActionExecutor, ChatActionRepository + migration, tool definitions + types. All NEW files. Does NOT touch `chat.service.ts`. |
+| Scope | ~~Tasks 14.2, 14.5, 14.8 — ActionExecutor, ChatActionRepository + migration, tool definitions + types. All NEW files. Does NOT touch `chat.service.ts`.~~ **COMPLETED** |
 | Prerequisites | Sprint 12 merged (for CodebaseProvider pattern reference) |
 | Expected outputs | NEW: `providers/actions/action-executor.ts`, `action-tools.ts`, `action.types.ts`, `repositories/chat-action.repository.ts`, migration SQL. Tests for each. |
 | Merge gate | ActionExecutor can spawn Claude CLI and parse JSON result. ChatActionRepository CRUD works against in-memory SQLite. Tool definitions pass type checks. |
@@ -491,7 +494,7 @@ main (stable)
 
 | Week | Task | Status | Blocked By |
 |------|------|--------|------------|
-| 1 | Sprint 13: Codebase Analysis Polish (all 8 tasks) | Ready now | Sprint 12 merged |
+| 1 | Sprint 13: Codebase Analysis Polish (all 8 tasks) | Complete | Sprint 12 merged |
 | 2 | Sprint 14 Backend: tool-use bridge in `chat.service.ts`, action IPC, system prompt | Blocked | Week 1 Agent B merge (Gate 1) |
 | 3 | Sprint 15 Backend: Confluence/GitHub actions, available actions detection, error handling | Blocked | Week 2 Agent A merge |
 | 4 | Sprint 16: Comparison backend (service, diff algo, repo, IPC) | Ready now | None |

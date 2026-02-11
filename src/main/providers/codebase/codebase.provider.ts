@@ -40,8 +40,9 @@ export class CodebaseProvider {
     repoPath: string,
     prompt: string,
     options: CodebaseAnalysisOptions,
+    jiraMcpAvailable: boolean = false,
   ): Promise<CodebaseAnalysis> {
-    const allowedTools = [
+    const tools = [
       'Read',
       'Glob',
       'Grep',
@@ -50,7 +51,13 @@ export class CodebaseProvider {
       'Bash(git blame:*)',
       'Bash(find:*)',
       'Bash(wc:*)',
-    ].join(',');
+    ];
+
+    if (jiraMcpAvailable) {
+      tools.push('mcp__jira');
+    }
+
+    const allowedTools = tools.join(',');
 
     const args = [
       '--print',
@@ -151,8 +158,14 @@ export class CodebaseProvider {
           resolve(false);
           return;
         }
-        // Check if any MCP server name contains "jira"
-        resolve(stdout.toLowerCase().includes('jira'));
+        // Check each line for a server name containing "jira" or "atlassian"
+        // MCP list output format: "server-name  type\n"
+        const lines = stdout.trim().split('\n').filter((l) => l.trim().length > 0);
+        const hasJira = lines.some((line) => {
+          const serverName = line.split(/\s+/)[0]?.toLowerCase() ?? '';
+          return serverName.includes('jira') || serverName.includes('atlassian');
+        });
+        resolve(hasJira);
       });
 
       child.on('error', () => {
