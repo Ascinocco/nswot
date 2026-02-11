@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Markdown from 'react-markdown';
 import { useChatMessages, useSendMessage, useDeleteChat } from '../../hooks/use-chat';
 
 interface ChatPanelProps {
@@ -188,7 +189,13 @@ function MessageBubble({
             : 'bg-gray-800 text-gray-200'
         }`}
       >
-        <p className="whitespace-pre-wrap">{content}</p>
+        {isUser ? (
+          <p className="whitespace-pre-wrap">{content}</p>
+        ) : (
+          <div className="prose prose-sm prose-invert max-w-none prose-headings:text-gray-200 prose-strong:text-gray-200 prose-li:text-gray-200 prose-p:text-gray-200 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-p:my-1">
+            <Markdown>{content}</Markdown>
+          </div>
+        )}
         {isStreaming && (
           <span className="inline-block h-3 w-1 animate-pulse bg-blue-400" />
         )}

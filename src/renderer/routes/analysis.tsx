@@ -15,13 +15,13 @@ const ROLES = [
 ] as const;
 
 const STAGE_LABELS: Record<string, string> = {
-  collecting: 'Loading data...',
-  anonymizing: 'Anonymizing profiles...',
-  building_prompt: 'Building prompt...',
-  sending: 'Sending to LLM...',
-  parsing: 'Parsing response...',
-  validating: 'Validating evidence...',
-  storing: 'Storing results...',
+  collecting: 'Step 1/7 — Loading data...',
+  anonymizing: 'Step 2/7 — Anonymizing profiles...',
+  building_prompt: 'Step 3/7 — Building prompt...',
+  sending: 'Step 4/7 — LLM generating...',
+  parsing: 'Step 5/7 — Parsing response...',
+  validating: 'Step 6/7 — Validating evidence...',
+  storing: 'Step 7/7 — Storing results...',
   completed: 'Analysis complete!',
   failed: 'Analysis failed',
 };

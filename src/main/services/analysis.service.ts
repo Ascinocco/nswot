@@ -161,8 +161,15 @@ export class AnalysisService {
       const userPrompt = buildUserPrompt(input.role, anonymizedProfiles, dataSources, budget);
 
       // Stage 4: Send to LLM
-      onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Sending to LLM...' });
-      let llmResult = await this.callLlm(apiKey, input.modelId, systemPrompt, userPrompt);
+      onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Sending to LLM — waiting for first tokens...' });
+      const onToken = (tokenCount: number): void => {
+        onProgress({
+          analysisId: analysis.id,
+          stage: 'sending',
+          message: `Generating response — ${tokenCount.toLocaleString()} tokens so far...`,
+        });
+      };
+      let llmResult = await this.callLlm(apiKey, input.modelId, systemPrompt, userPrompt, onToken);
       let rawResponse = llmResult.content;
 
       // Stage 5: Parse response
@@ -185,6 +192,7 @@ export class AnalysisService {
           userPrompt,
           rawResponse,
           correctivePrompt,
+          onToken,
         );
         rawResponse = llmResult.content;
 
@@ -379,12 +387,13 @@ export class AnalysisService {
     modelId: string,
     systemPrompt: string,
     userPrompt: string,
+    onToken?: (tokenCount: number) => void,
   ): Promise<LlmResponse> {
     const messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ];
-    return this.sendToOpenRouter(apiKey, modelId, messages);
+    return this.sendToOpenRouter(apiKey, modelId, messages, onToken);
   }
 
   private async callLlmWithHistory(
@@ -394,6 +403,7 @@ export class AnalysisService {
     userPrompt: string,
     previousResponse: string,
     correctivePrompt: string,
+    onToken?: (tokenCount: number) => void,
   ): Promise<LlmResponse> {
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -401,13 +411,14 @@ export class AnalysisService {
       { role: 'assistant', content: previousResponse },
       { role: 'user', content: correctivePrompt },
     ];
-    return this.sendToOpenRouter(apiKey, modelId, messages);
+    return this.sendToOpenRouter(apiKey, modelId, messages, onToken);
   }
 
   private async sendToOpenRouter(
     apiKey: string,
     modelId: string,
     messages: Array<{ role: string; content: string }>,
+    onToken?: (tokenCount: number) => void,
   ): Promise<LlmResponse> {
     const response = await fetch(OPENROUTER_CHAT_URL, {
       method: 'POST',
@@ -422,7 +433,7 @@ export class AnalysisService {
         messages,
         temperature: LLM_TEMPERATURE,
         max_tokens: LLM_MAX_TOKENS,
-        stream: false,
+        stream: true,
       }),
     });
 
@@ -447,19 +458,89 @@ export class AnalysisService {
       );
     }
 
-    const body = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
-      error?: { message?: string };
-    };
+    return this.readSSEStream(response, onToken);
+  }
 
-    const choice = body.choices?.[0];
-    const content = choice?.message?.content;
-    if (!content) {
-      const errorMsg = body.error?.message ?? 'Empty response from LLM';
-      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, errorMsg);
+  private async readSSEStream(
+    response: Response,
+    onToken?: (tokenCount: number) => void,
+  ): Promise<LlmResponse> {
+    const body = response.body;
+    if (!body) {
+      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'No response body from LLM');
     }
 
-    return { content, finishReason: choice?.finish_reason ?? null };
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const chunks: string[] = [];
+    let tokenCount = 0;
+    let finishReason: string | null = null;
+    let lastProgressAt = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      // Keep the last potentially incomplete line in the buffer
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+
+        const data = trimmed.slice(6);
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data) as {
+            choices?: Array<{
+              delta?: { content?: string };
+              finish_reason?: string | null;
+            }>;
+            error?: { message?: string };
+          };
+
+          if (parsed.error?.message) {
+            throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, parsed.error.message);
+          }
+
+          const choice = parsed.choices?.[0];
+          const content = choice?.delta?.content;
+          if (content) {
+            chunks.push(content);
+            tokenCount++;
+
+            // Throttle progress callbacks to every 50 tokens
+            if (onToken && tokenCount - lastProgressAt >= 50) {
+              lastProgressAt = tokenCount;
+              onToken(tokenCount);
+            }
+          }
+
+          if (choice?.finish_reason) {
+            finishReason = choice.finish_reason;
+          }
+        } catch (e) {
+          if (e instanceof DomainError) throw e;
+          // Skip malformed SSE chunks
+        }
+      }
+    }
+
+    // Final progress callback
+    if (onToken && tokenCount > lastProgressAt) {
+      onToken(tokenCount);
+    }
+
+    const fullContent = chunks.join('');
+    if (!fullContent) {
+      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'Empty response from LLM');
+    }
+
+    return { content: fullContent, finishReason };
   }
 }
 

@@ -1,3 +1,4 @@
+import Markdown from 'react-markdown';
 import QualityMetrics from './quality-metrics';
 
 interface SwotResultsProps {
@@ -47,33 +48,13 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
       {/* Summaries */}
       {analysis.summariesOutput && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-            <h4 className="mb-2 text-sm font-medium text-gray-300">Stakeholder Themes</h4>
-            <p className="whitespace-pre-wrap text-sm text-gray-400">
-              {analysis.summariesOutput.profiles}
-            </p>
-          </div>
-          <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-            <h4 className="mb-2 text-sm font-medium text-gray-300">Jira Patterns</h4>
-            <p className="whitespace-pre-wrap text-sm text-gray-400">
-              {analysis.summariesOutput.jira}
-            </p>
-          </div>
+          <SummaryCard title="Stakeholder Themes" content={analysis.summariesOutput.profiles} />
+          <SummaryCard title="Jira Patterns" content={analysis.summariesOutput.jira} />
           {analysis.summariesOutput.confluence && (
-            <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-              <h4 className="mb-2 text-sm font-medium text-gray-300">Confluence Patterns</h4>
-              <p className="whitespace-pre-wrap text-sm text-gray-400">
-                {analysis.summariesOutput.confluence}
-              </p>
-            </div>
+            <SummaryCard title="Confluence Patterns" content={analysis.summariesOutput.confluence} />
           )}
           {analysis.summariesOutput.github && (
-            <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-              <h4 className="mb-2 text-sm font-medium text-gray-300">GitHub Patterns</h4>
-              <p className="whitespace-pre-wrap text-sm text-gray-400">
-                {analysis.summariesOutput.github}
-              </p>
-            </div>
+            <SummaryCard title="GitHub Patterns" content={analysis.summariesOutput.github} />
           )}
         </div>
       )}
@@ -99,6 +80,17 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ title, content }: { title: string; content: string }): React.JSX.Element {
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+      <h4 className="mb-2 text-sm font-medium text-gray-300">{title}</h4>
+      <div className="prose prose-sm prose-invert max-w-none text-gray-400 prose-headings:text-gray-300 prose-strong:text-gray-300 prose-li:text-gray-400 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
+        <Markdown>{content}</Markdown>
       </div>
     </div>
   );
