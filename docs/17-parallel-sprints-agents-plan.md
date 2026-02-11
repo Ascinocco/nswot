@@ -1,11 +1,35 @@
 # Parallel Sprints Agents Plan
 
+> **Source of truth for status**: `docs/16-parallel-sprint-plan.md` — check that document for current completion status, gate status, and backlog priorities.
+>
+> **This document** contains the detailed per-sprint instructions (scope, file ownership, completion criteria) for each agent. Agents should read their sprint instructions here, but track and update status in doc 16.
+>
+> **Branch policy**: All agents work on the current active branch. Do NOT create new branches. This work was designed so agents do not touch the same files.
+
+---
+
+## Completion Status (Quick Reference)
+
+| Week | Agent A | Agent B |
+|------|---------|---------|
+| 1 | Sprint 13: Codebase Polish — **DONE** | Sprint 14 Foundation: Actions Infra — **DONE** |
+| 2 | Sprint 14 Backend: Tool-Use Bridge — **DONE** | Sprint 14 Frontend: Approval Card UI — PENDING |
+| 3 | Sprint 15 Backend: Extended Actions — **DONE** | Sprint 15 Frontend: Actions Polish — PENDING |
+| 4 | Sprint 16: Comparison Backend — PENDING | Sprint 20: Export + VP + x64 — **DONE** |
+| 5 | Sprint 17: Comparison UI — PENDING | Sprint 18a: Pipeline Architecture — **DONE** |
+| 6 | Sprint 18b: Pipeline Steps — PENDING | Sprint 19a: Themes Backend — **DONE** |
+| 7 | Sprint 19b: Themes Editor UI — PENDING | Sprint 21: E2E Testing + Docs — PENDING |
+
+---
+
 ## Week 1
 
-## Agent A — Sprint 13: Codebase Analysis Polish
+## Agent A — Sprint 13: Codebase Analysis Polish — DONE
 
-You are executing Sprint 13 (Phase 3b — Codebase Analysis Polish) from the
-nswot parallel sprint plan.
+> **Status: COMPLETED.** All 8 tasks done. See doc 16 Completion Log.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -45,8 +69,6 @@ FILES TO AVOID: Do NOT modify src/main/providers/actions/\*,
 src/main/services/chat.service.ts, or src/main/domain/types.ts — Agent B
 owns those this week.
 
-BRANCH: sprint-13/codebase-polish (branch from main)
-
 COMPLETION CRITERIA:
 
 - All codebase analysis tests pass
@@ -55,15 +77,16 @@ COMPLETION CRITERIA:
 - Re-analyze and cleanup UI functional
 - pnpm typecheck && pnpm test passes with no regressions
 
-WHEN DONE: Mark Sprint 13 tasks as complete in
-docs/16-parallel-sprint-plan.md by changing the Sprint 13 section to show
-[x] for each completed task. Add a note at the top: "Sprint 13: Completed
-by Agent A, Week 1". Then run pnpm typecheck && pnpm test to confirm green.
+</details>
 
-## Agent B — Sprint 14 Foundation: Actions Infrastructure
+---
 
-You are executing Sprint 14 Foundation (Phase 3c — Chat Actions
-infrastructure) from the nswot parallel sprint plan.
+## Agent B — Sprint 14 Foundation: Actions Infrastructure — DONE
+
+> **Status: COMPLETED.** Tasks 14.2, 14.5, 14.8 done. Gate 1 artifacts delivered and implicitly validated by Agent A's use in Sprints 14/15 Backend.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -108,8 +131,6 @@ FILES TO AVOID: Do NOT modify src/main/services/chat.service.ts,
 src/main/ipc/handlers/chat.ipc.ts, src/preload/api.ts, or any renderer
 files — Agent A owns those next week.
 
-BRANCH: sprint-14/actions-foundation (branch from main)
-
 GATE 1 RESPONSIBILITY: Your types in action.types.ts and channel names in
 channels.ts become the contract for Week 2. Both agents will build against
 them. Make them stable.
@@ -122,17 +143,18 @@ COMPLETION CRITERIA:
 - chat_actions migration applies cleanly
 - pnpm typecheck && pnpm test passes with no regressions
 
-WHEN DONE: Mark Sprint 14 Foundation tasks (14.2, 14.5, 14.8 and channel
-additions) as complete in docs/16-parallel-sprint-plan.md. Add a note:
-"Sprint 14 Foundation: Completed by Agent B, Week 1. Gate 1 artifacts ready
-for review." Then run pnpm typecheck && pnpm test to confirm green.
+</details>
+
+---
 
 ## Week 2
 
-## Agent A — Sprint 14 Backend: Tool-Use Bridge
+## Agent A — Sprint 14 Backend: Tool-Use Bridge — DONE
 
-You are executing Sprint 14 Backend (Phase 3c — tool-use bridge wiring)
-from the nswot parallel sprint plan.
+> **Status: COMPLETED.** Tasks 14.1, 14.3, 14.4, 14.9 done. Gate 1 implicitly validated.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -144,9 +166,6 @@ READ FIRST:
 - src/main/providers/actions/action-executor.ts (Agent B Week 1 output)
 - src/main/services/chat.service.ts (your primary modification target)
 - docs/08-prompt-engineering.md § Chat Actions System Prompt Extension
-
-PREREQUISITE: Agent B's sprint-14/actions-foundation branch must be merged
-to main first.
 
 SCOPE:
 
@@ -177,9 +196,6 @@ FILES YOU OWN:
 FILES TO AVOID: Do NOT modify renderer components — Agent B owns those this
 week.
 
-BRANCH: sprint-14/tool-use-backend (branch from main after
-actions-foundation merge)
-
 COMPLETION CRITERIA:
 
 - Tool-use stream parsing works with mock OpenRouter responses returning
@@ -191,14 +207,13 @@ COMPLETION CRITERIA:
 - All chat.service.test.ts tests pass
 - pnpm typecheck && pnpm test passes with no regressions
 
-WHEN DONE: Mark Sprint 14 tasks 14.1, 14.3, 14.4, 14.9 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 14 Backend: Completed by
-Agent A, Week 2." Then run pnpm typecheck && pnpm test to confirm green.
+</details>
 
-## Agent B — Sprint 14 Frontend: Approval Card UI
+---
 
-You are executing Sprint 14 Frontend (Phase 3c — approval card and action
-status UI) from the nswot parallel sprint plan.
+## Agent B — Sprint 14 Frontend: Approval Card UI — PENDING
+
+> **Status: READY NOW.** Gate 1 passed (implicit). No blockers.
 
 READ FIRST:
 
@@ -211,9 +226,6 @@ READ FIRST:
 - src/renderer/components/analysis/chat-panel.tsx (existing chat panel to
   integrate into)
 - src/renderer/hooks/use-chat.ts (existing chat hooks)
-
-PREREQUISITE: Your own sprint-14/actions-foundation branch must be merged
-to main first.
 
 SCOPE:
 
@@ -243,9 +255,6 @@ FILES TO AVOID: Do NOT modify src/main/services/chat.service.ts,
 src/main/ipc/handlers/chat.ipc.ts, or src/preload/api.ts — Agent A owns
 those this week.
 
-BRANCH: sprint-14/approval-ui (branch from main after actions-foundation
-merge)
-
 COMPLETION CRITERIA:
 
 - Approval card renders all 6 tool types with correct field layouts
@@ -258,16 +267,18 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 14 tasks 14.6, 14.7 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 14 Frontend: Completed
-by Agent B, Week 2." Then run pnpm typecheck && pnpm test to confirm green.
+docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
+
+---
 
 ## Week 3
 
-## Agent A — Sprint 15 Backend: Extended Actions
+## Agent A — Sprint 15 Backend: Extended Actions — DONE
 
-You are executing Sprint 15 Backend (Phase 3c — Confluence/GitHub actions,
-available actions detection, error handling) from the nswot parallel sprint
-plan.
+> **Status: COMPLETED.** Tasks 15.1, 15.2, 15.5, 15.6 done.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -278,8 +289,6 @@ READ FIRST:
 - src/main/providers/actions/action-executor.ts (executor to extend with
   new prompt templates)
 - src/main/services/chat.service.ts (add available actions detection)
-
-PREREQUISITE: Week 2 Agent A (tool-use-backend) must be merged to main.
 
 SCOPE:
 
@@ -306,8 +315,6 @@ FILES YOU OWN:
 
 FILES TO AVOID: Do NOT modify renderer components — Agent B owns those.
 
-BRANCH: sprint-15/actions-backend (branch from main)
-
 COMPLETION CRITERIA:
 
 - All 6 tool types have CLI prompt templates
@@ -317,14 +324,15 @@ COMPLETION CRITERIA:
   error paths
 - pnpm typecheck && pnpm test passes with no regressions
 
-WHEN DONE: Mark Sprint 15 tasks 15.1, 15.2, 15.5, 15.6 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 15 Backend: Completed by
-Agent A, Week 3." Then run pnpm typecheck && pnpm test to confirm green.
+</details>
 
-## Agent B — Sprint 15 Frontend: Actions Polish + Testing
+---
 
-You are executing Sprint 15 Frontend (Phase 3c — edit capability, action
-history, full testing) from the nswot parallel sprint plan.
+## Agent B — Sprint 15 Frontend: Actions Polish + Testing — PENDING
+
+> **Status: BLOCKED.** Depends on Sprint 14 Frontend (Agent B Week 2) being completed first.
+
+PREREQUISITE: Sprint 14 Frontend (Agent B Week 2) must be completed first.
 
 READ FIRST:
 
@@ -332,8 +340,6 @@ READ FIRST:
 - docs/12-chat-actions-plan.md § Approval Card (edit), § Action History
 - src/renderer/components/chat/approval-card.tsx (your Week 2 component)
 - src/renderer/components/analysis/chat-panel.tsx
-
-PREREQUISITE: Week 2 Agent B (approval-ui) must be merged to main.
 
 SCOPE:
 
@@ -364,8 +370,6 @@ FILES YOU OWN:
 FILES TO AVOID: Do NOT modify src/main/services/chat.service.ts or backend
 action files — Agent A owns those.
 
-BRANCH: sprint-15/actions-frontend (branch from main)
-
 COMPLETION CRITERIA:
 
 - Edit mode works: fields are editable, edited values dispatched via IPC
@@ -375,16 +379,15 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 15 tasks 15.3, 15.4, 15.7 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 15 Frontend: Completed
-by Agent B, Week 3. Phase 3c complete." Then run pnpm typecheck && pnpm
-test to confirm green.
+docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
+
+---
 
 ## Week 4
 
-## Agent A — Sprint 16: Comparison Backend
+## Agent A — Sprint 16: Comparison Backend — PENDING
 
-You are executing Sprint 16 (Phase 3d — run-to-run comparison backend) from
-the nswot parallel sprint plan.
+> **Status: READY NOW.** No blockers. Independent of Phase 3c.
 
 READ FIRST:
 
@@ -396,9 +399,6 @@ READ FIRST:
 - src/main/repositories/analysis.repository.ts (existing analysis data
   access)
 - src/main/domain/types.ts (existing Analysis, SwotOutput, SwotItem types)
-
-PREREQUISITE: None — this is independent of Phase 3c. Can start from
-current main.
 
 SCOPE:
 
@@ -433,8 +433,6 @@ FILES TO AVOID: Do NOT modify src/main/domain/types.ts,
 src/main/services/export.service.ts, or electron-builder.yml — Agent B owns
 those this week.
 
-BRANCH: sprint-16/comparison-backend (branch from main)
-
 COMPLETION CRITERIA:
 
 - Diff algorithm produces correct changesets (added, removed, changed
@@ -446,13 +444,16 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 16 tasks 16.1–16.4 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 16: Completed by Agent
-A, Week 4." Then run pnpm typecheck && pnpm test to confirm green.
+docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
 
-## Agent B — Sprint 20: CSV/PDF Export + VP Role + x64
+---
 
-You are executing Sprint 20 (Phase 3d — CSV/PDF export, VP of Engineering
-role, macOS x64 build) from the nswot parallel sprint plan.
+## Agent B — Sprint 20: CSV/PDF Export + VP Role + x64 — DONE
+
+> **Status: COMPLETED.** Tasks 20.1–20.5 done. CSV/PDF export, VP Engineering role, x64 build target.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -464,8 +465,6 @@ READ FIRST:
 - src/main/domain/types.ts (Analysis role union to extend)
 - src/main/analysis/prompt-builder.ts (role instructions)
 - electron-builder.yml (build targets)
-
-PREREQUISITE: None — fully independent. Can start from current main.
 
 SCOPE:
 
@@ -500,12 +499,6 @@ FILES YOU OWN:
 - docs/08-prompt-engineering.md (VP role section)
 - Related test files
 
-FILES TO AVOID: Do NOT modify src/main/repositories/analysis.repository.ts,
-src/main/ipc/channels.ts comparison channels, or src/preload/api.ts
-comparison methods — Agent A owns those this week.
-
-BRANCH: sprint-20/export-vp-x64 (branch from main)
-
 COMPLETION CRITERIA:
 
 - CSV export produces valid CSV with correct columns for test fixtures
@@ -517,16 +510,17 @@ COMPLETION CRITERIA:
   config-verified on ARM)
 - pnpm typecheck && pnpm test passes with no regressions
 
-WHEN DONE: Mark Sprint 20 tasks 20.1–20.5 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 20: Completed by Agent
-B, Week 4." Then run pnpm typecheck && pnpm test to confirm green.
+</details>
+
+---
 
 ## Week 5
 
-## Agent A — Sprint 17: Comparison UI
+## Agent A — Sprint 17: Comparison UI — PENDING
 
-You are executing Sprint 17 (Phase 3d — run-to-run comparison UI) from the
-nswot parallel sprint plan.
+> **Status: BLOCKED.** Depends on Sprint 16 (Agent A Week 4) being completed first.
+
+PREREQUISITE: Sprint 16 (comparison backend) must be completed first.
 
 READ FIRST:
 
@@ -536,8 +530,6 @@ READ FIRST:
 - src/renderer/App.tsx (router — you'll add a route)
 - src/renderer/routes/analysis-history.tsx (you'll add a "Compare" action
   here)
-
-PREREQUISITE: Week 4 Agent A (comparison-backend) must be merged to main.
 
 SCOPE:
 
@@ -568,8 +560,6 @@ src/main/analysis/pipeline-step.ts, or
 src/main/services/analysis.service.ts — Agent B owns those this week
 (critical path).
 
-BRANCH: sprint-17/comparison-ui (branch from main)
-
 COMPLETION CRITERIA:
 
 - User can select two analyses from history and navigate to comparison view
@@ -579,14 +569,16 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 17 tasks 17.1–17.3 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 17: Completed by Agent
-A, Week 5." Then run pnpm typecheck && pnpm test to confirm green.
+docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
 
-## Agent B — Sprint 18a: Multi-Step Pipeline Architecture (CRITICAL PATH)
+---
 
-You are executing Sprint 18a (Phase 3d — multi-step pipeline architecture
-refactor) from the nswot parallel sprint plan. THIS IS THE CRITICAL PATH —
-both agents' Week 6 work depends on your output.
+## Agent B — Sprint 18a: Multi-Step Pipeline Architecture (CRITICAL PATH) — DONE
+
+> **Status: COMPLETED.** Gate 2 passed. PipelineStep interface, AnalysisOrchestrator, SwotGenerationStep created. All 449 pre-existing tests pass unchanged. 21 new tests added.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -600,9 +592,6 @@ READ FIRST:
 - src/main/analysis/response-parser.ts (for reference)
 - src/main/services/analysis.service.test.ts (MUST continue to pass
   unchanged)
-
-PREREQUISITE: None — existing pipeline code is stable. Branch from current
-main.
 
 SCOPE — PURE REFACTOR, NO NEW BEHAVIOR:
 
@@ -622,22 +611,12 @@ SCOPE — PURE REFACTOR, NO NEW BEHAVIOR:
 5. Ensure all existing tests pass with ZERO changes — this validates the
    refactor is behavior-preserving.
 
-CRITICAL CONSTRAINT: This is a PURE REFACTOR. The pipeline must produce
-byte-for-byte identical results to the pre-refactor version for the same
-inputs. DO NOT add new steps, new LLM calls, or new behavior. The only
-change is architectural: monolith -> step chain.
-
 FILES YOU OWN:
 
 - src/main/analysis/orchestrator.ts (MAJOR)
 - src/main/analysis/pipeline-step.ts (new)
 - src/main/analysis/steps/swot-generation.ts (new)
 - src/main/services/analysis.service.ts (API update only)
-
-FILES TO AVOID: Do NOT modify renderer files, comparison files, or any test
-assertions — the tests must pass as-is to prove behavioral equivalence.
-
-BRANCH: sprint-18/pipeline-architecture (branch from main)
 
 GATE 2 CRITERIA (you are the owner):
 
@@ -649,21 +628,18 @@ GATE 2 CRITERIA (you are the owner):
   test code
 - ALL existing orchestrator-related tests pass unchanged
 - pnpm typecheck && pnpm test passes with no regressions
-- Recommended: add a snapshot test comparing pipeline output pre/post
-  refactor
 
-WHEN DONE: Mark Sprint 18 tasks 18.1, 18.2, 18.5 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 18a (Gate 2): Completed
-by Agent B, Week 5. Pipeline refactor is behavior-preserving. All existing
-tests pass unchanged." Then run pnpm typecheck && pnpm test to confirm
-green. THIS MUST MERGE BEFORE WEEK 6 STARTS.
+</details>
+
+---
 
 ## Week 6
 
-## Agent A — Sprint 18b: Pipeline Step Implementation
+## Agent A — Sprint 18b: Pipeline Step Implementation — PENDING
 
-You are executing Sprint 18b (Phase 3d — extraction and synthesis pipeline
-steps) from the nswot parallel sprint plan.
+> **Status: READY NOW.** Gate 2 passed — pipeline step interface is stable. Can start immediately.
+
+PREREQUISITE: Gate 2 (Sprint 18a) is passed. Pipeline step interface is stable.
 
 READ FIRST:
 
@@ -676,9 +652,6 @@ READ FIRST:
 - docs/08-prompt-engineering.md (prompt patterns)
 - src/main/analysis/response-parser.ts (parser to extend for per-step
   parsing)
-
-PREREQUISITE: Agent B's sprint-18/pipeline-architecture branch must be
-merged to main (Gate 2 passed).
 
 SCOPE:
 
@@ -713,9 +686,6 @@ register extraction and synthesis steps. Agent B registers
 theme-extraction step. Both are additive (no conflict if you append to
 different sections).
 
-BRANCH: sprint-18/pipeline-steps (branch from main after
-pipeline-architecture merge)
-
 COMPLETION CRITERIA:
 
 - Extraction step produces structured themes/signals from test fixture data
@@ -729,14 +699,16 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 18 tasks 18.3, 18.4, 18.6 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 18b: Completed by Agent
-A, Week 6. Extraction and synthesis steps operational." Then run pnpm
-typecheck && pnpm test to confirm green.
+docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
 
-## Agent B — Sprint 19a: Themes Backend
+---
 
-You are executing Sprint 19a (Phase 3d — themes data layer and extraction
-step) from the nswot parallel sprint plan.
+## Agent B — Sprint 19a: Themes Backend — DONE
+
+> **Status: COMPLETED.** Tasks 19.1–19.3 done. Theme types added to `domain/types.ts` (`Theme`, `ThemeOutput`, `ThemeEvidenceRef`). Migration v4 (themes table). `ThemeRepository` with transactional batch insert. `ThemeExtractionStep` pipeline step. `PipelineContext` extended with `themes?: ThemeOutput[]`. 21 new tests. 484 total tests pass.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -749,84 +721,48 @@ READ FIRST:
 - src/main/repositories/ (repository patterns to follow)
 - docs/05-domain-model.md (entity patterns)
 
-PREREQUISITE: Your own sprint-18/pipeline-architecture branch must be
-merged to main (Gate 2 passed).
-
 SCOPE:
 
-1. Create src/main/domain/theme.types.ts — Theme, ThemeEvidence,
-   ThemeCategory types. A theme represents a recurring pattern across multiple
-   SWOT items and data sources.
-2. Create DB migration for themes table (id, analysis_id FK, name,
-   description, category, evidence JSON, confidence, created_at)
-3. Create src/main/repositories/theme.repository.ts — ThemeRepository with
-   CRUD: insert, findByAnalysis, findById, update, delete. Follow existing
-   repository patterns (domain types in, domain types out).
-4. Create src/main/analysis/steps/theme-extraction.ts — Theme extraction
-   pipeline step: takes SWOT output, identifies recurring themes across
-   quadrants, groups related items, produces Theme[] with evidence citations.
-   This runs AFTER swot-generation in the pipeline.
-5. Register theme-extraction step in the step registry (after
-   swot-generation)
-6. Write tests for ThemeRepository CRUD (in-memory SQLite) and theme
-   extraction step logic
+1. Theme types (ThemeOutput, ThemeEvidenceRef, Theme) in domain/types.ts
+2. DB migration v4 for themes table (id, analysis_id FK, label, description,
+   evidence_refs JSON, source_types JSON, frequency, created_at)
+3. ThemeRepository with insertMany, findByAnalysis, findById, deleteByAnalysis
+4. ThemeExtractionStep pipeline step — sends theme-extraction prompt to LLM,
+   parses response, adds themes to PipelineContext
+5. Tests for ThemeRepository CRUD and ThemeExtractionStep
 
 FILES YOU OWN:
 
-- src/main/domain/theme.types.ts (new)
+- src/main/domain/types.ts (theme type additions)
 - src/main/repositories/theme.repository.ts (new)
 - src/main/analysis/steps/theme-extraction.ts (new)
-- New migration SQL file
+- src/main/db/migrations.ts (migration v4)
+- src/main/analysis/pipeline-step.ts (PipelineContext themes field)
 - Related test files
 
-FILES TO COORDINATE: src/main/analysis/pipeline-step.ts step registry — you
-register theme-extraction step. Agent A registers extraction and synthesis
-steps. Both are additive.
+</details>
 
-FILES TO AVOID: Do NOT modify src/main/analysis/response-parser.ts or
-src/main/services/analysis.service.ts — Agent A owns those this week.
-
-BRANCH: sprint-19/themes-backend (branch from main after
-pipeline-architecture merge)
-
-GATE 3 RESPONSIBILITY (shared): After both Week 6 branches merge, all
-pipeline steps must run in sequence. You and Agent A share integration
-testing responsibility.
-
-COMPLETION CRITERIA:
-
-- Theme types are well-defined and follow domain model conventions
-- ThemeRepository CRUD works against in-memory SQLite
-- Theme extraction step identifies themes from test SWOT output fixtures
-- Theme extraction step registered and runs after swot-generation in
-  pipeline
-- Migration applies cleanly
-- pnpm typecheck && pnpm test passes with no regressions
-
-WHEN DONE: Mark Sprint 19 tasks 19.1–19.3 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 19a (Gate 3 partial):
-Completed by Agent B, Week 6. Theme extraction step and data layer ready."
-Then run pnpm typecheck && pnpm test to confirm green.
+---
 
 ## Week 7
 
-## Agent A — Sprint 19b: Themes Editor UI
+## Agent A — Sprint 19b: Themes Editor UI — PENDING
 
-You are executing Sprint 19b (Phase 3d — themes editor UI) from the nswot
-parallel sprint plan.
+> **Status: READY NOW.** Gate 3 Agent B artifacts ready (theme types, repository, extraction step all complete).
+
+PREREQUISITE: Sprint 19a (themes backend) is complete. Theme types and
+repository are available.
 
 READ FIRST:
 
 - docs/16-parallel-sprint-plan.md (you are Agent A, Week 7)
-- src/main/domain/theme.types.ts (Agent B Week 6 output — theme types)
+- src/main/domain/types.ts (Theme, ThemeOutput, ThemeEvidenceRef types —
+  Agent B Week 6 output)
 - src/main/repositories/theme.repository.ts (Agent B Week 6 output)
 - src/renderer/App.tsx (add route)
 - src/renderer/routes/analysis.tsx (link to themes from analysis view)
 - Existing renderer patterns in src/renderer/routes/ and
   src/renderer/components/
-
-PREREQUISITE: Agent B's sprint-19/themes-backend branch must be merged to
-main (Gate 3).
 
 SCOPE:
 
@@ -837,11 +773,11 @@ SCOPE:
 3. Create src/renderer/routes/themes.tsx — themes editor page showing
    themes for a given analysis
 4. Create theme editor components:
-   - Theme list: shows extracted themes with name, category, confidence,
-     evidence count
+   - Theme list: shows extracted themes with label, description,
+     evidence count, source types
    - Theme detail: expandable view showing full description, evidence
      citations, related SWOT items
-   - Theme edit: inline editing of theme name, description, category
+   - Theme edit: inline editing of theme label, description
    - Theme delete: with confirmation
 5. Create src/renderer/hooks/use-themes.ts — React Query hook for theme IPC
    calls
@@ -864,8 +800,6 @@ FILES YOU OWN:
 FILES TO AVOID: Do NOT modify docs/ extensively — Agent B owns
 documentation updates this week.
 
-BRANCH: sprint-19/themes-ui (branch from main)
-
 COMPLETION CRITERIA:
 
 - User can navigate from analysis to themes view
@@ -876,14 +810,15 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 19 task 19.4 as complete in
-docs/16-parallel-sprint-plan.md. Add note: "Sprint 19b: Completed by Agent
-A, Week 7. Themes UI operational." Then run pnpm typecheck && pnpm test to
-confirm green.
+docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
 
-## Agent B — Sprint 21: E2E Testing + Documentation
+---
 
-You are executing Sprint 21 (Phase 3d — final integration testing and
-documentation) from the nswot parallel sprint plan.
+## Agent B — Sprint 21: E2E Testing + Documentation — PENDING
+
+> **Status: BLOCKED.** Depends on all prior sprints being completed by both agents.
+
+PREREQUISITE: All prior sprints completed and merged. This is the final sprint.
 
 READ FIRST:
 
@@ -895,8 +830,6 @@ READ FIRST:
   entities)
 - docs/08-prompt-engineering.md (to update with multi-step prompts)
 - All src/main/analysis/steps/\*.ts (verify all steps run in sequence)
-
-PREREQUISITE: All prior branches merged to main. This is the final sprint.
 
 SCOPE:
 
@@ -941,8 +874,6 @@ FILES TO AVOID: Do NOT modify renderer route files or src/main/ source
 files — only tests and docs this week. Agent A may still be merging themes
 UI.
 
-BRANCH: sprint-21/testing-docs (branch from main)
-
 COMPLETION CRITERIA:
 
 - Full multi-step pipeline runs end-to-end without error
@@ -953,7 +884,7 @@ COMPLETION CRITERIA:
 - pnpm typecheck && pnpm test passes with no regressions
 
 WHEN DONE: Mark Sprint 21 tasks 21.1–21.3 as complete in
-docs/16-parallel-sprint-plan.md. Update the top of the file with: "All
+docs/16-parallel-sprint-plan.md. Update the top of doc 16 with: "All
 sprints complete. Phase 3b-3d delivered in 7 weeks with two-agent parallel
 execution." Then run pnpm typecheck && pnpm test one final time to confirm
 everything is green.
