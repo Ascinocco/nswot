@@ -64,7 +64,7 @@ declare global {
   }
 
   interface EvidenceEntry {
-    sourceType: 'profile' | 'jira';
+    sourceType: 'profile' | 'jira' | 'confluence' | 'github';
     sourceId: string;
     sourceLabel: string;
     quote: string;
@@ -80,6 +80,17 @@ declare global {
   interface SummariesOutput {
     profiles: string;
     jira: string;
+    confluence: string | null;
+    github: string | null;
+  }
+
+  interface EvidenceQualityMetrics {
+    totalItems: number;
+    multiSourceItems: number;
+    sourceTypeCoverage: Record<string, number>;
+    confidenceDistribution: { high: number; medium: number; low: number };
+    averageEvidencePerItem: number;
+    qualityScore: number;
   }
 
   interface Analysis {
@@ -88,10 +99,16 @@ declare global {
     role: 'staff_engineer' | 'senior_em';
     modelId: string;
     status: 'pending' | 'running' | 'completed' | 'failed';
-    config: { profileIds: string[]; jiraProjectKeys: string[] };
+    config: {
+      profileIds: string[];
+      jiraProjectKeys: string[];
+      confluenceSpaceKeys: string[];
+      githubRepos: string[];
+    };
     inputSnapshot: unknown;
     swotOutput: SwotOutput | null;
     summariesOutput: SummariesOutput | null;
+    qualityMetrics: EvidenceQualityMetrics | null;
     rawLlmResponse: string | null;
     warning: string | null;
     error: string | null;
@@ -100,11 +117,13 @@ declare global {
     createdAt: string;
   }
 
+  type IntegrationProvider = 'jira' | 'confluence' | 'github';
+
   interface Integration {
     id: string;
     workspaceId: string;
-    provider: 'jira';
-    config: JiraConfig;
+    provider: IntegrationProvider;
+    config: JiraConfig | ConfluenceConfig | GitHubConfig;
     status: 'disconnected' | 'connected' | 'error';
     lastSyncedAt: string | null;
     createdAt: string;
@@ -117,11 +136,40 @@ declare global {
     selectedProjectKeys: string[];
   }
 
+  interface ConfluenceConfig {
+    cloudId: string;
+    siteUrl: string;
+    selectedSpaceKeys: string[];
+  }
+
+  interface GitHubConfig {
+    selectedRepos: string[];
+  }
+
   interface JiraProject {
     id: string;
     key: string;
     name: string;
     projectTypeKey: string;
+  }
+
+  interface ConfluenceSpace {
+    id: string;
+    key: string;
+    name: string;
+    type: string;
+  }
+
+  interface GitHubRepo {
+    id: number;
+    full_name: string;
+    name: string;
+    description: string | null;
+    language: string | null;
+    default_branch: string;
+    open_issues_count: number;
+    updated_at: string;
+    private: boolean;
   }
 
   interface ChatMessage {
@@ -170,6 +218,20 @@ declare global {
       sync(projectKeys: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
       listProjects(): Promise<IPCResult<JiraProject[]>>;
     };
+    confluence: {
+      get(): Promise<IPCResult<Integration | null>>;
+      connect(): Promise<IPCResult<Integration>>;
+      disconnect(): Promise<IPCResult<void>>;
+      listSpaces(): Promise<IPCResult<ConfluenceSpace[]>>;
+      sync(spaceKeys: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
+    };
+    github: {
+      get(): Promise<IPCResult<Integration | null>>;
+      connect(pat: string): Promise<IPCResult<Integration>>;
+      disconnect(): Promise<IPCResult<void>>;
+      listRepos(): Promise<IPCResult<GitHubRepo[]>>;
+      sync(repos: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
+    };
     analysis: {
       list(): Promise<IPCResult<Analysis[]>>;
       get(id: string): Promise<IPCResult<Analysis>>;
@@ -177,6 +239,8 @@ declare global {
       run(input: {
         profileIds: string[];
         jiraProjectKeys: string[];
+        confluenceSpaceKeys: string[];
+        githubRepos: string[];
         role: string;
         modelId: string;
         contextWindow: number;
@@ -184,6 +248,8 @@ declare global {
       previewPayload(
         profileIds: string[],
         jiraProjectKeys: string[],
+        confluenceSpaceKeys: string[],
+        githubRepos: string[],
         role: string,
         contextWindow: number,
       ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>>;

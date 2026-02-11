@@ -52,9 +52,18 @@ function buildValidSourceIds(snapshot: AnonymizedPayload): Set<string> {
   }
 
   // Jira source IDs are of the form "jira:PROJ-123"
-  // Extract from jiraData if it's available and structured
   if (snapshot.jiraData && typeof snapshot.jiraData === 'object') {
     extractJiraSourceIds(snapshot.jiraData, ids);
+  }
+
+  // Confluence source IDs are of the form "confluence:page-title" or "confluence:page-id"
+  if (snapshot.confluenceData && typeof snapshot.confluenceData === 'object') {
+    extractConfluenceSourceIds(snapshot.confluenceData, ids);
+  }
+
+  // GitHub source IDs are of the form "github:owner/repo#123"
+  if (snapshot.githubData && typeof snapshot.githubData === 'object') {
+    extractGithubSourceIds(snapshot.githubData, ids);
   }
 
   return ids;
@@ -74,6 +83,51 @@ function extractJiraSourceIds(jiraData: unknown, ids: Set<string>): void {
         const key = record['key'] ?? record['issueKey'];
         if (typeof key === 'string') {
           ids.add(`jira:${key}`);
+        }
+      }
+    }
+  }
+}
+
+function extractConfluenceSourceIds(confluenceData: unknown, ids: Set<string>): void {
+  if (!confluenceData || typeof confluenceData !== 'object') return;
+  const data = confluenceData as Record<string, unknown>;
+
+  const collections = ['pages', 'comments'] as const;
+  for (const collection of collections) {
+    const items = data[collection];
+    if (!Array.isArray(items)) continue;
+    for (const item of items) {
+      if (typeof item === 'object' && item !== null) {
+        const record = item as Record<string, unknown>;
+        const id = record['id'];
+        const title = record['title'] ?? record['pageTitle'];
+        if (typeof title === 'string') {
+          ids.add(`confluence:${title}`);
+        }
+        if (typeof id === 'string') {
+          ids.add(`confluence:${id}`);
+        }
+      }
+    }
+  }
+}
+
+function extractGithubSourceIds(githubData: unknown, ids: Set<string>): void {
+  if (!githubData || typeof githubData !== 'object') return;
+  const data = githubData as Record<string, unknown>;
+
+  const collections = ['prs', 'issues', 'prComments'] as const;
+  for (const collection of collections) {
+    const items = data[collection];
+    if (!Array.isArray(items)) continue;
+    for (const item of items) {
+      if (typeof item === 'object' && item !== null) {
+        const record = item as Record<string, unknown>;
+        const fullName = record['repoFullName'] ?? record['full_name'];
+        const number = record['number'] ?? record['prNumber'];
+        if (typeof fullName === 'string' && (typeof number === 'number' || typeof number === 'string')) {
+          ids.add(`github:${fullName}#${number}`);
         }
       }
     }

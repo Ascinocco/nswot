@@ -1,3 +1,5 @@
+import QualityMetrics from './quality-metrics';
+
 interface SwotResultsProps {
   analysis: Analysis;
 }
@@ -37,6 +39,11 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
         )}
       </div>
 
+      {/* Quality Metrics */}
+      {analysis.qualityMetrics && (
+        <QualityMetrics metrics={analysis.qualityMetrics} />
+      )}
+
       {/* Summaries */}
       {analysis.summariesOutput && (
         <div className="grid grid-cols-2 gap-4">
@@ -52,6 +59,22 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
               {analysis.summariesOutput.jira}
             </p>
           </div>
+          {analysis.summariesOutput.confluence && (
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+              <h4 className="mb-2 text-sm font-medium text-gray-300">Confluence Patterns</h4>
+              <p className="whitespace-pre-wrap text-sm text-gray-400">
+                {analysis.summariesOutput.confluence}
+              </p>
+            </div>
+          )}
+          {analysis.summariesOutput.github && (
+            <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
+              <h4 className="mb-2 text-sm font-medium text-gray-300">GitHub Patterns</h4>
+              <p className="whitespace-pre-wrap text-sm text-gray-400">
+                {analysis.summariesOutput.github}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

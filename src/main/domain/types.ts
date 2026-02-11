@@ -32,10 +32,12 @@ export interface ProfileInput {
   sourceFile?: string;
 }
 
+export type IntegrationProvider = 'jira' | 'confluence' | 'github';
+
 export interface Integration {
   id: string;
   workspaceId: string;
-  provider: 'jira';
+  provider: IntegrationProvider;
   config: IntegrationConfig;
   status: 'disconnected' | 'connected' | 'error';
   lastSyncedAt: string | null;
@@ -49,7 +51,17 @@ export interface JiraConfig {
   selectedProjectKeys: string[];
 }
 
-export type IntegrationConfig = JiraConfig;
+export interface ConfluenceConfig {
+  cloudId: string;
+  siteUrl: string;
+  selectedSpaceKeys: string[];
+}
+
+export interface GitHubConfig {
+  selectedRepos: string[]; // "owner/repo" format
+}
+
+export type IntegrationConfig = JiraConfig | ConfluenceConfig | GitHubConfig;
 
 export interface IntegrationCacheEntry {
   id: string;
@@ -70,6 +82,7 @@ export interface Analysis {
   inputSnapshot: AnonymizedPayload | null;
   swotOutput: SwotOutput | null;
   summariesOutput: SummariesOutput | null;
+  qualityMetrics: EvidenceQualityMetrics | null;
   rawLlmResponse: string | null;
   warning: string | null;
   error: string | null;
@@ -81,6 +94,8 @@ export interface Analysis {
 export interface AnalysisConfig {
   profileIds: string[];
   jiraProjectKeys: string[];
+  confluenceSpaceKeys: string[];
+  githubRepos: string[];
 }
 
 export interface SwotOutput {
@@ -98,8 +113,10 @@ export interface SwotItem {
   confidence: 'high' | 'medium' | 'low';
 }
 
+export type EvidenceSourceType = 'profile' | 'jira' | 'confluence' | 'github';
+
 export interface EvidenceEntry {
-  sourceType: 'profile' | 'jira';
+  sourceType: EvidenceSourceType;
   sourceId: string;
   sourceLabel: string;
   quote: string;
@@ -108,12 +125,25 @@ export interface EvidenceEntry {
 export interface SummariesOutput {
   profiles: string;
   jira: string;
+  confluence: string | null;
+  github: string | null;
 }
 
 export interface AnonymizedPayload {
   profiles: AnonymizedProfile[];
   jiraData: unknown;
+  confluenceData: unknown;
+  githubData: unknown;
   pseudonymMap: Record<string, string>;
+}
+
+export interface EvidenceQualityMetrics {
+  totalItems: number;
+  multiSourceItems: number;
+  sourceTypeCoverage: Record<string, number>;
+  confidenceDistribution: { high: number; medium: number; low: number };
+  averageEvidencePerItem: number;
+  qualityScore: number;
 }
 
 export interface AnonymizedProfile {

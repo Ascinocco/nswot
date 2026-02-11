@@ -112,6 +112,10 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
                         {analysis.config.profileIds.length} profile{analysis.config.profileIds.length !== 1 ? 's' : ''}
                         {analysis.config.jiraProjectKeys.length > 0 &&
                           ` · ${analysis.config.jiraProjectKeys.length} Jira project${analysis.config.jiraProjectKeys.length !== 1 ? 's' : ''}`}
+                        {analysis.config.confluenceSpaceKeys?.length > 0 &&
+                          ` · ${analysis.config.confluenceSpaceKeys.length} Confluence space${analysis.config.confluenceSpaceKeys.length !== 1 ? 's' : ''}`}
+                        {analysis.config.githubRepos?.length > 0 &&
+                          ` · ${analysis.config.githubRepos.length} GitHub repo${analysis.config.githubRepos.length !== 1 ? 's' : ''}`}
                       </p>
                     )}
                     {analysis.error && (
@@ -121,11 +125,24 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
                       <p className="mt-2 text-sm text-yellow-400">{analysis.warning}</p>
                     )}
                     {analysis.swotOutput && (
-                      <div className="mt-2 flex gap-4 text-xs text-gray-500">
+                      <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
                         <span>{analysis.swotOutput.strengths.length} strengths</span>
                         <span>{analysis.swotOutput.weaknesses.length} weaknesses</span>
                         <span>{analysis.swotOutput.opportunities.length} opportunities</span>
                         <span>{analysis.swotOutput.threats.length} threats</span>
+                        {analysis.qualityMetrics && (
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                              analysis.qualityMetrics.qualityScore >= 60
+                                ? 'border-green-700 bg-green-900/30 text-green-400'
+                                : analysis.qualityMetrics.qualityScore >= 30
+                                  ? 'border-yellow-700 bg-yellow-900/30 text-yellow-400'
+                                  : 'border-red-700 bg-red-900/30 text-red-400'
+                            }`}
+                          >
+                            Quality: {analysis.qualityMetrics.qualityScore}/100
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

@@ -1,7 +1,9 @@
 import { ok, err } from '../domain/result';
 import type { Result } from '../domain/result';
 import { DomainError, ERROR_CODES } from '../domain/errors';
-import type { SwotOutput, SummariesOutput, SwotItem, EvidenceEntry } from '../domain/types';
+import type { SwotOutput, SummariesOutput, SwotItem, EvidenceEntry, EvidenceSourceType } from '../domain/types';
+
+const VALID_SOURCE_TYPES: Set<string> = new Set(['profile', 'jira', 'confluence', 'github']);
 
 export interface ParsedAnalysisOutput {
   swotOutput: SwotOutput;
@@ -194,11 +196,11 @@ function validateEvidenceEntry(
   const entry = raw as Record<string, unknown>;
 
   const sourceType = entry['sourceType'];
-  if (sourceType !== 'profile' && sourceType !== 'jira') {
+  if (typeof sourceType !== 'string' || !VALID_SOURCE_TYPES.has(sourceType)) {
     return err(
       new DomainError(
         ERROR_CODES.LLM_PARSE_ERROR,
-        `${path}.sourceType: expected "profile" or "jira"`,
+        `${path}.sourceType: expected one of "profile", "jira", "confluence", "github"`,
       ),
     );
   }
@@ -225,7 +227,7 @@ function validateEvidenceEntry(
   }
 
   return ok({
-    sourceType,
+    sourceType: sourceType as EvidenceSourceType,
     sourceId: entry['sourceId'] as string,
     sourceLabel: entry['sourceLabel'] as string,
     quote: entry['quote'] as string,
@@ -262,8 +264,14 @@ function validateSummaries(
     );
   }
 
+  // Confluence and GitHub summaries are optional (null if source not connected)
+  const confluence = typeof s['confluence'] === 'string' ? s['confluence'] as string : null;
+  const github = typeof s['github'] === 'string' ? s['github'] as string : null;
+
   return ok({
     profiles: s['profiles'] as string,
     jira: s['jira'] as string,
+    confluence,
+    github,
   });
 }

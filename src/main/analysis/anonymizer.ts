@@ -39,6 +39,21 @@ export function anonymizeProfiles(profiles: Profile[]): AnonymizeResult {
   return { anonymizedProfiles, pseudonymMap };
 }
 
+/**
+ * Scrub author names from integration data markdown.
+ * Replaces Confluence authorIds and GitHub usernames with "[Author]".
+ */
+export function scrubIntegrationAuthors(markdown: string): string {
+  let result = markdown;
+  // GitHub usernames often appear as "user: <login>" or "by <login>"
+  // Confluence authorIds appear as raw IDs — these aren't human-readable,
+  // but we scrub any that look like names (display names injected into markdown).
+  // The formatters don't include author names directly, so this is a safety net
+  // for any that leak through data fields.
+  result = result.replace(/@[\w-]+/g, '@[Author]');
+  return result;
+}
+
 function scrubNames(
   text: string | null,
   profiles: Profile[],

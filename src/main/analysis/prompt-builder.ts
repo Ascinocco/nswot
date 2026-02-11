@@ -2,7 +2,7 @@ import type { AnonymizedProfile } from '../domain/types';
 import { estimateTokens, trimToTokenBudget } from './token-budget';
 import type { TokenBudget } from './token-budget';
 
-export const PROMPT_VERSION = 'mvp-v1';
+export const PROMPT_VERSION = 'phase2-v1';
 
 const ROLE_DISPLAY_NAMES: Record<string, string> = {
   staff_engineer: 'Staff Engineer',
@@ -22,8 +22,14 @@ const ROLE_INSTRUCTIONS: Record<string, string> = {
 - When citing technical issues, frame through the lens of team impact and resourcing`,
 };
 
+export interface PromptDataSources {
+  jiraDataMarkdown: string | null;
+  confluenceDataMarkdown: string | null;
+  githubDataMarkdown: string | null;
+}
+
 export function buildSystemPrompt(): string {
-  return `You are an expert organizational analyst. You produce structured SWOT analyses for software engineering organizations based on stakeholder interview data and Jira project data.
+  return `You are an expert organizational analyst. You produce structured SWOT analyses for software engineering organizations based on stakeholder interview data and external data sources (Jira, Confluence, GitHub).
 
 RULES — you must follow these exactly:
 1. Every claim in the SWOT must cite specific evidence from the provided data. Use the exact sourceId values provided.
@@ -34,6 +40,17 @@ RULES — you must follow these exactly:
 6. Use only the data provided in this prompt. Do not use external knowledge about the organization, its employees, or its industry.
 7. All stakeholder names have been anonymized. Refer to them only by their labels (e.g., "Stakeholder A").
 
+CROSS-SOURCE TRIANGULATION:
+- When multiple source types (profiles, Jira, Confluence, GitHub) corroborate the same claim, set confidence to "high" and cite evidence from each source.
+- When a claim is supported by only one source type, set confidence to "medium" or "low" depending on evidence strength.
+- Actively look for patterns that span sources: e.g., a stakeholder concern about delivery speed + Jira stories stuck in review + GitHub PRs with slow merge times.
+- Each claim should ideally cite 2+ pieces of evidence. Single-evidence claims should have confidence "low".
+
+EVIDENCE DENSITY:
+- Prefer claims with rich, multi-source evidence over numerous weakly-supported claims.
+- If a claim has supporting evidence from 3+ source types, flag it as high-confidence.
+- Quality of evidence matters more than quantity.
+
 OUTPUT FORMAT:
 Respond with a single JSON object wrapped in a \`\`\`json code fence. The JSON must conform exactly to the schema provided below. Do not include any text before or after the JSON block.`;
 }
@@ -41,7 +58,7 @@ Respond with a single JSON object wrapped in a \`\`\`json code fence. The JSON m
 export function buildUserPrompt(
   role: string,
   anonymizedProfiles: AnonymizedProfile[],
-  jiraDataMarkdown: string | null,
+  dataSources: PromptDataSources,
   budget: TokenBudget,
 ): string {
   const roleDisplayName = ROLE_DISPLAY_NAMES[role] ?? role;
@@ -56,15 +73,61 @@ export function buildUserPrompt(
     profilesSection = trimToTokenBudget(profilesSection, budget.profiles);
   }
 
+  // Build Jira section
   let jiraSection = '';
-  if (jiraDataMarkdown) {
-    jiraSection = jiraDataMarkdown;
-    if (estimateTokens(jiraSection) > budget.jiraData) {
+  if (dataSources.jiraDataMarkdown) {
+    jiraSection = dataSources.jiraDataMarkdown;
+    if (budget.jiraData > 0 && estimateTokens(jiraSection) > budget.jiraData) {
       jiraSection = trimToTokenBudget(jiraSection, budget.jiraData);
     }
   } else {
-    jiraSection = 'No Jira data is available for this analysis. Base your analysis solely on the stakeholder profiles provided.';
+    jiraSection = 'No Jira data is available for this analysis.';
   }
+
+  // Build Confluence section
+  let confluenceSection = '';
+  if (dataSources.confluenceDataMarkdown) {
+    confluenceSection = dataSources.confluenceDataMarkdown;
+    if (budget.confluenceData > 0 && estimateTokens(confluenceSection) > budget.confluenceData) {
+      confluenceSection = trimToTokenBudget(confluenceSection, budget.confluenceData);
+    }
+  } else {
+    confluenceSection = 'No Confluence data is available for this analysis.';
+  }
+
+  // Build GitHub section
+  let githubSection = '';
+  if (dataSources.githubDataMarkdown) {
+    githubSection = dataSources.githubDataMarkdown;
+    if (budget.githubData > 0 && estimateTokens(githubSection) > budget.githubData) {
+      githubSection = trimToTokenBudget(githubSection, budget.githubData);
+    }
+  } else {
+    githubSection = 'No GitHub data is available for this analysis.';
+  }
+
+  // Build source types list for the schema
+  const availableSourceTypes = ['profile', 'jira'];
+  if (dataSources.confluenceDataMarkdown) availableSourceTypes.push('confluence');
+  if (dataSources.githubDataMarkdown) availableSourceTypes.push('github');
+  const sourceTypeUnion = availableSourceTypes.map((s) => `"${s}"`).join(' | ');
+
+  // Summaries schema
+  const summariesSchema: Record<string, string> = {
+    profiles: '"markdown string summarizing key themes from stakeholder interviews"',
+    jira: '"markdown string summarizing key patterns from Jira data"',
+  };
+  if (dataSources.confluenceDataMarkdown) {
+    summariesSchema['confluence'] =
+      '"markdown string summarizing key patterns from Confluence data"';
+  }
+  if (dataSources.githubDataMarkdown) {
+    summariesSchema['github'] =
+      '"markdown string summarizing key patterns from GitHub data"';
+  }
+  const summariesSchemaStr = Object.entries(summariesSchema)
+    .map(([k, v]) => `    "${k}": ${v}`)
+    .join(',\n');
 
   return `## Role Context
 
@@ -82,10 +145,22 @@ ${profilesSection}
 
 ${jiraSection}
 
+## Confluence Data
+
+${confluenceSection}
+
+## GitHub Data
+
+${githubSection}
+
 ## Data Sources Reference
 
 Each piece of evidence you cite must use one of these sourceId values:
 ${profileSourceIds.join('\n')}
+
+For Jira evidence, use sourceIds like \`jira:PROJ-123\`.
+${dataSources.confluenceDataMarkdown ? 'For Confluence evidence, use sourceIds like `confluence:PAGE-TITLE` or `confluence:page-id`.' : ''}
+${dataSources.githubDataMarkdown ? 'For GitHub evidence, use sourceIds like `github:owner/repo#123`.' : ''}
 
 ## Output Schema
 
@@ -96,8 +171,7 @@ ${profileSourceIds.join('\n')}
   "opportunities": [SwotItem],
   "threats": [SwotItem],
   "summaries": {
-    "profiles": "markdown string summarizing key themes from stakeholder interviews",
-    "jira": "markdown string summarizing key patterns from Jira data"
+${summariesSchemaStr}
   }
 }
 \`\`\`
@@ -108,8 +182,8 @@ Where each SwotItem is:
   "claim": "A specific, actionable statement about the organization",
   "evidence": [
     {
-      "sourceType": "profile" | "jira",
-      "sourceId": "profile:Stakeholder A" | "jira:PROJ-123",
+      "sourceType": ${sourceTypeUnion},
+      "sourceId": "profile:Stakeholder A" | "jira:PROJ-123"${dataSources.confluenceDataMarkdown ? ' | "confluence:page-title"' : ''}${dataSources.githubDataMarkdown ? ' | "github:owner/repo#123"' : ''},
       "sourceLabel": "Human-readable label for this source",
       "quote": "Direct quote or specific data point supporting the claim"
     }
@@ -155,5 +229,5 @@ Common issues to avoid:
 - Missing closing braces or brackets
 - Using single quotes instead of double quotes
 
-The JSON must have this top-level shape: { "strengths": [...], "weaknesses": [...], "opportunities": [...], "threats": [...], "summaries": { "profiles": "...", "jira": "..." } }`;
+The JSON must have this top-level shape: { "strengths": [...], "weaknesses": [...], "opportunities": [...], "threats": [...], "summaries": { "profiles": "...", "jira": "..."[, "confluence": "..."][, "github": "..."] } }`;
 }

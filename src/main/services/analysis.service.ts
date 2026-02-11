@@ -11,17 +11,25 @@ import type {
 } from '../domain/types';
 import type { JiraIssue, JiraComment } from '../providers/jira/jira.types';
 import { JIRA_RESOURCE_TYPES } from '../providers/jira/jira.types';
+import { extractTextFromAdf } from '../providers/jira/adf';
+import type { ConfluencePage, ConfluenceComment } from '../providers/confluence/confluence.types';
+import { CONFLUENCE_RESOURCE_TYPES } from '../providers/confluence/confluence.types';
+import type { GitHubPR, GitHubIssue, GitHubPRComment } from '../providers/github/github.types';
+import { GITHUB_RESOURCE_TYPES } from '../providers/github/github.types';
 import type { AnalysisRepository } from '../repositories/analysis.repository';
 import type { ProfileRepository } from '../repositories/profile.repository';
 import type { IntegrationRepository } from '../repositories/integration.repository';
 import { IntegrationCacheRepository } from '../repositories/integration-cache.repository';
 import type { SettingsService } from './settings.service';
 import type { WorkspaceService } from './workspace.service';
-import { anonymizeProfiles } from '../analysis/anonymizer';
+import { anonymizeProfiles, scrubIntegrationAuthors } from '../analysis/anonymizer';
 import { buildSystemPrompt, buildUserPrompt, buildCorrectivePrompt, PROMPT_VERSION } from '../analysis/prompt-builder';
+import type { PromptDataSources } from '../analysis/prompt-builder';
 import { parseAnalysisResponse } from '../analysis/response-parser';
 import { validateEvidence } from '../analysis/evidence-validator';
+import { computeQualityMetrics } from '../analysis/quality-metrics';
 import { calculateTokenBudget } from '../analysis/token-budget';
+import type { ConnectedSource } from '../analysis/token-budget';
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const LLM_TEMPERATURE = 0.2;
@@ -47,6 +55,8 @@ export interface AnalysisProgress {
 export interface RunAnalysisInput {
   profileIds: string[];
   jiraProjectKeys: string[];
+  confluenceSpaceKeys: string[];
+  githubRepos: string[];
   role: Analysis['role'];
   modelId: string;
   contextWindow: number;
@@ -88,6 +98,8 @@ export class AnalysisService {
       config: {
         profileIds: input.profileIds,
         jiraProjectKeys: input.jiraProjectKeys,
+        confluenceSpaceKeys: input.confluenceSpaceKeys,
+        githubRepos: input.githubRepos,
       },
     });
 
@@ -97,13 +109,17 @@ export class AnalysisService {
       });
 
       // Stage 1: Collect data
-      onProgress({ analysisId: analysis.id, stage: 'collecting', message: 'Loading profiles and Jira data...' });
+      onProgress({ analysisId: analysis.id, stage: 'collecting', message: 'Loading profiles and integration data...' });
       const profiles = await this.profileRepo.findByIds(input.profileIds);
       if (profiles.length === 0) {
         throw new DomainError(ERROR_CODES.ANALYSIS_NO_PROFILES, 'No profiles found for the selected IDs');
       }
 
       const jiraMarkdown = await this.collectJiraData(workspaceId, input.jiraProjectKeys);
+      const rawConfluenceMarkdown = await this.collectConfluenceData(workspaceId, input.confluenceSpaceKeys);
+      const confluenceMarkdown = rawConfluenceMarkdown ? scrubIntegrationAuthors(rawConfluenceMarkdown) : null;
+      const rawGithubMarkdown = await this.collectGithubData(workspaceId, input.githubRepos);
+      const githubMarkdown = rawGithubMarkdown ? scrubIntegrationAuthors(rawGithubMarkdown) : null;
 
       // Stage 2: Anonymize
       onProgress({ analysisId: analysis.id, stage: 'anonymizing', message: 'Anonymizing stakeholder data...' });
@@ -112,6 +128,8 @@ export class AnalysisService {
       const inputSnapshot: AnonymizedPayload = {
         profiles: anonymizedProfiles,
         jiraData: jiraMarkdown ? { markdown: jiraMarkdown } : null,
+        confluenceData: confluenceMarkdown ? { markdown: confluenceMarkdown } : null,
+        githubData: githubMarkdown ? { markdown: githubMarkdown } : null,
         pseudonymMap,
       };
 
@@ -129,9 +147,18 @@ export class AnalysisService {
 
       // Stage 3: Build prompt
       onProgress({ analysisId: analysis.id, stage: 'building_prompt', message: 'Constructing analysis prompt...' });
-      const budget = calculateTokenBudget(input.contextWindow);
+      const connectedSources: ConnectedSource[] = [];
+      if (jiraMarkdown) connectedSources.push('jira');
+      if (confluenceMarkdown) connectedSources.push('confluence');
+      if (githubMarkdown) connectedSources.push('github');
+      const budget = calculateTokenBudget(input.contextWindow, connectedSources);
       const systemPrompt = buildSystemPrompt();
-      const userPrompt = buildUserPrompt(input.role, anonymizedProfiles, jiraMarkdown, budget);
+      const dataSources: PromptDataSources = {
+        jiraDataMarkdown: jiraMarkdown,
+        confluenceDataMarkdown: confluenceMarkdown,
+        githubDataMarkdown: githubMarkdown,
+      };
+      const userPrompt = buildUserPrompt(input.role, anonymizedProfiles, dataSources, budget);
 
       // Stage 4: Send to LLM
       onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Sending to LLM...' });
@@ -176,11 +203,15 @@ export class AnalysisService {
         throw validationResult.error;
       }
 
+      // Compute quality metrics
+      const qualityMetrics = computeQualityMetrics(swotOutput);
+
       // Stage 7: Store results
       onProgress({ analysisId: analysis.id, stage: 'storing', message: 'Storing results...' });
       await this.analysisRepo.storeResult(analysis.id, {
         swotOutput,
         summariesOutput,
+        qualityMetrics,
         rawLlmResponse: rawResponse,
         warning,
       });
@@ -207,6 +238,8 @@ export class AnalysisService {
   async getPayloadPreview(
     profileIds: string[],
     jiraProjectKeys: string[],
+    confluenceSpaceKeys: string[],
+    githubRepos: string[],
     role: Analysis['role'],
     contextWindow: number,
   ): Promise<Result<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }, DomainError>> {
@@ -219,10 +252,24 @@ export class AnalysisService {
       const profiles = await this.profileRepo.findByIds(profileIds);
       const { anonymizedProfiles } = anonymizeProfiles(profiles);
       const jiraMarkdown = await this.collectJiraData(workspaceId, jiraProjectKeys);
-      const budget = calculateTokenBudget(contextWindow);
+      const rawConfluence = await this.collectConfluenceData(workspaceId, confluenceSpaceKeys);
+      const confluenceMarkdown = rawConfluence ? scrubIntegrationAuthors(rawConfluence) : null;
+      const rawGithub = await this.collectGithubData(workspaceId, githubRepos);
+      const githubMarkdown = rawGithub ? scrubIntegrationAuthors(rawGithub) : null;
+
+      const previewSources: ConnectedSource[] = [];
+      if (jiraMarkdown) previewSources.push('jira');
+      if (confluenceMarkdown) previewSources.push('confluence');
+      if (githubMarkdown) previewSources.push('github');
+      const budget = calculateTokenBudget(contextWindow, previewSources);
 
       const systemPrompt = buildSystemPrompt();
-      const userPrompt = buildUserPrompt(role, anonymizedProfiles, jiraMarkdown, budget);
+      const dataSources: PromptDataSources = {
+        jiraDataMarkdown: jiraMarkdown,
+        confluenceDataMarkdown: confluenceMarkdown,
+        githubDataMarkdown: githubMarkdown,
+      };
+      const userPrompt = buildUserPrompt(role, anonymizedProfiles, dataSources, budget);
 
       const totalChars = systemPrompt.length + userPrompt.length;
       const tokenEstimate = Math.ceil(totalChars / 4);
@@ -261,6 +308,63 @@ export class AnalysisService {
     const isStale = epics.length > 0 && IntegrationCacheRepository.isStale(epics[0]!);
 
     return formatJiraMarkdown(epics, stories, comments, jiraProjectKeys, isStale);
+  }
+
+  private async collectConfluenceData(
+    workspaceId: string,
+    confluenceSpaceKeys: string[],
+  ): Promise<string | null> {
+    if (confluenceSpaceKeys.length === 0) return null;
+
+    const integration = await this.integrationRepo.findByWorkspaceAndProvider(workspaceId, 'confluence');
+    if (!integration || integration.status === 'disconnected') return null;
+
+    const pages = await this.integrationCacheRepo.findByType(
+      integration.id,
+      CONFLUENCE_RESOURCE_TYPES.PAGE,
+    );
+    const comments = await this.integrationCacheRepo.findByType(
+      integration.id,
+      CONFLUENCE_RESOURCE_TYPES.COMMENT,
+    );
+
+    if (pages.length === 0) return null;
+
+    const isStale = IntegrationCacheRepository.isStale(pages[0]!);
+    return formatConfluenceMarkdown(pages, comments, confluenceSpaceKeys, isStale);
+  }
+
+  private async collectGithubData(
+    workspaceId: string,
+    githubRepos: string[],
+  ): Promise<string | null> {
+    if (githubRepos.length === 0) return null;
+
+    const integration = await this.integrationRepo.findByWorkspaceAndProvider(workspaceId, 'github');
+    if (!integration || integration.status === 'disconnected') return null;
+
+    const prs = await this.integrationCacheRepo.findByType(
+      integration.id,
+      GITHUB_RESOURCE_TYPES.PR,
+    );
+    const issues = await this.integrationCacheRepo.findByType(
+      integration.id,
+      GITHUB_RESOURCE_TYPES.ISSUE,
+    );
+    const prComments = await this.integrationCacheRepo.findByType(
+      integration.id,
+      GITHUB_RESOURCE_TYPES.PR_COMMENT,
+    );
+
+    if (prs.length === 0 && issues.length === 0) return null;
+
+    const isStale = prs.length > 0
+      ? IntegrationCacheRepository.isStale(prs[0]!)
+      : issues.length > 0
+        ? IntegrationCacheRepository.isStale(issues[0]!)
+        : false;
+
+    return formatGithubMarkdown(prs, issues, prComments, githubRepos, isStale);
   }
 
   private async callLlm(
@@ -365,8 +469,9 @@ function formatJiraMarkdown(
       const issue = entry.data as JiraIssue;
       const status = issue.fields?.status?.name ?? 'Unknown';
       const updated = issue.fields?.updated ?? '';
-      const desc = issue.fields?.description
-        ? `\n  Description: ${truncate(issue.fields.description, 200)}`
+      const descText = extractTextFromAdf(issue.fields?.description);
+      const desc = descText
+        ? `\n  Description: ${truncate(descText, 200)}`
         : '';
       sections.push(`- [${issue.key}] ${issue.fields?.summary ?? 'No summary'} (Status: ${status}, Updated: ${updated})${desc}`);
     }
@@ -394,7 +499,7 @@ function formatJiraMarkdown(
     for (const entry of comments) {
       const comment = entry.data as JiraComment & { issueKey?: string };
       const issueKey = comment.issueKey ?? 'Unknown';
-      const body = truncate(comment.body ?? '', 200);
+      const body = truncate(extractTextFromAdf(comment.body), 200);
       const created = comment.created ?? '';
       sections.push(`- On [${issueKey}]: "${body}" (${created})`);
     }
@@ -402,6 +507,149 @@ function formatJiraMarkdown(
   }
 
   return sections.join('\n');
+}
+
+function formatConfluenceMarkdown(
+  pages: IntegrationCacheEntry[],
+  comments: IntegrationCacheEntry[],
+  spaceKeys: string[],
+  isStale: boolean,
+): string {
+  const sections: string[] = [];
+
+  if (isStale) {
+    sections.push('> **Note:** Confluence data may be stale. Consider re-syncing for the latest information.\n');
+  }
+
+  sections.push(`Spaces: ${spaceKeys.join(', ')}\n`);
+
+  // Group comments by page ID for easier lookup
+  const commentsByPage = new Map<string, IntegrationCacheEntry[]>();
+  for (const entry of comments) {
+    const comment = entry.data as ConfluenceComment;
+    const existing = commentsByPage.get(comment.pageId) ?? [];
+    existing.push(entry);
+    commentsByPage.set(comment.pageId, existing);
+  }
+
+  // Pages
+  sections.push('### Pages\n');
+  if (pages.length === 0) {
+    sections.push('No pages found.\n');
+  } else {
+    for (const entry of pages) {
+      const page = entry.data as ConfluencePage;
+      const bodyHtml = page.body?.storage?.value ?? '';
+      // Strip HTML tags for a plain-text excerpt
+      const bodyText = stripHtml(bodyHtml);
+      const excerpt = bodyText ? `\n  Excerpt: ${truncate(bodyText, 300)}` : '';
+      const updated = page.lastUpdated ?? '';
+      sections.push(`- [${page.title}] (ID: ${page.id}, Updated: ${updated})${excerpt}`);
+
+      // Include page comments inline
+      const pageComments = commentsByPage.get(page.id);
+      if (pageComments && pageComments.length > 0) {
+        for (const cEntry of pageComments) {
+          const c = cEntry.data as ConfluenceComment;
+          const cBody = stripHtml(c.body?.storage?.value ?? '');
+          if (cBody) {
+            sections.push(`  - Comment: "${truncate(cBody, 150)}" (${c.createdAt})`);
+          }
+        }
+      }
+    }
+    sections.push('');
+  }
+
+  return sections.join('\n');
+}
+
+function formatGithubMarkdown(
+  prs: IntegrationCacheEntry[],
+  issues: IntegrationCacheEntry[],
+  prComments: IntegrationCacheEntry[],
+  repos: string[],
+  isStale: boolean,
+): string {
+  const sections: string[] = [];
+
+  if (isStale) {
+    sections.push('> **Note:** GitHub data may be stale. Consider re-syncing for the latest information.\n');
+  }
+
+  sections.push(`Repositories: ${repos.join(', ')}\n`);
+
+  // Group PR comments by PR number + repo
+  const commentsByPr = new Map<string, IntegrationCacheEntry[]>();
+  for (const entry of prComments) {
+    const comment = entry.data as GitHubPRComment & { repoFullName?: string; prNumber?: number };
+    const key = `${comment.repoFullName ?? ''}#${comment.prNumber ?? ''}`;
+    const existing = commentsByPr.get(key) ?? [];
+    existing.push(entry);
+    commentsByPr.set(key, existing);
+  }
+
+  // Pull Requests
+  sections.push('### Pull Requests\n');
+  if (prs.length === 0) {
+    sections.push('No pull requests found.\n');
+  } else {
+    for (const entry of prs) {
+      const pr = entry.data as GitHubPR & { repoFullName?: string };
+      const repo = pr.repoFullName ?? '';
+      const state = pr.merged_at ? 'merged' : pr.state;
+      const labels = pr.labels.map((l) => l.name).join(', ');
+      const labelStr = labels ? ` [${labels}]` : '';
+      const body = pr.body ? `\n  Description: ${truncate(pr.body, 200)}` : '';
+      sections.push(
+        `- [${repo}#${pr.number}] ${pr.title} (State: ${state}, +${pr.additions}/-${pr.deletions}, ${pr.changed_files} files)${labelStr}${body}`,
+      );
+
+      // Include PR review comments
+      const prKey = `${repo}#${pr.number}`;
+      const relatedComments = commentsByPr.get(prKey);
+      if (relatedComments && relatedComments.length > 0) {
+        for (const cEntry of relatedComments.slice(0, 5)) {
+          const c = cEntry.data as GitHubPRComment;
+          const file = c.path ? ` on ${c.path}` : '';
+          sections.push(`  - Review comment${file}: "${truncate(c.body, 150)}" (${c.created_at})`);
+        }
+      }
+    }
+    sections.push('');
+  }
+
+  // Issues
+  sections.push('### Issues\n');
+  if (issues.length === 0) {
+    sections.push('No issues found.\n');
+  } else {
+    for (const entry of issues) {
+      const issue = entry.data as GitHubIssue & { repoFullName?: string };
+      const repo = issue.repoFullName ?? '';
+      const labels = issue.labels.map((l) => l.name).join(', ');
+      const labelStr = labels ? ` [${labels}]` : '';
+      const body = issue.body ? `\n  Description: ${truncate(issue.body, 200)}` : '';
+      sections.push(
+        `- [${repo}#${issue.number}] ${issue.title} (State: ${issue.state}, Created: ${issue.created_at})${labelStr}${body}`,
+      );
+    }
+    sections.push('');
+  }
+
+  return sections.join('\n');
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function truncate(text: string, maxLength: number): string {

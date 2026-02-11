@@ -3,7 +3,7 @@ import { useCurrentWorkspace } from '../hooks/use-workspace';
 import { useProfiles } from '../hooks/use-profiles';
 import { useRunAnalysis, usePayloadPreview } from '../hooks/use-analysis';
 import { usePreferences, useModels, useApiKeyStatus } from '../hooks/use-settings';
-import { useIntegration } from '../hooks/use-integrations';
+import { useIntegration, useConfluenceIntegration, useGitHubIntegration } from '../hooks/use-integrations';
 import { useExportMarkdown } from '../hooks/use-export';
 import SwotResults from '../components/analysis/swot-results';
 import PayloadPreview from '../components/analysis/payload-preview';
@@ -33,6 +33,8 @@ export default function AnalysisPage(): React.JSX.Element {
   const { data: preferences } = usePreferences();
   const { data: models } = useModels(!!apiKeyStatus?.isSet);
   const { data: integration } = useIntegration();
+  const { data: confluenceIntegration } = useConfluenceIntegration();
+  const { data: githubIntegration } = useGitHubIntegration();
 
   const runAnalysis = useRunAnalysis();
   const previewPayload = usePayloadPreview();
@@ -40,6 +42,8 @@ export default function AnalysisPage(): React.JSX.Element {
 
   const [selectedProfileIds, setSelectedProfileIds] = useState<string[]>([]);
   const [selectedJiraKeys, setSelectedJiraKeys] = useState<string[]>([]);
+  const [selectedConfluenceKeys, setSelectedConfluenceKeys] = useState<string[]>([]);
+  const [selectedGithubRepos, setSelectedGithubRepos] = useState<string[]>([]);
   const [role, setRole] = useState<string>('staff_engineer');
   const [progress, setProgress] = useState<{ stage: string; message: string } | null>(null);
   const [completedAnalysis, setCompletedAnalysis] = useState<Analysis | null>(null);
@@ -52,7 +56,16 @@ export default function AnalysisPage(): React.JSX.Element {
   const contextWindow = selectedModel?.contextLength ?? 128_000;
 
   // Jira project keys from integration
-  const jiraProjectKeys = integration?.config?.selectedProjectKeys ?? [];
+  const jiraConfig = integration?.config as { selectedProjectKeys?: string[] } | undefined;
+  const jiraProjectKeys: string[] = jiraConfig?.selectedProjectKeys ?? [];
+
+  // Confluence space keys from integration
+  const confluenceConfig = confluenceIntegration?.config as { selectedSpaceKeys?: string[] } | undefined;
+  const confluenceSpaceKeys: string[] = confluenceConfig?.selectedSpaceKeys ?? [];
+
+  // GitHub repos from integration
+  const githubConfig = githubIntegration?.config as { selectedRepos?: string[] } | undefined;
+  const githubRepos: string[] = githubConfig?.selectedRepos ?? [];
 
   // Auto-select all profiles when loaded
   useEffect(() => {
@@ -67,6 +80,20 @@ export default function AnalysisPage(): React.JSX.Element {
       setSelectedJiraKeys(jiraProjectKeys);
     }
   }, [jiraProjectKeys]);
+
+  // Auto-select all Confluence space keys
+  useEffect(() => {
+    if (confluenceSpaceKeys.length > 0 && selectedConfluenceKeys.length === 0) {
+      setSelectedConfluenceKeys(confluenceSpaceKeys);
+    }
+  }, [confluenceSpaceKeys]);
+
+  // Auto-select all GitHub repos
+  useEffect(() => {
+    if (githubRepos.length > 0 && selectedGithubRepos.length === 0) {
+      setSelectedGithubRepos(githubRepos);
+    }
+  }, [githubRepos]);
 
   // Listen for progress events
   useEffect(() => {
@@ -87,6 +114,8 @@ export default function AnalysisPage(): React.JSX.Element {
       const result = await runAnalysis.mutateAsync({
         profileIds: selectedProfileIds,
         jiraProjectKeys: selectedJiraKeys,
+        confluenceSpaceKeys: selectedConfluenceKeys,
+        githubRepos: selectedGithubRepos,
         role,
         modelId: selectedModelId,
         contextWindow,
@@ -95,7 +124,7 @@ export default function AnalysisPage(): React.JSX.Element {
     } catch {
       // Error is already shown via progress events
     }
-  }, [selectedModelId, selectedProfileIds, selectedJiraKeys, role, contextWindow, runAnalysis]);
+  }, [selectedModelId, selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, role, contextWindow, runAnalysis]);
 
   const handlePreview = useCallback(async () => {
     if (selectedProfileIds.length === 0) return;
@@ -103,10 +132,12 @@ export default function AnalysisPage(): React.JSX.Element {
     previewPayload.mutate({
       profileIds: selectedProfileIds,
       jiraProjectKeys: selectedJiraKeys,
+      confluenceSpaceKeys: selectedConfluenceKeys,
+      githubRepos: selectedGithubRepos,
       role,
       contextWindow,
     });
-  }, [selectedProfileIds, selectedJiraKeys, role, contextWindow, previewPayload]);
+  }, [selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, role, contextWindow, previewPayload]);
 
   if (!workspace) {
     return (
@@ -258,6 +289,104 @@ export default function AnalysisPage(): React.JSX.Element {
                 }`}
               >
                 {key}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Confluence Spaces */}
+      {confluenceSpaceKeys.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-300">
+              Confluence Spaces ({selectedConfluenceKeys.length} selected)
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedConfluenceKeys(confluenceSpaceKeys)}
+                disabled={isRunning}
+                className="text-xs text-blue-400 hover:text-blue-300"
+              >
+                Select all
+              </button>
+              <button
+                onClick={() => setSelectedConfluenceKeys([])}
+                disabled={isRunning}
+                className="text-xs text-gray-500 hover:text-gray-400"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {confluenceSpaceKeys.map((key) => (
+              <button
+                key={key}
+                onClick={() => {
+                  if (selectedConfluenceKeys.includes(key)) {
+                    setSelectedConfluenceKeys(selectedConfluenceKeys.filter((k) => k !== key));
+                  } else {
+                    setSelectedConfluenceKeys([...selectedConfluenceKeys, key]);
+                  }
+                }}
+                disabled={isRunning}
+                className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                  selectedConfluenceKeys.includes(key)
+                    ? 'bg-teal-900/30 text-teal-300 border border-teal-500'
+                    : 'bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-600'
+                }`}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* GitHub Repos */}
+      {githubRepos.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-300">
+              GitHub Repos ({selectedGithubRepos.length} selected)
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedGithubRepos(githubRepos)}
+                disabled={isRunning}
+                className="text-xs text-blue-400 hover:text-blue-300"
+              >
+                Select all
+              </button>
+              <button
+                onClick={() => setSelectedGithubRepos([])}
+                disabled={isRunning}
+                className="text-xs text-gray-500 hover:text-gray-400"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {githubRepos.map((repo) => (
+              <button
+                key={repo}
+                onClick={() => {
+                  if (selectedGithubRepos.includes(repo)) {
+                    setSelectedGithubRepos(selectedGithubRepos.filter((r) => r !== repo));
+                  } else {
+                    setSelectedGithubRepos([...selectedGithubRepos, repo]);
+                  }
+                }}
+                disabled={isRunning}
+                className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                  selectedGithubRepos.includes(repo)
+                    ? 'bg-purple-900/30 text-purple-300 border border-purple-500'
+                    : 'bg-gray-900 text-gray-400 border border-gray-700 hover:border-gray-600'
+                }`}
+              >
+                {repo}
               </button>
             ))}
           </div>

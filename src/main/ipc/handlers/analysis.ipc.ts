@@ -100,12 +100,16 @@ export function registerAnalysisHandlers(
       _event,
       profileIds: string[],
       jiraProjectKeys: string[],
+      confluenceSpaceKeys: string[],
+      githubRepos: string[],
       role: string,
       contextWindow: number,
     ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>> => {
       const result = await analysisService.getPayloadPreview(
         profileIds,
         jiraProjectKeys,
+        confluenceSpaceKeys ?? [],
+        githubRepos ?? [],
         role as Analysis['role'],
         contextWindow,
       );

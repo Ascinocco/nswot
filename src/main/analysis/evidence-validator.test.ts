@@ -17,6 +17,8 @@ function makeSnapshot(profileLabels: string[]): AnonymizedPayload {
       epics: [{ key: 'PROJ-1', summary: 'Epic 1' }],
       stories: [{ key: 'PROJ-10', summary: 'Story 1' }],
     },
+    confluenceData: null,
+    githubData: null,
     pseudonymMap: {},
   };
 }

@@ -29,7 +29,7 @@ describe('IntegrationRepository', () => {
     const found = await repo.findByWorkspaceAndProvider(workspaceId, 'jira');
     expect(found).not.toBeNull();
     expect(found!.provider).toBe('jira');
-    expect(found!.config.cloudId).toBe('cloud-123');
+    expect((found!.config as JiraConfig).cloudId).toBe('cloud-123');
     expect(found!.status).toBe('connected');
   });
 
@@ -43,7 +43,7 @@ describe('IntegrationRepository', () => {
     const newConfig: JiraConfig = { ...jiraConfig, selectedProjectKeys: ['PROJ', 'PROJ2'] };
     await repo.updateConfig(integration.id, newConfig);
     const found = await repo.findByWorkspaceAndProvider(workspaceId, 'jira');
-    expect(found!.config.selectedProjectKeys).toEqual(['PROJ', 'PROJ2']);
+    expect((found!.config as JiraConfig).selectedProjectKeys).toEqual(['PROJ', 'PROJ2']);
   });
 
   it('updates status', async () => {

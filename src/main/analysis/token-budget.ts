@@ -1,24 +1,45 @@
 export interface TokenBudget {
   profiles: number;
   jiraData: number;
+  confluenceData: number;
+  githubData: number;
   buffer: number;
   outputReserve: number;
   total: number;
 }
 
+export type ConnectedSource = 'jira' | 'confluence' | 'github';
+
 const SYSTEM_PROMPT_OVERHEAD = 500;
 const SCHEMA_OVERHEAD = 500;
 const CHARS_PER_TOKEN = 4; // rough estimate
 
-export function calculateTokenBudget(modelContextWindow: number): TokenBudget {
+const PROFILES_SHARE = 0.3;
+const BUFFER_SHARE = 0.1;
+const SOURCES_SHARE = 0.6; // 60% split among connected sources
+
+export function calculateTokenBudget(
+  modelContextWindow: number,
+  connectedSources: ConnectedSource[] = [],
+): TokenBudget {
   const outputReserve = Math.min(4096, Math.floor(modelContextWindow * 0.1));
   const available =
     modelContextWindow - outputReserve - SCHEMA_OVERHEAD - SYSTEM_PROMPT_OVERHEAD;
 
+  const profileTokens = Math.floor(available * PROFILES_SHARE);
+  const bufferTokens = Math.floor(available * BUFFER_SHARE);
+  const sourcesTokens = Math.floor(available * SOURCES_SHARE);
+
+  // Distribute source tokens proportionally among connected sources
+  const sourceCount = Math.max(connectedSources.length, 1);
+  const perSourceTokens = Math.floor(sourcesTokens / sourceCount);
+
   return {
-    profiles: Math.floor(available * 0.4),
-    jiraData: Math.floor(available * 0.5),
-    buffer: Math.floor(available * 0.1),
+    profiles: profileTokens,
+    jiraData: connectedSources.includes('jira') ? perSourceTokens : 0,
+    confluenceData: connectedSources.includes('confluence') ? perSourceTokens : 0,
+    githubData: connectedSources.includes('github') ? perSourceTokens : 0,
+    buffer: bufferTokens,
     outputReserve,
     total: modelContextWindow,
   };

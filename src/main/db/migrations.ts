@@ -98,4 +98,11 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    description: 'Add quality_metrics column to analyses',
+    sql: `
+      ALTER TABLE analyses ADD COLUMN quality_metrics TEXT;
+    `,
+  },
 ];

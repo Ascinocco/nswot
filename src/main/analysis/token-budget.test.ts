@@ -4,14 +4,21 @@ import { calculateTokenBudget, estimateTokens, trimToTokenBudget } from './token
 describe('token-budget', () => {
   describe('calculateTokenBudget', () => {
     it('allocates budget proportionally', () => {
-      const budget = calculateTokenBudget(100_000);
+      const budget = calculateTokenBudget(100_000, ['jira']);
 
       expect(budget.total).toBe(100_000);
       expect(budget.outputReserve).toBe(4096);
       // available = 100000 - 4096 - 500 - 500 = 94904
-      expect(budget.profiles).toBe(Math.floor(94904 * 0.4));
-      expect(budget.jiraData).toBe(Math.floor(94904 * 0.5));
+      expect(budget.profiles).toBe(Math.floor(94904 * 0.3));
+      expect(budget.jiraData).toBe(Math.floor(94904 * 0.6));
       expect(budget.buffer).toBe(Math.floor(94904 * 0.1));
+    });
+
+    it('gives zero budget to unconnected sources', () => {
+      const budget = calculateTokenBudget(100_000);
+      expect(budget.jiraData).toBe(0);
+      expect(budget.confluenceData).toBe(0);
+      expect(budget.githubData).toBe(0);
     });
 
     it('caps output reserve at 10% for small models', () => {

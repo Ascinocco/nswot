@@ -143,9 +143,9 @@ describe('parseAnalysisResponse', () => {
           ...VALID_OUTPUT.strengths[0],
           evidence: [
             {
-              sourceType: 'confluence',
-              sourceId: 'conf:123',
-              sourceLabel: 'Page',
+              sourceType: 'invalid_source',
+              sourceId: 'x:123',
+              sourceLabel: 'Unknown',
               quote: 'content',
             },
           ],

@@ -24,7 +24,7 @@ export interface JiraIssue {
   key: string;
   fields: {
     summary: string;
-    description: string | null;
+    description: unknown;
     issuetype: { name: string };
     status: { name: string };
     priority: { name: string } | null;
@@ -39,7 +39,7 @@ export interface JiraIssue {
 
 export interface JiraComment {
   id: string;
-  body: string;
+  body: unknown;
   author: { displayName: string };
   created: string;
   updated: string;

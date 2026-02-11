@@ -32,7 +32,7 @@ function makeAnalysis(): Analysis {
     role: 'staff_engineer',
     modelId: 'openai/gpt-4',
     status: 'pending',
-    config: { profileIds: ['p1'], jiraProjectKeys: [] },
+    config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
     inputSnapshot: null,
     swotOutput: null,
     summariesOutput: null,
@@ -104,6 +104,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -124,6 +126,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -142,6 +146,8 @@ describe('AnalysisService', () => {
         {
           profileIds: [],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -161,6 +167,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -173,7 +181,7 @@ describe('AnalysisService', () => {
         workspaceId: 'ws-1',
         role: 'staff_engineer',
         modelId: 'openai/gpt-4',
-        config: { profileIds: ['p1'], jiraProjectKeys: [] },
+        config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
       });
       expect(analysisRepo.updateStatus).toHaveBeenCalledWith(
         'analysis-1',
@@ -198,6 +206,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -213,6 +223,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -239,6 +251,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -260,6 +274,8 @@ describe('AnalysisService', () => {
         {
           profileIds: ['p1'],
           jiraProjectKeys: [],
+          confluenceSpaceKeys: [],
+          githubRepos: [],
           role: 'staff_engineer',
           modelId: 'openai/gpt-4',
           contextWindow: 128000,
@@ -326,7 +342,7 @@ describe('AnalysisService', () => {
         },
       ]);
 
-      const result = await service.getPayloadPreview(['p1'], ['PROJ'], 'staff_engineer', 128000);
+      const result = await service.getPayloadPreview(['p1'], ['PROJ'], [], [], 'staff_engineer', 128000);
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.userPrompt).toContain('PROJ-1');

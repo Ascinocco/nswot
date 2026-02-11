@@ -5,11 +5,14 @@ import {
   buildCorrectivePrompt,
   PROMPT_VERSION,
 } from './prompt-builder';
+import type { PromptDataSources } from './prompt-builder';
 import { calculateTokenBudget } from './token-budget';
 import type { AnonymizedProfile } from '../domain/types';
 
+const noData: PromptDataSources = { jiraDataMarkdown: null, confluenceDataMarkdown: null, githubDataMarkdown: null };
+
 describe('prompt-builder', () => {
-  const budget = calculateTokenBudget(100_000);
+  const budget = calculateTokenBudget(100_000, ['jira']);
 
   const profiles: AnonymizedProfile[] = [
     {
@@ -43,19 +46,19 @@ describe('prompt-builder', () => {
 
   describe('buildUserPrompt', () => {
     it('includes role context for staff engineer', () => {
-      const prompt = buildUserPrompt('staff_engineer', profiles, null, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('Staff Engineer');
       expect(prompt).toContain('tactical');
     });
 
     it('includes role context for senior EM', () => {
-      const prompt = buildUserPrompt('senior_em', profiles, null, budget);
+      const prompt = buildUserPrompt('senior_em', profiles, noData, budget);
       expect(prompt).toContain('Senior Engineering Manager');
       expect(prompt).toContain('process');
     });
 
     it('includes anonymized profile data', () => {
-      const prompt = buildUserPrompt('staff_engineer', profiles, null, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('Stakeholder A');
       expect(prompt).toContain('Staff Engineer');
       expect(prompt).toContain('We need better monitoring');
@@ -63,31 +66,31 @@ describe('prompt-builder', () => {
     });
 
     it('handles null profile fields gracefully', () => {
-      const prompt = buildUserPrompt('staff_engineer', profiles, null, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('Not specified');
       expect(prompt).toContain('None provided');
     });
 
     it('includes Jira data when provided', () => {
       const jiraMarkdown = '### Epics\n- [PROJ-1] Migration epic (Status: In Progress)';
-      const prompt = buildUserPrompt('staff_engineer', profiles, jiraMarkdown, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, { ...noData, jiraDataMarkdown: jiraMarkdown }, budget);
       expect(prompt).toContain('PROJ-1');
       expect(prompt).toContain('Migration epic');
     });
 
     it('notes absence of Jira data when null', () => {
-      const prompt = buildUserPrompt('staff_engineer', profiles, null, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('No Jira data is available');
     });
 
     it('includes source ID reference list', () => {
-      const prompt = buildUserPrompt('staff_engineer', profiles, null, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('`profile:Stakeholder A`');
       expect(prompt).toContain('`profile:Stakeholder B`');
     });
 
     it('includes output schema', () => {
-      const prompt = buildUserPrompt('staff_engineer', profiles, null, budget);
+      const prompt = buildUserPrompt('staff_engineer', profiles, noData, budget);
       expect(prompt).toContain('"strengths"');
       expect(prompt).toContain('"weaknesses"');
       expect(prompt).toContain('SwotItem');
@@ -105,7 +108,7 @@ describe('prompt-builder', () => {
 
   describe('PROMPT_VERSION', () => {
     it('is set to mvp-v1', () => {
-      expect(PROMPT_VERSION).toBe('mvp-v1');
+      expect(PROMPT_VERSION).toBe('phase2-v1');
     });
   });
 });

@@ -12,7 +12,7 @@ function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
     role: 'staff_engineer',
     modelId: 'openai/gpt-4',
     status: 'completed',
-    config: { profileIds: ['p1'], jiraProjectKeys: [] },
+    config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
     inputSnapshot: null,
     swotOutput: {
       strengths: [
@@ -38,6 +38,8 @@ function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
     summariesOutput: {
       profiles: 'Team culture is strong.',
       jira: 'No Jira data.',
+      confluence: null,
+      github: null,
     },
     rawLlmResponse: '{}',
     warning: null,

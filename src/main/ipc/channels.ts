@@ -14,12 +14,26 @@ export const IPC_CHANNELS = {
   PROFILE_IMPORT: 'profile:import',
   PROFILE_IMPORT_DIR: 'profile:importDir',
 
-  // Integrations
+  // Integrations — Jira
   INTEGRATION_GET: 'integration:get',
   INTEGRATION_CONNECT_JIRA: 'integration:connectJira',
   INTEGRATION_DISCONNECT: 'integration:disconnect',
   INTEGRATION_SYNC: 'integration:sync',
   INTEGRATION_LIST_PROJECTS: 'integration:listProjects',
+
+  // Integrations — Confluence
+  CONFLUENCE_GET: 'confluence:get',
+  CONFLUENCE_CONNECT: 'confluence:connect',
+  CONFLUENCE_DISCONNECT: 'confluence:disconnect',
+  CONFLUENCE_LIST_SPACES: 'confluence:listSpaces',
+  CONFLUENCE_SYNC: 'confluence:sync',
+
+  // Integrations — GitHub
+  GITHUB_GET: 'github:get',
+  GITHUB_CONNECT: 'github:connect',
+  GITHUB_DISCONNECT: 'github:disconnect',
+  GITHUB_LIST_REPOS: 'github:listRepos',
+  GITHUB_SYNC: 'github:sync',
 
   // Analysis
   ANALYSIS_RUN: 'analysis:run',

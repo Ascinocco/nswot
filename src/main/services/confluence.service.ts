@@ -1,32 +1,30 @@
 import { ok, err } from '../domain/result';
 import type { Result } from '../domain/result';
 import { DomainError, ERROR_CODES } from '../domain/errors';
-import type { Integration, JiraConfig } from '../domain/types';
+import type { Integration, ConfluenceConfig } from '../domain/types';
 import type { IntegrationRepository } from '../repositories/integration.repository';
 import type { IntegrationCacheRepository } from '../repositories/integration-cache.repository';
 import type { WorkspaceService } from './workspace.service';
-import type { JiraProvider } from '../providers/jira/jira.provider';
+import type { ConfluenceProvider } from '../providers/confluence/confluence.provider';
 import type { CircuitBreaker } from '../infrastructure/circuit-breaker';
 import { CircuitOpenError } from '../infrastructure/circuit-breaker';
 import { withRetry } from '../infrastructure/retry';
 import type { SecureStorage } from '../infrastructure/safe-storage';
-import type { PreferencesRepository } from '../repositories/preferences.repository';
-import { JiraAuthProvider } from '../providers/jira/jira-auth';
+import type { ConfluenceSpace } from '../providers/confluence/confluence.types';
+import { CONFLUENCE_RESOURCE_TYPES } from '../providers/confluence/confluence.types';
 import type { JiraOAuthTokens } from '../providers/jira/jira.types';
-import { JIRA_RESOURCE_TYPES } from '../providers/jira/jira.types';
-import type { JiraProject } from '../providers/jira/jira.types';
 
-const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
+const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
+const MAX_PAGES_PER_SPACE = 200;
 
-export class IntegrationService {
+export class ConfluenceService {
   constructor(
     private readonly integrationRepo: IntegrationRepository,
     private readonly cacheRepo: IntegrationCacheRepository,
     private readonly workspaceService: WorkspaceService,
-    private readonly jiraProvider: JiraProvider,
+    private readonly confluenceProvider: ConfluenceProvider,
     private readonly circuitBreaker: CircuitBreaker,
     private readonly secureStorage: SecureStorage,
-    private readonly preferencesRepo: PreferencesRepository,
   ) {}
 
   async getIntegration(): Promise<Result<Integration | null, DomainError>> {
@@ -38,58 +36,64 @@ export class IntegrationService {
     try {
       const integration = await this.integrationRepo.findByWorkspaceAndProvider(
         workspaceId,
-        'jira',
+        'confluence',
       );
       return ok(integration);
     } catch (cause) {
-      return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to load integration', cause));
+      return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to load Confluence integration', cause));
     }
   }
 
-  async connectJira(
-    clientId: string,
-    clientSecret: string,
-  ): Promise<Result<Integration, DomainError>> {
+  async connect(): Promise<Result<Integration, DomainError>> {
     const workspaceId = this.workspaceService.getCurrentId();
     if (!workspaceId) {
       return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
     }
 
     try {
-      // 1. Run OAuth flow
-      const authProvider = new JiraAuthProvider(clientId, clientSecret);
-      const tokens = await authProvider.initiateOAuthFlow();
-
-      // 2. Store tokens securely
-      this.secureStorage.store(
-        `jira_tokens_${workspaceId}`,
-        JSON.stringify(tokens),
-      );
-      this.secureStorage.store(
-        `jira_oauth_${workspaceId}`,
-        JSON.stringify({ clientId, clientSecret }),
-      );
-
-      // 3. Fetch accessible resources
-      const resources = await this.circuitBreaker.execute(() =>
-        withRetry(() => this.jiraProvider.fetchAccessibleResources(tokens.accessToken)),
-      );
-
-      if (resources.length === 0) {
+      // Confluence reuses the Atlassian OAuth token from Jira
+      const tokens = await this.getTokens(workspaceId);
+      if (!tokens) {
         return err(
-          new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'No accessible Jira sites found'),
+          new DomainError(
+            ERROR_CODES.CONFLUENCE_AUTH_FAILED,
+            'No Atlassian OAuth token available. Connect Jira first to share the Atlassian OAuth session.',
+          ),
         );
       }
 
-      const site = resources[0]!;
-      const config: JiraConfig = {
-        cloudId: site.id,
-        siteUrl: site.url,
-        selectedProjectKeys: [],
+      // Get the Jira integration to read cloudId/siteUrl
+      const jiraIntegration = await this.integrationRepo.findByWorkspaceAndProvider(
+        workspaceId,
+        'jira',
+      );
+      if (!jiraIntegration || jiraIntegration.status === 'disconnected') {
+        return err(
+          new DomainError(
+            ERROR_CODES.CONFLUENCE_AUTH_FAILED,
+            'Jira must be connected first. Confluence shares the Atlassian OAuth session.',
+          ),
+        );
+      }
+
+      const jiraConfig = jiraIntegration.config as { cloudId: string; siteUrl: string };
+
+      // Verify we can access Confluence by fetching spaces
+      await this.circuitBreaker.execute(() =>
+        withRetry(() => this.confluenceProvider.fetchSpaces(jiraConfig.cloudId, tokens.accessToken)),
+      );
+
+      const config: ConfluenceConfig = {
+        cloudId: jiraConfig.cloudId,
+        siteUrl: jiraConfig.siteUrl,
+        selectedSpaceKeys: [],
       };
 
-      // 4. Upsert integration record
-      const existing = await this.integrationRepo.findByWorkspaceAndProvider(workspaceId, 'jira');
+      // Upsert integration record
+      const existing = await this.integrationRepo.findByWorkspaceAndProvider(
+        workspaceId,
+        'confluence',
+      );
       let integration: Integration;
 
       if (existing) {
@@ -104,7 +108,7 @@ export class IntegrationService {
       } else {
         integration = await this.integrationRepo.insert(
           workspaceId,
-          'jira',
+          'confluence',
           config,
           'connected',
         );
@@ -112,7 +116,7 @@ export class IntegrationService {
 
       return ok(integration);
     } catch (cause) {
-      return err(this.mapJiraError(cause));
+      return err(this.mapError(cause));
     }
   }
 
@@ -123,12 +127,9 @@ export class IntegrationService {
     }
 
     try {
-      this.secureStorage.remove(`jira_tokens_${workspaceId}`);
-      this.secureStorage.remove(`jira_oauth_${workspaceId}`);
-
       const integration = await this.integrationRepo.findByWorkspaceAndProvider(
         workspaceId,
-        'jira',
+        'confluence',
       );
       if (integration) {
         await this.cacheRepo.deleteByIntegration(integration.id);
@@ -137,11 +138,11 @@ export class IntegrationService {
 
       return ok(undefined);
     } catch (cause) {
-      return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to disconnect integration', cause));
+      return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to disconnect Confluence', cause));
     }
   }
 
-  async listProjects(): Promise<Result<JiraProject[], DomainError>> {
+  async listSpaces(): Promise<Result<ConfluenceSpace[], DomainError>> {
     const workspaceId = this.workspaceService.getCurrentId();
     if (!workspaceId) {
       return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
@@ -150,33 +151,44 @@ export class IntegrationService {
     try {
       const integration = await this.integrationRepo.findByWorkspaceAndProvider(
         workspaceId,
-        'jira',
+        'confluence',
       );
       if (!integration || integration.status === 'disconnected') {
         return err(
-          new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'Jira is not connected'),
+          new DomainError(ERROR_CODES.CONFLUENCE_AUTH_FAILED, 'Confluence is not connected'),
         );
       }
 
       const tokens = await this.getTokens(workspaceId);
       if (!tokens) {
-        return err(new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'Jira tokens not found'));
+        return err(
+          new DomainError(ERROR_CODES.CONFLUENCE_AUTH_FAILED, 'Atlassian tokens not found'),
+        );
       }
 
-      const projects = await this.circuitBreaker.execute(() =>
-        withRetry(() =>
-          this.jiraProvider.fetchProjects((integration.config as JiraConfig).cloudId, tokens.accessToken),
-        ),
-      );
+      const config = integration.config as ConfluenceConfig;
+      const allSpaces: ConfluenceSpace[] = [];
+      let cursor: string | undefined;
 
-      return ok(projects);
+      while (true) {
+        const result = await this.circuitBreaker.execute(() =>
+          withRetry(() =>
+            this.confluenceProvider.fetchSpaces(config.cloudId, tokens.accessToken, cursor),
+          ),
+        );
+        allSpaces.push(...result.spaces);
+        if (!result.nextCursor) break;
+        cursor = result.nextCursor;
+      }
+
+      return ok(allSpaces);
     } catch (cause) {
-      return err(this.mapJiraError(cause));
+      return err(this.mapError(cause));
     }
   }
 
   async sync(
-    projectKeys: string[],
+    spaceKeys: string[],
   ): Promise<Result<{ syncedCount: number; warning?: string }, DomainError>> {
     const workspaceId = this.workspaceService.getCurrentId();
     if (!workspaceId) {
@@ -185,79 +197,82 @@ export class IntegrationService {
 
     const integration = await this.integrationRepo.findByWorkspaceAndProvider(
       workspaceId,
-      'jira',
+      'confluence',
     );
     if (!integration || integration.status === 'disconnected') {
-      return err(new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'Jira is not connected'));
+      return err(
+        new DomainError(ERROR_CODES.CONFLUENCE_AUTH_FAILED, 'Confluence is not connected'),
+      );
     }
 
-    const jiraConfig = integration.config as JiraConfig;
-
-    // Update selected project keys
-    const updatedConfig: JiraConfig = {
-      ...jiraConfig,
-      selectedProjectKeys: projectKeys,
+    const updatedConfig: ConfluenceConfig = {
+      ...(integration.config as ConfluenceConfig),
+      selectedSpaceKeys: spaceKeys,
     };
     await this.integrationRepo.updateConfig(integration.id, updatedConfig);
 
     let syncedCount = 0;
-    let warning: string | undefined;
 
     try {
       const tokens = await this.getTokens(workspaceId);
       if (!tokens) {
-        return err(new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'Jira tokens not found'));
+        return err(
+          new DomainError(ERROR_CODES.CONFLUENCE_AUTH_FAILED, 'Atlassian tokens not found'),
+        );
       }
 
-      for (const projectKey of projectKeys) {
-        // Fetch epics
-        const epics = await this.fetchAllIssues(
-          jiraConfig.cloudId,
+      const config = integration.config as ConfluenceConfig;
+
+      // Fetch all spaces to map keys to IDs
+      const allSpaces: ConfluenceSpace[] = [];
+      let spaceCursor: string | undefined;
+      while (true) {
+        const result = await this.circuitBreaker.execute(() =>
+          withRetry(() =>
+            this.confluenceProvider.fetchSpaces(config.cloudId, tokens.accessToken, spaceCursor),
+          ),
+        );
+        allSpaces.push(...result.spaces);
+        if (!result.nextCursor) break;
+        spaceCursor = result.nextCursor;
+      }
+
+      for (const spaceKey of spaceKeys) {
+        const space = allSpaces.find((s) => s.key === spaceKey);
+        if (!space) continue;
+
+        // Fetch pages in this space (limited)
+        const pages = await this.fetchAllPages(
+          config.cloudId,
           tokens.accessToken,
-          `project = "${projectKey}" AND issuetype = Epic ORDER BY updated DESC`,
+          space.id,
+          MAX_PAGES_PER_SPACE,
         );
 
-        for (const epic of epics) {
+        for (const page of pages) {
           await this.cacheRepo.upsert(
             integration.id,
-            JIRA_RESOURCE_TYPES.EPIC,
-            epic.key,
-            epic,
+            CONFLUENCE_RESOURCE_TYPES.PAGE,
+            `${spaceKey}:${page.id}`,
+            page,
           );
           syncedCount++;
 
-          // Fetch stories for this epic
-          const stories = await this.fetchAllIssues(
-            jiraConfig.cloudId,
+          // Fetch comments for this page
+          const comments = await this.fetchAllComments(
+            config.cloudId,
             tokens.accessToken,
-            `parent = "${epic.key}" ORDER BY updated DESC`,
+            page.id,
           );
 
-          for (const story of stories) {
+          for (const comment of comments) {
             await this.cacheRepo.upsert(
               integration.id,
-              JIRA_RESOURCE_TYPES.STORY,
-              story.key,
-              story,
+              CONFLUENCE_RESOURCE_TYPES.COMMENT,
+              `${spaceKey}:${page.id}_comment_${comment.id}`,
+              { ...comment, pageId: page.id, pageTitle: page.title },
             );
             syncedCount++;
-
-            // Fetch comments for each story
-            const comments = await this.fetchAllComments(
-              jiraConfig.cloudId,
-              tokens.accessToken,
-              story.key,
-            );
-
-            for (const comment of comments) {
-              await this.cacheRepo.upsert(
-                integration.id,
-                JIRA_RESOURCE_TYPES.COMMENT,
-                `${story.key}_comment_${comment.id}`,
-                { ...comment, issueKey: story.key },
-              );
-              syncedCount++;
-            }
           }
         }
       }
@@ -269,9 +284,8 @@ export class IntegrationService {
       await this.integrationRepo.updateStatus(integration.id, 'connected');
       await this.integrationRepo.updateLastSynced(integration.id);
 
-      return ok({ syncedCount, warning });
+      return ok({ syncedCount });
     } catch (cause) {
-      // On error: set status to error, return stale cache warning if available
       await this.integrationRepo.updateStatus(integration.id, 'error');
 
       const count = await this.cacheRepo.countByIntegration(integration.id);
@@ -282,68 +296,74 @@ export class IntegrationService {
         });
       }
 
-      return err(this.mapJiraError(cause));
+      return err(this.mapError(cause));
     }
   }
 
-  private async fetchAllIssues(
+  private async fetchAllPages(
     cloudId: string,
     accessToken: string,
-    jql: string,
-  ): Promise<Array<{ key: string; [k: string]: unknown }>> {
-    const allIssues: Array<{ key: string; [k: string]: unknown }> = [];
-    let nextPageToken: string | undefined;
+    spaceId: string,
+    maxPages: number,
+  ): Promise<Array<{ id: string; title: string; [k: string]: unknown }>> {
+    const allPages: Array<{ id: string; title: string; [k: string]: unknown }> = [];
+    let cursor: string | undefined;
 
-    while (true) {
-      const response = await this.circuitBreaker.execute(() =>
-        withRetry(() => this.jiraProvider.fetchIssues(cloudId, accessToken, jql, nextPageToken)),
+    while (allPages.length < maxPages) {
+      const result = await this.circuitBreaker.execute(() =>
+        withRetry(() =>
+          this.confluenceProvider.fetchPages(cloudId, accessToken, spaceId, cursor),
+        ),
       );
 
-      for (const issue of response.issues) {
-        allIssues.push(issue as unknown as { key: string; [k: string]: unknown });
+      for (const page of result.pages) {
+        allPages.push(page as unknown as { id: string; title: string; [k: string]: unknown });
+        if (allPages.length >= maxPages) break;
       }
 
-      if (!response.nextPageToken) break;
-      nextPageToken = response.nextPageToken;
+      if (!result.nextCursor) break;
+      cursor = result.nextCursor;
     }
 
-    return allIssues;
+    return allPages;
   }
 
   private async fetchAllComments(
     cloudId: string,
     accessToken: string,
-    issueKey: string,
+    pageId: string,
   ): Promise<Array<{ id: string; [k: string]: unknown }>> {
     const allComments: Array<{ id: string; [k: string]: unknown }> = [];
-    let startAt = 0;
+    let cursor: string | undefined;
 
     while (true) {
-      const response = await this.circuitBreaker.execute(() =>
+      const result = await this.circuitBreaker.execute(() =>
         withRetry(() =>
-          this.jiraProvider.fetchComments(cloudId, accessToken, issueKey, startAt),
+          this.confluenceProvider.fetchPageComments(cloudId, accessToken, pageId, cursor),
         ),
       );
 
-      for (const comment of response.comments) {
+      for (const comment of result.comments) {
         allComments.push(comment as unknown as { id: string; [k: string]: unknown });
       }
 
-      if (startAt + response.maxResults >= response.total) break;
-      startAt += response.maxResults;
+      if (!result.nextCursor) break;
+      cursor = result.nextCursor;
     }
 
     return allComments;
   }
 
   private async getTokens(workspaceId: string): Promise<JiraOAuthTokens | null> {
+    // Confluence shares the Atlassian OAuth tokens with Jira
     const raw = this.secureStorage.retrieve(`jira_tokens_${workspaceId}`);
     if (!raw) return null;
 
     const tokens = JSON.parse(raw) as JiraOAuthTokens;
 
-    // Auto-refresh if expired or about to expire
     if (tokens.expiresAt - TOKEN_EXPIRY_BUFFER_MS < Date.now()) {
+      // Token needs refresh — delegate to Jira's refresh mechanism
+      // by importing JiraAuthProvider
       const oauthRaw = this.secureStorage.retrieve(`jira_oauth_${workspaceId}`);
       if (!oauthRaw) return null;
 
@@ -352,6 +372,7 @@ export class IntegrationService {
         clientSecret: string;
       };
 
+      const { JiraAuthProvider } = await import('../providers/jira/jira-auth');
       const authProvider = new JiraAuthProvider(clientId, clientSecret);
       const refreshed = await authProvider.refreshAccessToken(tokens.refreshToken);
 
@@ -366,27 +387,31 @@ export class IntegrationService {
     return tokens;
   }
 
-  private mapJiraError(cause: unknown): DomainError {
+  private mapError(cause: unknown): DomainError {
     if (cause instanceof CircuitOpenError) {
       return new DomainError(ERROR_CODES.CIRCUIT_OPEN, 'Service temporarily unavailable', cause);
     }
 
     if (isHttpError(cause)) {
       if (cause.status === 401 || cause.status === 403) {
-        return new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'Jira authentication failed', cause);
+        return new DomainError(
+          ERROR_CODES.CONFLUENCE_AUTH_FAILED,
+          'Confluence authentication failed',
+          cause,
+        );
       }
       if (cause.status === 429) {
         return new DomainError(
-          ERROR_CODES.JIRA_RATE_LIMITED,
-          'Rate limited by Jira — try again later',
+          ERROR_CODES.CONFLUENCE_RATE_LIMITED,
+          'Rate limited by Confluence — try again later',
           cause,
         );
       }
     }
 
     return new DomainError(
-      ERROR_CODES.JIRA_FETCH_FAILED,
-      cause instanceof Error ? cause.message : 'Failed to communicate with Jira',
+      ERROR_CODES.CONFLUENCE_FETCH_FAILED,
+      cause instanceof Error ? cause.message : 'Failed to communicate with Confluence',
       cause,
     );
   }

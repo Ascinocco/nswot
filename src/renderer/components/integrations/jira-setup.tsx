@@ -103,7 +103,7 @@ function ConnectedState({ integration }: { integration: Integration }): React.JS
   const syncJira = useSyncJira();
 
   const [selectedKeys, setSelectedKeys] = useState<string[]>(
-    integration.config.selectedProjectKeys,
+    (integration.config as { selectedProjectKeys?: string[] }).selectedProjectKeys ?? [],
   );
 
   const handleToggleProject = (key: string): void => {
@@ -121,7 +121,7 @@ function ConnectedState({ integration }: { integration: Integration }): React.JS
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <span className="text-sm text-gray-400">Site:</span>
-        <span className="text-sm text-gray-200">{integration.config.siteUrl}</span>
+        <span className="text-sm text-gray-200">{(integration.config as { siteUrl?: string }).siteUrl}</span>
         <StatusBadge status={integration.status} />
       </div>
 

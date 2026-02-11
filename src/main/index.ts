@@ -24,6 +24,10 @@ import { IntegrationCacheRepository } from './repositories/integration-cache.rep
 import { JiraProvider } from './providers/jira/jira.provider';
 import { IntegrationService } from './services/integration.service';
 import { AnalysisService } from './services/analysis.service';
+import { ConfluenceProvider } from './providers/confluence/confluence.provider';
+import { ConfluenceService } from './services/confluence.service';
+import { GitHubProvider } from './providers/github/github.provider';
+import { GitHubService } from './services/github.service';
 
 const NSWOT_DIR = join(homedir(), '.nswot');
 
@@ -95,12 +99,25 @@ const integrationCacheRepo = new IntegrationCacheRepository(db);
 // Providers & infrastructure
 const openRouterProvider = new OpenRouterProvider();
 const jiraProvider = new JiraProvider();
+const confluenceProvider = new ConfluenceProvider();
+const githubProvider = new GitHubProvider();
+
 const llmCircuitBreaker = new CircuitBreaker({
   failureThreshold: 5,
   cooldownMs: 60_000,
   monitorWindowMs: 120_000,
 });
 const jiraCircuitBreaker = new CircuitBreaker({
+  failureThreshold: 5,
+  cooldownMs: 60_000,
+  monitorWindowMs: 120_000,
+});
+const confluenceCircuitBreaker = new CircuitBreaker({
+  failureThreshold: 5,
+  cooldownMs: 60_000,
+  monitorWindowMs: 120_000,
+});
+const githubCircuitBreaker = new CircuitBreaker({
   failureThreshold: 5,
   cooldownMs: 60_000,
   monitorWindowMs: 120_000,
@@ -130,6 +147,22 @@ const integrationService = new IntegrationService(
   secureStorage,
   preferencesRepo,
 );
+const confluenceService = new ConfluenceService(
+  integrationRepo,
+  integrationCacheRepo,
+  workspaceService,
+  confluenceProvider,
+  confluenceCircuitBreaker,
+  secureStorage,
+);
+const githubService = new GitHubService(
+  integrationRepo,
+  integrationCacheRepo,
+  workspaceService,
+  githubProvider,
+  githubCircuitBreaker,
+  secureStorage,
+);
 const analysisService = new AnalysisService(
   analysisRepo,
   profileRepo,
@@ -153,6 +186,8 @@ registerIpcHandlers({
   chatService,
   exportService,
   integrationService,
+  confluenceService,
+  githubService,
 });
 
 app.whenReady().then(() => {

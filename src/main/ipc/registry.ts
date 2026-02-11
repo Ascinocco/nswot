@@ -8,6 +8,8 @@ import { registerAnalysisHandlers } from './handlers/analysis.ipc';
 import { registerChatHandlers } from './handlers/chat.ipc';
 import { registerExportHandlers } from './handlers/export.ipc';
 import { registerIntegrationHandlers } from './handlers/integration.ipc';
+import { registerConfluenceHandlers } from './handlers/confluence.ipc';
+import { registerGitHubHandlers } from './handlers/github.ipc';
 import type { SettingsService } from '../services/settings.service';
 import type { WorkspaceService } from '../services/workspace.service';
 import type { FileService } from '../services/file.service';
@@ -17,6 +19,8 @@ import type { AnalysisService } from '../services/analysis.service';
 import type { ChatService } from '../services/chat.service';
 import type { ExportService } from '../services/export.service';
 import type { IntegrationService } from '../services/integration.service';
+import type { ConfluenceService } from '../services/confluence.service';
+import type { GitHubService } from '../services/github.service';
 import type { IPCResult } from '../domain/types';
 
 export interface IpcContext {
@@ -29,6 +33,8 @@ export interface IpcContext {
   chatService: ChatService;
   exportService: ExportService;
   integrationService: IntegrationService;
+  confluenceService?: ConfluenceService;
+  githubService?: GitHubService;
 }
 
 export function registerIpcHandlers(context: IpcContext): void {
@@ -44,4 +50,6 @@ export function registerIpcHandlers(context: IpcContext): void {
   registerChatHandlers(context.chatService);
   registerExportHandlers(context.exportService);
   registerIntegrationHandlers(context.integrationService);
+  if (context.confluenceService) registerConfluenceHandlers(context.confluenceService);
+  if (context.githubService) registerGitHubHandlers(context.githubService);
 }

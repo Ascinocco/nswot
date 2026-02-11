@@ -47,6 +47,8 @@ export function useRunAnalysis() {
     mutationFn: async (input: {
       profileIds: string[];
       jiraProjectKeys: string[];
+      confluenceSpaceKeys: string[];
+      githubRepos: string[];
       role: string;
       modelId: string;
       contextWindow: number;
@@ -65,12 +67,16 @@ export function usePayloadPreview() {
     mutationFn: async (input: {
       profileIds: string[];
       jiraProjectKeys: string[];
+      confluenceSpaceKeys: string[];
+      githubRepos: string[];
       role: string;
       contextWindow: number;
     }) => {
       const result = await window.nswot.analysis.previewPayload(
         input.profileIds,
         input.jiraProjectKeys,
+        input.confluenceSpaceKeys,
+        input.githubRepos,
         input.role,
         input.contextWindow,
       );

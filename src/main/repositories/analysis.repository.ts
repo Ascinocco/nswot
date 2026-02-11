@@ -7,6 +7,7 @@ import type {
   SwotOutput,
   SummariesOutput,
   AnonymizedPayload,
+  EvidenceQualityMetrics,
 } from '../domain/types';
 
 interface AnalysisRow {
@@ -19,6 +20,7 @@ interface AnalysisRow {
   input_snapshot: string | null;
   swot_output: string | null;
   summaries_output: string | null;
+  quality_metrics: string | null;
   raw_llm_response: string | null;
   warning: string | null;
   error: string | null;
@@ -48,6 +50,9 @@ function toDomain(row: AnalysisRow): Analysis {
     summariesOutput: row.summaries_output
       ? (JSON.parse(row.summaries_output) as SummariesOutput)
       : null,
+    qualityMetrics: row.quality_metrics
+      ? (JSON.parse(row.quality_metrics) as EvidenceQualityMetrics)
+      : null,
     rawLlmResponse: row.raw_llm_response,
     warning: row.warning,
     error: row.error,
@@ -71,7 +76,7 @@ export class AnalysisRepository {
   async findByWorkspace(workspaceId: string): Promise<Analysis[]> {
     const rows = this.db
       .prepare(
-        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE workspace_id = ? ORDER BY created_at DESC',
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE workspace_id = ? ORDER BY created_at DESC',
       )
       .all(workspaceId) as AnalysisRow[];
     return rows.map(toDomain);
@@ -80,7 +85,7 @@ export class AnalysisRepository {
   async findById(id: string): Promise<Analysis | null> {
     const row = this.db
       .prepare(
-        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE id = ?',
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE id = ?',
       )
       .get(id) as AnalysisRow | undefined;
     return row ? toDomain(row) : null;
@@ -110,6 +115,7 @@ export class AnalysisRepository {
       inputSnapshot: null,
       swotOutput: null,
       summariesOutput: null,
+      qualityMetrics: null,
       rawLlmResponse: null,
       warning: null,
       error: null,
@@ -157,6 +163,7 @@ export class AnalysisRepository {
     output: {
       swotOutput: SwotOutput;
       summariesOutput: SummariesOutput;
+      qualityMetrics: EvidenceQualityMetrics;
       rawLlmResponse: string;
       warning?: string;
     },
@@ -164,12 +171,13 @@ export class AnalysisRepository {
     const now = new Date().toISOString();
     this.db
       .prepare(
-        'UPDATE analyses SET status = ?, swot_output = ?, summaries_output = ?, raw_llm_response = ?, warning = ?, completed_at = ? WHERE id = ?',
+        'UPDATE analyses SET status = ?, swot_output = ?, summaries_output = ?, quality_metrics = ?, raw_llm_response = ?, warning = ?, completed_at = ? WHERE id = ?',
       )
       .run(
         'completed',
         JSON.stringify(output.swotOutput),
         JSON.stringify(output.summariesOutput),
+        JSON.stringify(output.qualityMetrics),
         output.rawLlmResponse,
         output.warning ?? null,
         now,
@@ -184,7 +192,7 @@ export class AnalysisRepository {
   async findRunning(): Promise<Analysis[]> {
     const rows = this.db
       .prepare(
-        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE status = ?',
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE status = ?',
       )
       .all('running') as AnalysisRow[];
     return rows.map(toDomain);

@@ -197,7 +197,7 @@ describe('IntegrationService', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.value.status).toBe('connected');
-        expect(result.value.config.cloudId).toBe('cloud-123');
+        expect((result.value.config as { cloudId: string }).cloudId).toBe('cloud-123');
       }
 
       // Tokens stored securely

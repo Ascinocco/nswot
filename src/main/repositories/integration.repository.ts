@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type Database from 'better-sqlite3';
-import type { Integration, IntegrationConfig } from '../domain/types';
+import type { Integration, IntegrationConfig, IntegrationProvider } from '../domain/types';
 
 interface IntegrationRow {
   id: string;
@@ -17,7 +17,7 @@ function toDomain(row: IntegrationRow): Integration {
   return {
     id: row.id,
     workspaceId: row.workspace_id,
-    provider: row.provider as 'jira',
+    provider: row.provider as IntegrationProvider,
     config: JSON.parse(row.config) as IntegrationConfig,
     status: row.status as 'disconnected' | 'connected' | 'error',
     lastSyncedAt: row.last_synced_at,
@@ -28,6 +28,15 @@ function toDomain(row: IntegrationRow): Integration {
 
 export class IntegrationRepository {
   constructor(private readonly db: Database.Database) {}
+
+  async findAllByWorkspace(workspaceId: string): Promise<Integration[]> {
+    const rows = this.db
+      .prepare(
+        'SELECT id, workspace_id, provider, config, status, last_synced_at, created_at, updated_at FROM integrations WHERE workspace_id = ?',
+      )
+      .all(workspaceId) as IntegrationRow[];
+    return rows.map(toDomain);
+  }
 
   async findByWorkspaceAndProvider(
     workspaceId: string,
@@ -58,7 +67,7 @@ export class IntegrationRepository {
     return {
       id,
       workspaceId,
-      provider: provider as 'jira',
+      provider: provider as IntegrationProvider,
       config,
       status: status as 'disconnected' | 'connected' | 'error',
       lastSyncedAt: null,

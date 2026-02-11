@@ -20,7 +20,7 @@ describe('ChatRepository', () => {
       workspaceId: workspace.id,
       role: 'staff_engineer',
       modelId: 'test-model',
-      config: { profileIds: [], jiraProjectKeys: [] },
+      config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [] },
     });
     analysisId = analysis.id;
   });

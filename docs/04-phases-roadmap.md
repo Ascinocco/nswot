@@ -60,57 +60,63 @@ For each analysis cycle, a user should be able to answer:
 
 ---
 
-## Phase 2 - Context Expansion and Comparability
+## Phase 2 - Context Expansion & Analysis Quality (Completed)
 
-**Goal**: improve strategic context and trend awareness.
+**Goal**: broader signal inputs and evidence quality through multi-source triangulation.
 
-### Scope
+> Sprint plan: `docs/10-phase2-sprints.md`
 
-- Confluence integration (space selection, page ingestion, caching)
-- Enhanced source summaries across profiles + Jira + Confluence
-- Run-to-run comparison view ("what changed")
-- Basic evidence quality metrics:
-  - source coverage per SWOT item
-  - confidence distribution
-  - low-evidence flagging
-- Export improvements (optional CSV/PDF if needed)
+### Scope (Actual)
+
+- Confluence Cloud integration (shared Atlassian OAuth, space selection, page/comment ingestion, caching, circuit breaker)
+- GitHub integration (PAT auth, repo selection, PR/issue/comment ingestion, caching, circuit breaker)
+- Multi-source analysis pipeline: profiles + Jira + Confluence + GitHub
+- Adaptive token budget allocation (proportional to connected sources)
+- Cross-source evidence triangulation instructions in system prompt
+- Evidence quality metrics (quality score 0-100, multi-source ratio, confidence distribution, source coverage)
+- Quality metrics stored per analysis, displayed in results and history
+- Anonymizer expansion for integration author scrubbing
 
 ### Decision Value Delivered
 
-- Captures process/design context missing from ticket data
-- Supports trend detection, not just point-in-time snapshots
-- Improves confidence in org-level strategic decisions
+- Captures process/design context from Confluence missing from ticket data
+- Surfaces delivery/execution patterns from GitHub PRs and issues
+- Higher-confidence claims through multi-source evidence corroboration
+- Quality score helps users gauge which claims are well-supported
 
-### Exit Criteria
+### Deferred to Phase 3
 
-- Confluence evidence appears in a meaningful share of SWOT items
-- Users can compare at least two runs side by side
-- Evidence quality metrics influence follow-up actions
+- Run-to-run comparison view ("what changed")
+- CSV/PDF export
+- Chat-driven file generation
+- VP of Engineering role
 
 ---
 
-## Phase 3 - Execution Reality and Triangulation
+## Phase 3 - Comparability and Advanced Features
 
-**Goal**: connect planning signals to engineering execution signals.
+**Goal**: trend awareness and repeated decision support.
 
 ### Scope
 
-- GitHub integration (repos, PRs, selective code evidence)
-- Cross-source evidence triangulation (Profiles + Jira + Confluence + GitHub)
-- Stronger recommendation engine for role-specific action plans
+- Run-to-run comparison view ("what changed since last analysis")
+- Themes layer / theme editor
+- CSV/PDF export
 - Optional chat actions for controlled artifact creation (guard-railed)
+- Multi-step LLM pipeline (extraction -> synthesis -> SWOT)
+- VP of Engineering role
+- Windows/Linux packaging
 - Advanced dashboards/visuals only if they improve decisions
 
 ### Decision Value Delivered
 
-- Detects gaps between stated priorities and shipped work
-- Surfaces delivery risk/quality issues earlier
-- Produces higher-confidence decisions through multi-source corroboration
+- Supports trend detection, not just point-in-time snapshots
+- More granular control over analysis themes
+- Broader audience through additional roles and platforms
 
 ### Exit Criteria
 
-- SWOT claims routinely reference more than one source type
-- Users report improved decision confidence vs prior workflow
+- Users can compare at least two runs side by side
 - Follow-through metrics improve (fewer stale recommendations)
 
 ---
@@ -141,9 +147,9 @@ When choosing between features, prioritize in this order:
 
 ## Suggested Release Cadence
 
-- **MVP (Phase 1)**: 6 weeks
-- **Phase 2**: +4 to 6 weeks
-- **Phase 3**: +4 to 8 weeks (depends on GitHub scope depth)
+- **MVP (Phase 1)**: 6 weeks (completed)
+- **Phase 2**: +5 weeks (completed — Confluence, GitHub, quality metrics, multi-source pipeline)
+- **Phase 3**: +4 to 8 weeks (comparability, themes, export, multi-platform)
 
 Re-evaluate after each phase based on user behavior, not feature count.
 

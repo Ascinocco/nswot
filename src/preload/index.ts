@@ -42,13 +42,35 @@ const api: NswotAPI = {
     sync: (projectKeys) => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATION_SYNC, projectKeys),
     listProjects: () => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATION_LIST_PROJECTS),
   },
+  confluence: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.CONFLUENCE_GET),
+    connect: () => ipcRenderer.invoke(IPC_CHANNELS.CONFLUENCE_CONNECT),
+    disconnect: () => ipcRenderer.invoke(IPC_CHANNELS.CONFLUENCE_DISCONNECT),
+    listSpaces: () => ipcRenderer.invoke(IPC_CHANNELS.CONFLUENCE_LIST_SPACES),
+    sync: (spaceKeys) => ipcRenderer.invoke(IPC_CHANNELS.CONFLUENCE_SYNC, spaceKeys),
+  },
+  github: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_GET),
+    connect: (pat) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_CONNECT, pat),
+    disconnect: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_DISCONNECT),
+    listRepos: () => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_LIST_REPOS),
+    sync: (repos) => ipcRenderer.invoke(IPC_CHANNELS.GITHUB_SYNC, repos),
+  },
   analysis: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_LIST),
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET, id),
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_DELETE, id),
     run: (input) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_RUN, input),
-    previewPayload: (profileIds, jiraProjectKeys, role, contextWindow) =>
-      ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD, profileIds, jiraProjectKeys, role, contextWindow),
+    previewPayload: (profileIds, jiraProjectKeys, confluenceSpaceKeys, githubRepos, role, contextWindow) =>
+      ipcRenderer.invoke(
+        IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD,
+        profileIds,
+        jiraProjectKeys,
+        confluenceSpaceKeys,
+        githubRepos,
+        role,
+        contextWindow,
+      ),
     onProgress: (callback) => {
       const handler = (_event: unknown, data: { analysisId: string; stage: string; message: string }) =>
         callback(data);

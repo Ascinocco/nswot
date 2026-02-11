@@ -10,7 +10,7 @@ function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
     role: 'staff_engineer',
     modelId: 'openai/gpt-4',
     status: 'completed',
-    config: { profileIds: ['p1', 'p2'], jiraProjectKeys: ['PROJ'] },
+    config: { profileIds: ['p1', 'p2'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: [], githubRepos: [] },
     inputSnapshot: null,
     swotOutput: {
       strengths: [
@@ -51,6 +51,8 @@ function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
     summariesOutput: {
       profiles: 'Key themes include technical leadership and CI concerns.',
       jira: 'Active sprint with migration epic.',
+      confluence: null,
+      github: null,
     },
     rawLlmResponse: '{}',
     warning: null,

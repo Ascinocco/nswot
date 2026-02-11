@@ -2,6 +2,8 @@ import type { IPCResult, Workspace, Profile, ProfileInput, Analysis, ChatMessage
 import type { LlmModel } from '../main/providers/llm/llm.types';
 import type { FileEntry } from '../main/infrastructure/file-system';
 import type { JiraProject } from '../main/providers/jira/jira.types';
+import type { ConfluenceSpace } from '../main/providers/confluence/confluence.types';
+import type { GitHubRepo } from '../main/providers/github/github.types';
 
 export interface NswotAPI {
   system: {
@@ -41,6 +43,20 @@ export interface NswotAPI {
     sync(projectKeys: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
     listProjects(): Promise<IPCResult<JiraProject[]>>;
   };
+  confluence?: {
+    get(): Promise<IPCResult<Integration | null>>;
+    connect(): Promise<IPCResult<Integration>>;
+    disconnect(): Promise<IPCResult<void>>;
+    listSpaces(): Promise<IPCResult<ConfluenceSpace[]>>;
+    sync(spaceKeys: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
+  };
+  github?: {
+    get(): Promise<IPCResult<Integration | null>>;
+    connect(pat: string): Promise<IPCResult<Integration>>;
+    disconnect(): Promise<IPCResult<void>>;
+    listRepos(): Promise<IPCResult<GitHubRepo[]>>;
+    sync(repos: string[]): Promise<IPCResult<{ syncedCount: number; warning?: string }>>;
+  };
   analysis: {
     list(): Promise<IPCResult<Analysis[]>>;
     get(id: string): Promise<IPCResult<Analysis>>;
@@ -48,6 +64,8 @@ export interface NswotAPI {
     run(input: {
       profileIds: string[];
       jiraProjectKeys: string[];
+      confluenceSpaceKeys: string[];
+      githubRepos: string[];
       role: string;
       modelId: string;
       contextWindow: number;
@@ -55,6 +73,8 @@ export interface NswotAPI {
     previewPayload(
       profileIds: string[],
       jiraProjectKeys: string[],
+      confluenceSpaceKeys: string[],
+      githubRepos: string[],
       role: string,
       contextWindow: number,
     ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>>;
