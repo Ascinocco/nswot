@@ -18,11 +18,13 @@
     "dist": "pnpm rebuild:electron && electron-builder"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-query": "^5.90.20",
     "better-sqlite3": "^11.7.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.1",

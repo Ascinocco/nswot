@@ -38,6 +38,11 @@ export const IPC_CHANNELS = {
   // LLM
   LLM_LIST_MODELS: 'llm:listModels',
 
+  // Files
+  FILE_READ_DIR: 'file:readDir',
+  FILE_READ: 'file:read',
+  FILE_WRITE: 'file:write',
+
   // Export
   EXPORT_MARKDOWN: 'export:markdown',
 } as const;

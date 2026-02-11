@@ -8,9 +8,13 @@ import { initializeDatabase } from './infrastructure/database';
 import { createSecureStorage } from './infrastructure/safe-storage';
 import { PreferencesRepository } from './repositories/preferences.repository';
 import { WorkspaceRepository } from './repositories/workspace.repository';
+import { ProfileRepository } from './repositories/profile.repository';
 import { OpenRouterProvider } from './providers/llm/openrouter.provider';
 import { CircuitBreaker } from './infrastructure/circuit-breaker';
 import { SettingsService } from './services/settings.service';
+import { WorkspaceService } from './services/workspace.service';
+import { FileService } from './services/file.service';
+import { ProfileService } from './services/profile.service';
 
 const NSWOT_DIR = join(homedir(), '.nswot');
 
@@ -72,7 +76,8 @@ const db = initializeDatabase(join(NSWOT_DIR, 'nswot.db'));
 
 // Repositories
 const preferencesRepo = new PreferencesRepository(db);
-const _workspaceRepo = new WorkspaceRepository(db);
+const workspaceRepo = new WorkspaceRepository(db);
+const profileRepo = new ProfileRepository(db);
 
 // Providers & infrastructure
 const openRouterProvider = new OpenRouterProvider();
@@ -92,9 +97,12 @@ const settingsService = new SettingsService(
   openRouterProvider,
   llmCircuitBreaker,
 );
+const workspaceService = new WorkspaceService(workspaceRepo, preferencesRepo);
+const fileService = new FileService(workspaceService);
+const profileService = new ProfileService(profileRepo, workspaceService);
 
 // IPC
-registerIpcHandlers({ settingsService });
+registerIpcHandlers({ settingsService, workspaceService, fileService, profileService });
 
 app.whenReady().then(() => {
   createWindow();
