@@ -223,6 +223,132 @@ describe('AnalysisRepository', () => {
     });
   });
 
+  describe('findForComparison', () => {
+    it('returns only completed analyses', async () => {
+      const a1 = await repo.insert({
+        workspaceId,
+        role: 'staff_engineer',
+        modelId: 'model-a',
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+      });
+      const a2 = await repo.insert({
+        workspaceId,
+        role: 'senior_em',
+        modelId: 'model-b',
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+      });
+
+      // Complete a1 only
+      await repo.storeResult(a1.id, {
+        swotOutput: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+        summariesOutput: { profiles: '', jira: '', confluence: null, github: null, codebase: null },
+        qualityMetrics: {
+          totalItems: 0,
+          multiSourceItems: 0,
+          sourceTypeCoverage: {},
+          confidenceDistribution: { high: 0, medium: 0, low: 0 },
+          averageEvidencePerItem: 0,
+          qualityScore: 0,
+        },
+        rawLlmResponse: '{}',
+      });
+      // a2 stays pending
+
+      const summaries = await repo.findForComparison(workspaceId);
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0]!.id).toBe(a1.id);
+      expect(summaries[0]!.status).toBe('completed');
+      expect(summaries[0]!.completedAt).not.toBeNull();
+    });
+
+    it('returns lightweight summaries (no swotOutput)', async () => {
+      const a1 = await repo.insert({
+        workspaceId,
+        role: 'staff_engineer',
+        modelId: 'model-a',
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+      });
+      await repo.storeResult(a1.id, {
+        swotOutput: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+        summariesOutput: { profiles: '', jira: '', confluence: null, github: null, codebase: null },
+        qualityMetrics: {
+          totalItems: 0,
+          multiSourceItems: 0,
+          sourceTypeCoverage: {},
+          confidenceDistribution: { high: 0, medium: 0, low: 0 },
+          averageEvidencePerItem: 0,
+          qualityScore: 0,
+        },
+        rawLlmResponse: '{}',
+      });
+
+      const summaries = await repo.findForComparison(workspaceId);
+      expect(summaries).toHaveLength(1);
+      const summary = summaries[0]!;
+      // Should have lightweight fields only
+      expect(summary).toHaveProperty('id');
+      expect(summary).toHaveProperty('role');
+      expect(summary).toHaveProperty('modelId');
+      expect(summary).toHaveProperty('status');
+      expect(summary).toHaveProperty('createdAt');
+      expect(summary).toHaveProperty('completedAt');
+      // Should NOT have heavy fields
+      expect(summary).not.toHaveProperty('swotOutput');
+      expect(summary).not.toHaveProperty('rawLlmResponse');
+    });
+
+    it('orders by completed_at descending', async () => {
+      const a1 = await repo.insert({
+        workspaceId,
+        role: 'staff_engineer',
+        modelId: 'model-a',
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+      });
+      const a2 = await repo.insert({
+        workspaceId,
+        role: 'senior_em',
+        modelId: 'model-b',
+        config: { profileIds: [], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+      });
+
+      // Complete both with controlled timestamps
+      await repo.storeResult(a1.id, {
+        swotOutput: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+        summariesOutput: { profiles: '', jira: '', confluence: null, github: null, codebase: null },
+        qualityMetrics: {
+          totalItems: 0, multiSourceItems: 0, sourceTypeCoverage: {},
+          confidenceDistribution: { high: 0, medium: 0, low: 0 },
+          averageEvidencePerItem: 0, qualityScore: 0,
+        },
+        rawLlmResponse: '{}',
+      });
+      db.prepare('UPDATE analyses SET completed_at = ? WHERE id = ?').run('2024-01-01T00:00:00.000Z', a1.id);
+
+      await repo.storeResult(a2.id, {
+        swotOutput: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+        summariesOutput: { profiles: '', jira: '', confluence: null, github: null, codebase: null },
+        qualityMetrics: {
+          totalItems: 0, multiSourceItems: 0, sourceTypeCoverage: {},
+          confidenceDistribution: { high: 0, medium: 0, low: 0 },
+          averageEvidencePerItem: 0, qualityScore: 0,
+        },
+        rawLlmResponse: '{}',
+      });
+      db.prepare('UPDATE analyses SET completed_at = ? WHERE id = ?').run('2024-06-01T00:00:00.000Z', a2.id);
+
+      const summaries = await repo.findForComparison(workspaceId);
+      expect(summaries).toHaveLength(2);
+      // Most recent first
+      expect(summaries[0]!.id).toBe(a2.id);
+      expect(summaries[1]!.id).toBe(a1.id);
+    });
+
+    it('returns empty for workspace with no completed analyses', async () => {
+      const summaries = await repo.findForComparison(workspaceId);
+      expect(summaries).toEqual([]);
+    });
+  });
+
   describe('insertProfiles and findProfiles', () => {
     it('stores and retrieves analysis-profile junction records', async () => {
       const profileRepo = new ProfileRepository(db);

@@ -55,6 +55,23 @@ declare global {
     isDirectory: boolean;
   }
 
+  interface ThemeEvidenceRef {
+    sourceType: 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
+    sourceId: string;
+    quote: string;
+  }
+
+  interface Theme {
+    id: string;
+    analysisId: string;
+    label: string;
+    description: string;
+    evidenceRefs: ThemeEvidenceRef[];
+    sourceTypes: string[];
+    frequency: number;
+    createdAt: string;
+  }
+
   interface SwotItem {
     claim: string;
     evidence: EvidenceEntry[];
@@ -271,6 +288,65 @@ declare global {
     executedAt: string | null;
   }
 
+  type SwotCategory = 'strengths' | 'weaknesses' | 'opportunities' | 'threats';
+  type DeltaKind = 'added' | 'removed' | 'changed';
+
+  interface ConfidenceDelta {
+    before: 'high' | 'medium' | 'low';
+    after: 'high' | 'medium' | 'low';
+  }
+
+  interface SourceDelta {
+    added: string[];
+    removed: string[];
+  }
+
+  interface ItemDelta {
+    kind: DeltaKind;
+    category: SwotCategory;
+    claim: string;
+    matchedClaim?: string;
+    similarity?: number;
+    confidenceDelta?: ConfidenceDelta;
+    sourceDelta?: SourceDelta;
+    evidenceCountDelta?: { before: number; after: number };
+  }
+
+  interface CategorySummary {
+    added: number;
+    removed: number;
+    changed: number;
+    unchanged: number;
+  }
+
+  interface ComparisonSummary {
+    strengths: CategorySummary;
+    weaknesses: CategorySummary;
+    opportunities: CategorySummary;
+    threats: CategorySummary;
+    totalAdded: number;
+    totalRemoved: number;
+    totalChanged: number;
+    totalUnchanged: number;
+  }
+
+  interface ComparisonResult {
+    analysisIdA: string;
+    analysisIdB: string;
+    deltas: ItemDelta[];
+    summary: ComparisonSummary;
+    createdAt: string;
+  }
+
+  interface ComparisonAnalysisSummary {
+    id: string;
+    role: string;
+    modelId: string;
+    status: string;
+    createdAt: string;
+    completedAt: string | null;
+  }
+
   interface NswotAPI {
     system: {
       ping(): Promise<IPCResult<string>>;
@@ -369,9 +445,20 @@ declare global {
       actions: {
         approve(actionId: string): Promise<IPCResult<ActionResult>>;
         reject(actionId: string): Promise<IPCResult<void>>;
+        edit(actionId: string, editedInput: Record<string, unknown>): Promise<IPCResult<void>>;
         list(analysisId: string): Promise<IPCResult<ChatAction[]>>;
         onPending(callback: (action: ChatAction) => void): () => void;
       };
+    };
+    comparison: {
+      list(): Promise<IPCResult<ComparisonAnalysisSummary[]>>;
+      run(analysisIdA: string, analysisIdB: string): Promise<IPCResult<ComparisonResult>>;
+    };
+    themes: {
+      list(analysisId: string): Promise<IPCResult<Theme[]>>;
+      get(id: string): Promise<IPCResult<Theme | null>>;
+      update(id: string, fields: { label?: string; description?: string }): Promise<IPCResult<Theme | null>>;
+      delete(id: string): Promise<IPCResult<void>>;
     };
     export: {
       markdown(analysisId: string): Promise<IPCResult<string>>;

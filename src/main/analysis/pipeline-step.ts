@@ -5,6 +5,8 @@ import type {
   SummariesOutput,
   EvidenceQualityMetrics,
   ThemeOutput,
+  ExtractionOutput,
+  SynthesisOutput,
 } from '../domain/types';
 import type { PromptDataSources } from './prompt-builder';
 import type { ConnectedSource } from './token-budget';
@@ -51,6 +53,8 @@ export interface PipelineContext {
   llmCaller: LlmCaller;
 
   // -- Outputs (accumulated by steps) --
+  extractionOutput?: ExtractionOutput;
+  synthesisOutput?: SynthesisOutput;
   themes?: ThemeOutput[];
   swotOutput?: SwotOutput;
   summariesOutput?: SummariesOutput;

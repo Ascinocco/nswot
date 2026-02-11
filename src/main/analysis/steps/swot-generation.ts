@@ -26,12 +26,17 @@ export class SwotGenerationStep implements PipelineStep {
       [...context.connectedSources] as ConnectedSource[],
     );
     const systemPrompt = buildSystemPrompt();
-    const userPrompt = buildUserPrompt(
+    let userPrompt = buildUserPrompt(
       context.role,
       [...context.anonymizedProfiles],
       context.dataSources,
       budget,
     );
+
+    // Append synthesis data if available from prior pipeline steps
+    if (context.synthesisOutput?.synthesisMarkdown) {
+      userPrompt += `\n\n## Cross-Source Synthesis (Pre-Analysis)\n\nThe following synthesis was produced by correlating signals across all data sources. Use it to inform and strengthen your SWOT analysis — especially for cross-source triangulation and confidence assessment.\n\n${context.synthesisOutput.synthesisMarkdown}`;
+    }
 
     // Send to LLM
     onProgress('sending', 'Sending to LLM — waiting for first tokens...');

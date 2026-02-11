@@ -4,6 +4,7 @@ import { useProfiles } from '../hooks/use-profiles';
 import { useRunAnalysis, usePayloadPreview } from '../hooks/use-analysis';
 import { usePreferences, useModels, useApiKeyStatus } from '../hooks/use-settings';
 import { useIntegration, useConfluenceIntegration, useGitHubIntegration } from '../hooks/use-integrations';
+import { useNavigate } from 'react-router-dom';
 import { useExportMarkdown } from '../hooks/use-export';
 import SwotResults from '../components/analysis/swot-results';
 import PayloadPreview from '../components/analysis/payload-preview';
@@ -41,6 +42,7 @@ export default function AnalysisPage(): React.JSX.Element {
   const { data: confluenceIntegration } = useConfluenceIntegration();
   const { data: githubIntegration } = useGitHubIntegration();
 
+  const navigate = useNavigate();
   const runAnalysis = useRunAnalysis();
   const previewPayload = usePayloadPreview();
   const exportMarkdown = useExportMarkdown();
@@ -603,6 +605,12 @@ export default function AnalysisPage(): React.JSX.Element {
             className="rounded-lg border border-green-700 px-4 py-2 text-sm text-green-300 transition-colors hover:border-green-600 hover:text-green-200"
           >
             {showChat ? 'Hide Chat' : 'Chat About Results'}
+          </button>
+          <button
+            onClick={() => navigate(`/themes/${completedAnalysis.id}`)}
+            className="rounded-lg border border-teal-700 px-4 py-2 text-sm text-teal-300 transition-colors hover:border-teal-600 hover:text-teal-200"
+          >
+            View Themes
           </button>
           <button
             onClick={async () => {

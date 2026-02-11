@@ -353,6 +353,29 @@ export class ChatService {
     return ok(undefined);
   }
 
+  async editAction(
+    actionId: string,
+    editedInput: Record<string, unknown>,
+  ): Promise<Result<void, DomainError>> {
+    if (!this.chatActionRepo) {
+      return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Chat actions not available'));
+    }
+
+    try {
+      const action = await this.chatActionRepo.findById(actionId);
+      if (!action) {
+        return err(new DomainError(ERROR_CODES.ACTION_NOT_FOUND, `Action ${actionId} not found`));
+      }
+      if (action.status !== 'pending') {
+        return err(new DomainError(ERROR_CODES.ACTION_INVALID_STATUS, 'Can only edit pending actions'));
+      }
+      await this.chatActionRepo.updateToolInput(actionId, editedInput);
+      return ok(undefined);
+    } catch (cause) {
+      return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to edit action', cause));
+    }
+  }
+
   async listActions(analysisId: string): Promise<Result<ChatAction[], DomainError>> {
     if (!this.chatActionRepo) {
       return ok([]);

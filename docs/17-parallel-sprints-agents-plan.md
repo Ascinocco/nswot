@@ -13,12 +13,12 @@
 | Week | Agent A | Agent B |
 |------|---------|---------|
 | 1 | Sprint 13: Codebase Polish — **DONE** | Sprint 14 Foundation: Actions Infra — **DONE** |
-| 2 | Sprint 14 Backend: Tool-Use Bridge — **DONE** | Sprint 14 Frontend: Approval Card UI — PENDING |
-| 3 | Sprint 15 Backend: Extended Actions — **DONE** | Sprint 15 Frontend: Actions Polish — PENDING |
-| 4 | Sprint 16: Comparison Backend — PENDING | Sprint 20: Export + VP + x64 — **DONE** |
-| 5 | Sprint 17: Comparison UI — PENDING | Sprint 18a: Pipeline Architecture — **DONE** |
+| 2 | Sprint 14 Backend: Tool-Use Bridge — **DONE** | Sprint 14 Frontend: Approval Card UI — **DONE** |
+| 3 | Sprint 15 Backend: Extended Actions — **DONE** | Sprint 15 Frontend: Actions Polish — **DONE** |
+| 4 | Sprint 16: Comparison Backend — **DONE** | Sprint 20: Export + VP + x64 — **DONE** |
+| 5 | Sprint 17: Comparison UI — **DONE** | Sprint 18a: Pipeline Architecture — **DONE** |
 | 6 | Sprint 18b: Pipeline Steps — PENDING | Sprint 19a: Themes Backend — **DONE** |
-| 7 | Sprint 19b: Themes Editor UI — PENDING | Sprint 21: E2E Testing + Docs — PENDING |
+| 7 | Sprint 19b: Themes Editor UI — **DONE** (Agent B) | Sprint 21: E2E Testing + Docs — PENDING |
 
 ---
 
@@ -211,9 +211,12 @@ COMPLETION CRITERIA:
 
 ---
 
-## Agent B — Sprint 14 Frontend: Approval Card UI — PENDING
+## Agent B — Sprint 14 Frontend: Approval Card UI — DONE
 
-> **Status: READY NOW.** Gate 1 passed (implicit). No blockers.
+> **Status: COMPLETED.** Tasks 14.6, 14.7 done. Created approval-card.tsx (all 6 tool types with previews), action-status.tsx (executing/success/failed/rejected states), updated use-chat.ts (useChatActions, useApproveAction, useRejectAction hooks), integrated into chat-panel.tsx (inline action rendering with onPending listener). 505 tests pass.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -268,6 +271,8 @@ COMPLETION CRITERIA:
 
 WHEN DONE: Mark Sprint 14 tasks 14.6, 14.7 as complete in
 docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
+
+</details>
 
 ---
 
@@ -328,9 +333,12 @@ COMPLETION CRITERIA:
 
 ---
 
-## Agent B — Sprint 15 Frontend: Actions Polish + Testing — PENDING
+## Agent B — Sprint 15 Frontend: Actions Polish + Testing — DONE
 
-> **Status: BLOCKED.** Depends on Sprint 14 Frontend (Agent B Week 2) being completed first.
+> **Status: COMPLETED.** Tasks 15.3, 15.4, 15.7 done. Edit capability (editable fields with Save/Cancel), action history polish (result IDs in status), editAction service+IPC+preload bridge, 4 new tests. 509 tests pass.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 PREREQUISITE: Sprint 14 Frontend (Agent B Week 2) must be completed first.
 
@@ -381,13 +389,18 @@ COMPLETION CRITERIA:
 WHEN DONE: Mark Sprint 15 tasks 15.3, 15.4, 15.7 as complete in
 docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
 
+</details>
+
 ---
 
 ## Week 4
 
-## Agent A — Sprint 16: Comparison Backend — PENDING
+## Agent A — Sprint 16: Comparison Backend — DONE
 
-> **Status: READY NOW.** No blockers. Independent of Phase 3c.
+> **Status: COMPLETED.** Tasks 16.1–16.4 done. ComparisonService, diff algorithm, findForComparison, IPC handlers, preload bridge. 505 tests pass.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 READ FIRST:
 
@@ -445,6 +458,8 @@ COMPLETION CRITERIA:
 
 WHEN DONE: Mark Sprint 16 tasks 16.1–16.4 as complete in
 docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
+
+</details>
 
 ---
 
@@ -746,23 +761,15 @@ FILES YOU OWN:
 
 ## Week 7
 
-## Agent A — Sprint 19b: Themes Editor UI — PENDING
+## Agent B — Sprint 19b: Themes Editor UI — DONE
 
-> **Status: READY NOW.** Gate 3 Agent B artifacts ready (theme types, repository, extraction step all complete).
+> **Status: COMPLETED (by Agent B).** Theme IPC handlers (list/get/update/delete), preload bridge, use-themes.ts hooks, themes.tsx route with inline edit + evidence viewer, App.tsx route, analysis.tsx + analysis-history.tsx "Themes" links. ThemeRepository extended with update() and deleteById(). 509 tests pass.
+
+<details>
+<summary>Sprint instructions (reference only)</summary>
 
 PREREQUISITE: Sprint 19a (themes backend) is complete. Theme types and
 repository are available.
-
-READ FIRST:
-
-- docs/16-parallel-sprint-plan.md (you are Agent A, Week 7)
-- src/main/domain/types.ts (Theme, ThemeOutput, ThemeEvidenceRef types —
-  Agent B Week 6 output)
-- src/main/repositories/theme.repository.ts (Agent B Week 6 output)
-- src/renderer/App.tsx (add route)
-- src/renderer/routes/analysis.tsx (link to themes from analysis view)
-- Existing renderer patterns in src/renderer/routes/ and
-  src/renderer/components/
 
 SCOPE:
 
@@ -784,33 +791,24 @@ SCOPE:
 6. Add route to src/renderer/App.tsx for /themes/:analysisId
 7. Add "View Themes" link from src/renderer/routes/analysis.tsx to themes
    page
-8. Write tests for theme components
 
-FILES YOU OWN:
+FILES MODIFIED/CREATED:
 
-- src/renderer/routes/themes.tsx (new)
-- src/renderer/components/themes/ (new directory)
-- src/renderer/hooks/use-themes.ts (new)
-- src/main/ipc/handlers/theme.ipc.ts (new)
-- src/renderer/App.tsx (add route)
-- src/renderer/routes/analysis.tsx (add link)
-- src/main/ipc/channels.ts (append theme channels)
-- src/preload/api.ts (append theme bridge)
+- src/main/repositories/theme.repository.ts (added update, deleteById)
+- src/main/ipc/channels.ts (added THEME_LIST, THEME_GET, THEME_UPDATE, THEME_DELETE)
+- src/main/ipc/handlers/theme.ipc.ts (new — 4 handlers)
+- src/main/ipc/registry.ts (added ThemeRepository to IpcContext, registered handlers)
+- src/main/index.ts (instantiate ThemeRepository, pass to IPC)
+- src/preload/api.ts (added themes API types)
+- src/preload/index.ts (added themes bridge methods)
+- src/renderer/env.d.ts (added Theme, ThemeEvidenceRef types + NswotAPI.themes)
+- src/renderer/hooks/use-themes.ts (new — useThemes, useUpdateTheme, useDeleteTheme)
+- src/renderer/routes/themes.tsx (new — full themes editor page)
+- src/renderer/App.tsx (added /themes/:analysisId route)
+- src/renderer/routes/analysis.tsx (added "View Themes" button)
+- src/renderer/routes/analysis-history.tsx (added "Themes" button)
 
-FILES TO AVOID: Do NOT modify docs/ extensively — Agent B owns
-documentation updates this week.
-
-COMPLETION CRITERIA:
-
-- User can navigate from analysis to themes view
-- Themes list shows all extracted themes with metadata
-- Theme detail view shows evidence and related SWOT items
-- Inline editing of theme properties works
-- Delete with confirmation works
-- pnpm typecheck && pnpm test passes with no regressions
-
-WHEN DONE: Mark Sprint 19 task 19.4 as complete in
-docs/16-parallel-sprint-plan.md. Then run pnpm typecheck && pnpm test to confirm green.
+</details>
 
 ---
 

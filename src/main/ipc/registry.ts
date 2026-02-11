@@ -11,6 +11,8 @@ import { registerIntegrationHandlers } from './handlers/integration.ipc';
 import { registerConfluenceHandlers } from './handlers/confluence.ipc';
 import { registerGitHubHandlers } from './handlers/github.ipc';
 import { registerCodebaseHandlers } from './handlers/codebase.ipc';
+import { registerComparisonHandlers } from './handlers/comparison.ipc';
+import { registerThemeHandlers } from './handlers/theme.ipc';
 import type { SettingsService } from '../services/settings.service';
 import type { WorkspaceService } from '../services/workspace.service';
 import type { FileService } from '../services/file.service';
@@ -23,6 +25,8 @@ import type { IntegrationService } from '../services/integration.service';
 import type { ConfluenceService } from '../services/confluence.service';
 import type { GitHubService } from '../services/github.service';
 import type { CodebaseService } from '../services/codebase.service';
+import type { ComparisonService } from '../services/comparison.service';
+import type { ThemeRepository } from '../repositories/theme.repository';
 import type { IPCResult } from '../domain/types';
 
 export interface IpcContext {
@@ -38,6 +42,8 @@ export interface IpcContext {
   confluenceService?: ConfluenceService;
   githubService?: GitHubService;
   codebaseService?: CodebaseService;
+  comparisonService: ComparisonService;
+  themeRepo?: ThemeRepository;
 }
 
 export function registerIpcHandlers(context: IpcContext): void {
@@ -56,4 +62,6 @@ export function registerIpcHandlers(context: IpcContext): void {
   if (context.confluenceService) registerConfluenceHandlers(context.confluenceService);
   if (context.githubService) registerGitHubHandlers(context.githubService);
   if (context.codebaseService) registerCodebaseHandlers(context.codebaseService);
+  registerComparisonHandlers(context.comparisonService, context.analysisRepo, context.workspaceService);
+  if (context.themeRepo) registerThemeHandlers(context.themeRepo);
 }

@@ -32,6 +32,8 @@ import { GitHubProvider } from './providers/github/github.provider';
 import { GitHubService } from './services/github.service';
 import { CodebaseProvider } from './providers/codebase/codebase.provider';
 import { CodebaseService } from './services/codebase.service';
+import { ComparisonService } from './services/comparison.service';
+import { ThemeRepository } from './repositories/theme.repository';
 
 const NSWOT_DIR = join(homedir(), '.nswot');
 
@@ -142,6 +144,7 @@ const workspaceService = new WorkspaceService(workspaceRepo, preferencesRepo);
 const fileService = new FileService(workspaceService);
 const profileService = new ProfileService(profileRepo, workspaceService);
 const chatActionRepo = new ChatActionRepository(db);
+const themeRepo = new ThemeRepository(db);
 const actionExecutor = new ActionExecutor();
 const chatService = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, actionExecutor);
 const exportService = new ExportService(analysisRepo);
@@ -185,6 +188,7 @@ const analysisService = new AnalysisService(
   settingsService,
   workspaceService,
 );
+const comparisonService = new ComparisonService(analysisRepo);
 
 // Recovery: mark stale running analyses as failed
 analysisRepo.recoverRunning();
@@ -203,6 +207,8 @@ registerIpcHandlers({
   confluenceService,
   githubService,
   codebaseService,
+  comparisonService,
+  themeRepo,
 });
 
 app.whenReady().then(() => {

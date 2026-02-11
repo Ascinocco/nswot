@@ -1,4 +1,4 @@
-import type { IPCResult, Workspace, Profile, ProfileInput, Analysis, ChatMessage, ChatAction, ActionResult, Integration } from '../main/domain/types';
+import type { IPCResult, Workspace, Profile, ProfileInput, Analysis, ChatMessage, ChatAction, ActionResult, Integration, Theme } from '../main/domain/types';
 import type { LlmModel } from '../main/providers/llm/llm.types';
 import type { FileEntry } from '../main/infrastructure/file-system';
 import type { JiraProject } from '../main/providers/jira/jira.types';
@@ -6,6 +6,7 @@ import type { ConfluenceSpace } from '../main/providers/confluence/confluence.ty
 import type { GitHubRepo } from '../main/providers/github/github.types';
 import type { CodebaseAnalysis, CodebasePrerequisites, CodebaseAnalysisOptions } from '../main/providers/codebase/codebase.types';
 import type { CodebaseProgress, RepoAnalysisInfo, CodebaseStorageInfo } from '../main/services/codebase.service';
+import type { ComparisonResult, ComparisonAnalysisSummary } from '../main/domain/comparison.types';
 
 export interface NswotAPI {
   system: {
@@ -110,9 +111,20 @@ export interface NswotAPI {
     actions: {
       approve(actionId: string): Promise<IPCResult<ActionResult>>;
       reject(actionId: string): Promise<IPCResult<void>>;
+      edit(actionId: string, editedInput: Record<string, unknown>): Promise<IPCResult<void>>;
       list(analysisId: string): Promise<IPCResult<ChatAction[]>>;
       onPending(callback: (action: ChatAction) => void): () => void;
     };
+  };
+  comparison: {
+    list(): Promise<IPCResult<ComparisonAnalysisSummary[]>>;
+    run(analysisIdA: string, analysisIdB: string): Promise<IPCResult<ComparisonResult>>;
+  };
+  themes: {
+    list(analysisId: string): Promise<IPCResult<Theme[]>>;
+    get(id: string): Promise<IPCResult<Theme | null>>;
+    update(id: string, fields: { label?: string; description?: string }): Promise<IPCResult<Theme | null>>;
+    delete(id: string): Promise<IPCResult<void>>;
   };
   export: {
     markdown(analysisId: string): Promise<IPCResult<string>>;

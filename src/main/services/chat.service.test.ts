@@ -376,6 +376,45 @@ describe('ChatService actions', () => {
     });
   });
 
+  describe('editAction', () => {
+    it('updates tool input for a pending action', async () => {
+      const editedInput = { project: 'PROJ', issueType: 'Epic', summary: 'Edited', description: 'New desc' };
+      const result = await service.editAction('action-1', editedInput);
+      expect(result.ok).toBe(true);
+      expect(chatActionRepo.updateToolInput).toHaveBeenCalledWith('action-1', editedInput);
+    });
+
+    it('returns error when action not found', async () => {
+      vi.mocked(chatActionRepo.findById).mockResolvedValueOnce(null);
+      const result = await service.editAction('non-existent', { summary: 'x' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('ACTION_NOT_FOUND');
+      }
+    });
+
+    it('returns error when action is not pending', async () => {
+      vi.mocked(chatActionRepo.findById).mockResolvedValueOnce({
+        ...pendingAction,
+        status: 'completed',
+      });
+      const result = await service.editAction('action-1', { summary: 'x' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('ACTION_INVALID_STATUS');
+      }
+    });
+
+    it('returns error when no action repo', async () => {
+      const serviceNoActions = new ChatService(chatRepo, analysisRepo, settingsService);
+      const result = await serviceNoActions.editAction('action-1', { summary: 'x' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('INTERNAL_ERROR');
+      }
+    });
+  });
+
   describe('approveAction', () => {
     it('executes action and updates status', async () => {
       // Keep a sibling pending so continuation is not triggered (avoids fetch)

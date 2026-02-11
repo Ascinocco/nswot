@@ -29,6 +29,8 @@ import { calculateTokenBudget } from '../analysis/token-budget';
 import type { ConnectedSource } from '../analysis/token-budget';
 import { AnalysisOrchestrator } from '../analysis/orchestrator';
 import { SwotGenerationStep } from '../analysis/steps/swot-generation';
+import { ExtractionStep } from '../analysis/steps/extraction';
+import { SynthesisStep } from '../analysis/steps/synthesis';
 import type { LlmCaller, LlmResponse } from '../analysis/pipeline-step';
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -38,6 +40,8 @@ const LLM_MAX_TOKENS = 16384;
 export type AnalysisStage =
   | 'collecting'
   | 'anonymizing'
+  | 'extracting'
+  | 'synthesizing'
   | 'building_prompt'
   | 'sending'
   | 'parsing'
@@ -61,6 +65,7 @@ export interface RunAnalysisInput {
   role: Analysis['role'];
   modelId: string;
   contextWindow: number;
+  multiStep?: boolean;
 }
 
 export class AnalysisService {
@@ -168,7 +173,10 @@ export class AnalysisService {
           this.sendToOpenRouter(apiKey, modelId, messages, onToken),
       };
 
-      const orchestrator = new AnalysisOrchestrator([new SwotGenerationStep()]);
+      const steps = input.multiStep
+        ? [new ExtractionStep(), new SynthesisStep(), new SwotGenerationStep()]
+        : [new SwotGenerationStep()];
+      const orchestrator = new AnalysisOrchestrator(steps);
       const pipelineResult = await orchestrator.run(
         {
           analysisId: analysis.id,

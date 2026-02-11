@@ -211,6 +211,32 @@ export interface ChatAction {
   executedAt: string | null;
 }
 
+export interface ExtractionSignal {
+  sourceType: EvidenceSourceType;
+  sourceId: string;
+  signal: string;
+  category: 'theme' | 'risk' | 'strength' | 'concern' | 'metric';
+  quote: string;
+}
+
+export interface ExtractionOutput {
+  signals: ExtractionSignal[];
+  keyPatterns: string[];
+}
+
+export interface SynthesisCorrelation {
+  claim: string;
+  supportingSignals: ExtractionSignal[];
+  sourceTypes: EvidenceSourceType[];
+  agreement: 'strong' | 'moderate' | 'weak';
+  conflicts: string[];
+}
+
+export interface SynthesisOutput {
+  correlations: SynthesisCorrelation[];
+  synthesisMarkdown: string;
+}
+
 export interface ThemeEvidenceRef {
   sourceType: EvidenceSourceType;
   sourceId: string;

@@ -9,6 +9,7 @@ import type {
   AnonymizedPayload,
   EvidenceQualityMetrics,
 } from '../domain/types';
+import type { ComparisonAnalysisSummary } from '../domain/comparison.types';
 
 interface AnalysisRow {
   id: string;
@@ -27,6 +28,15 @@ interface AnalysisRow {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+}
+
+interface ComparisonRow {
+  id: string;
+  role: string;
+  model_id: string;
+  status: string;
+  created_at: string;
+  completed_at: string | null;
 }
 
 interface AnalysisProfileRow {
@@ -227,5 +237,21 @@ export class AnalysisRepository {
       )
       .run(now);
     return result.changes;
+  }
+
+  async findForComparison(workspaceId: string): Promise<ComparisonAnalysisSummary[]> {
+    const rows = this.db
+      .prepare(
+        "SELECT id, role, model_id, status, created_at, completed_at FROM analyses WHERE workspace_id = ? AND status = 'completed' ORDER BY completed_at DESC",
+      )
+      .all(workspaceId) as ComparisonRow[];
+    return rows.map((row) => ({
+      id: row.id,
+      role: row.role,
+      modelId: row.model_id,
+      status: row.status,
+      createdAt: row.created_at,
+      completedAt: row.completed_at,
+    }));
   }
 }

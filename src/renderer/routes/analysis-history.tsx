@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCurrentWorkspace } from '../hooks/use-workspace';
 import { useAnalyses, useAnalysis, useDeleteAnalysis } from '../hooks/use-analysis';
 import { useExportMarkdown } from '../hooks/use-export';
@@ -27,6 +28,7 @@ function formatDate(iso: string): string {
 }
 
 export default function AnalysisHistoryPage(): React.JSX.Element {
+  const navigate = useNavigate();
   const { data: workspace } = useCurrentWorkspace();
   const { data: analyses, isLoading } = useAnalyses(!!workspace);
   const deleteAnalysis = useDeleteAnalysis();
@@ -177,6 +179,18 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
                           className="rounded px-2 py-1 text-xs text-purple-400 transition-colors hover:bg-purple-900/30 hover:text-purple-300 disabled:opacity-50"
                         >
                           {exportSuccess === analysis.id ? 'Copied!' : 'Export'}
+                        </button>
+                        <button
+                          onClick={() => navigate(`/themes/${analysis.id}`)}
+                          className="rounded px-2 py-1 text-xs text-teal-400 transition-colors hover:bg-teal-900/30 hover:text-teal-300"
+                        >
+                          Themes
+                        </button>
+                        <button
+                          onClick={() => navigate('/comparison')}
+                          className="rounded px-2 py-1 text-xs text-cyan-400 transition-colors hover:bg-cyan-900/30 hover:text-cyan-300"
+                        >
+                          Compare
                         </button>
                       </>
                     )}

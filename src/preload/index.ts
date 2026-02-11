@@ -117,6 +117,8 @@ const api: NswotAPI = {
         ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_APPROVE, actionId),
       reject: (actionId: string) =>
         ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_REJECT, actionId),
+      edit: (actionId: string, editedInput: Record<string, unknown>) =>
+        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_EDIT, actionId, editedInput),
       list: (analysisId: string) =>
         ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_LIST, analysisId),
       onPending: (callback: (action: ChatAction) => void) => {
@@ -125,6 +127,18 @@ const api: NswotAPI = {
         return () => ipcRenderer.removeListener(IPC_CHANNELS.CHAT_ACTION_PENDING, handler);
       },
     },
+  },
+  comparison: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.COMPARISON_LIST),
+    run: (analysisIdA: string, analysisIdB: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.COMPARISON_RUN, analysisIdA, analysisIdB),
+  },
+  themes: {
+    list: (analysisId: string) => ipcRenderer.invoke(IPC_CHANNELS.THEME_LIST, analysisId),
+    get: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.THEME_GET, id),
+    update: (id: string, fields: { label?: string; description?: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.THEME_UPDATE, id, fields),
+    delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.THEME_DELETE, id),
   },
   export: {
     markdown: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_MARKDOWN, analysisId),

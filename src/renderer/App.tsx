@@ -5,6 +5,8 @@ import ProfilesPage from './routes/profiles';
 import IntegrationsPage from './routes/integrations';
 import AnalysisPage from './routes/analysis';
 import AnalysisHistoryPage from './routes/analysis-history';
+import ComparisonPage from './routes/comparison';
+import ThemesPage from './routes/themes';
 import SettingsPage from './routes/settings';
 
 const NAV_ITEMS = [
@@ -13,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/integrations', label: 'Integrations' },
   { to: '/analysis', label: 'Analysis' },
   { to: '/history', label: 'History' },
+  { to: '/comparison', label: 'Compare' },
   { to: '/settings', label: 'Settings' },
 ] as const;
 
@@ -49,6 +52,8 @@ export default function App(): React.JSX.Element {
             <Route path="/integrations" element={<ErrorBoundary><IntegrationsPage /></ErrorBoundary>} />
             <Route path="/analysis" element={<ErrorBoundary><AnalysisPage /></ErrorBoundary>} />
             <Route path="/history" element={<ErrorBoundary><AnalysisHistoryPage /></ErrorBoundary>} />
+            <Route path="/comparison" element={<ErrorBoundary><ComparisonPage /></ErrorBoundary>} />
+            <Route path="/themes/:analysisId" element={<ErrorBoundary><ThemesPage /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
           </Routes>
         </main>

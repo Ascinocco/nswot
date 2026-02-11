@@ -25,6 +25,7 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - `docs/15-local-prerequisites-and-mcp-setup.md` — Local prerequisites and MCP setup commands
 - `docs/16-parallel-sprint-plan.md` — Two-agent parallel execution plan for Sprints 13-21 (Phase 3b-3d)
 - `docs/17-parallel-sprints-agents-plan.md` — Agent execution plans for parallel sprints
+- `docs/18-phase4-chat-experience-plan.md` — Phase 4 chat-driven agent experience plan
 - `docs/future/` — Post-MVP vision docs (preserved, not active)
 
 ## Tech Stack

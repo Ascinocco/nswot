@@ -192,11 +192,72 @@ Users must have for codebase analysis and chat actions:
 
 ---
 
-## Phase 4 — Chat-Focused Experience (Future)
+## Phase 4 — Chat-Driven Agent Experience
 
-**Goal**: transform nswot into a chat-first interface where analysis, exploration, and action all flow through conversational interaction.
+**Goal**: transform nswot into a chat-driven agent interface where analysis, exploration, and action all flow through conversational interaction powered by an agent harness with tool-use.
 
-> Phase 4 is a directional placeholder. Scope definition will follow after Phase 3 is complete and usage patterns are evaluated.
+> Feature plan: `docs/18-phase4-chat-experience-plan.md`
+
+### Scope
+
+**Core Transformation:**
+- Analysis page transitions instantly to full-page chat view on "Run Analysis"
+- Agent streams initial analysis as rich content blocks (SWOT cards, summary cards, quality metrics)
+- Status bar: agent state, source activity icons, running token count + cost estimate, stop button
+- Chatbox anchored to bottom, scrollable message area between status bar and input
+
+**Rich Content Blocks:**
+- `ContentBlock[]` replaces plain text in chat messages — typed blocks rendered as React components
+- Block types: text, swot_analysis, summary_cards, quality_metrics, mermaid, chart, data_table, comparison, approval, action_status
+- Mermaid diagrams and D3/Chart.js charts rendered inline as SVG, exportable to PNG via SVG-to-canvas pipeline
+
+**Agent Harness:**
+- Tool registry with categorized tools: render (no approval), read (no approval), write (requires approval)
+- Execution loop: send → tool_use → execute tool → tool_result → repeat until final text response
+- Approval gates pause the loop for write tools, resume on user decision
+- Interrupt handling: stop button cancels in-flight request, stores partial response
+
+**Approval Memory (3-Tier):**
+- Yes — approve this specific action (one-time)
+- Yes + Remember — auto-approve all future actions of this tool type for rest of conversation
+- No — reject
+- Scope: per-conversation, resets on new conversation
+
+**Re-run in Conversation:**
+- "Run again with VP perspective" creates new analysis record linked to same conversation
+- Multiple pinned summaries in one conversation thread
+- New `conversation_id` and `parent_analysis_id` columns on `analyses` table
+
+**Observability:**
+- Token count and cost estimate visible in status bar throughout conversation
+- Agent state indicator (Analyzing / Thinking / Fetching data / Ready)
+- Source activity icons show which integrations are being queried
+
+### Prerequisites
+
+- Phase 3 complete (all sub-phases 3a through 3e)
+- Existing tool-use bridge (Phase 3c) provides foundation for agent harness
+- Existing content rendering components (SWOT cards, summary cards) available for reuse as content blocks
+
+### Decision Value Delivered
+
+- Eliminates context-switching between analysis results page and chat — everything in one conversational flow
+- Multi-turn agentic follow-ups let users drill deeper without leaving the interface
+- Rich inline content (diagrams, tables, SWOT cards) replaces static page layouts with dynamic exploration
+- Approval memory reduces friction for repeated actions while maintaining user control
+- Re-run capability supports rapid iteration ("same data, different role" or "updated profiles, re-analyze")
+
+### Exit Criteria
+
+- Analysis page transitions to chat view on "Run Analysis" and streams initial results as content blocks
+- All 10 content block types render correctly in the chat message area
+- Agent harness completes multi-turn tool-use loops (render + read tools) without manual intervention
+- Write tools pause for user approval; "Yes + Remember" auto-approves subsequent same-type actions in the conversation
+- Re-run creates a new analysis record in the same conversation with a pinned summary
+- Mermaid diagrams and at least one D3/Chart.js chart render inline and export to PNG
+- Token count and cost estimate update in real-time in the status bar
+- Stop button interrupts in-flight agent turns and preserves partial responses
+- Existing Phase 3 chat actions (Jira/Confluence/GitHub creates) work through the new agent harness
 
 ---
 
@@ -232,7 +293,7 @@ When choosing between features, prioritize in this order:
 - **Phase 3c**: +2 weeks (chat actions via tool-use bridge — see `docs/12-chat-actions-plan.md`)
 - **Phase 3b-3d**: +7 weeks with two-agent parallel execution (see `docs/16-parallel-sprint-plan.md`)
 - **Phase 3e**: TBD (platform maturity, multi-provider, visualizations, UX polish — sprint plan pending)
-- **Phase 4**: future (chat-focused experience — scope undefined)
+- **Phase 4**: +6 weeks with two-agent parallel execution (see `docs/18-phase4-chat-experience-plan.md`)
 
 > Phase 3b through 3d are planned for two concurrent agents. Sprint 13 (Phase 3b) and Sprint 14 (Phase 3c) run simultaneously. Phase 3d is decomposed into Sprints 16-21 with comparison, multi-step pipeline, themes, export, VP role, and x64 builds. See `docs/16-parallel-sprint-plan.md` for the full two-agent execution model, dependency gates, and merge plan.
 

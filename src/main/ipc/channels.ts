@@ -74,6 +74,16 @@ export const IPC_CHANNELS = {
   EXPORT_CSV: 'export:csv',
   EXPORT_PDF: 'export:pdf',
 
+  // Comparison
+  COMPARISON_LIST: 'comparison:list',
+  COMPARISON_RUN: 'comparison:run',
+
+  // Themes
+  THEME_LIST: 'theme:list',
+  THEME_GET: 'theme:get',
+  THEME_UPDATE: 'theme:update',
+  THEME_DELETE: 'theme:delete',
+
   // Chat Actions
   CHAT_ACTION_PENDING: 'chat:action:pending',
   CHAT_ACTION_APPROVE: 'chat:action:approve',

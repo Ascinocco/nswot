@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Markdown from 'react-markdown';
-import { useChatMessages, useSendMessage, useDeleteChat } from '../../hooks/use-chat';
+import { useQueryClient } from '@tanstack/react-query';
+import { useChatMessages, useSendMessage, useDeleteChat, useChatActions, useApproveAction, useRejectAction, useEditAction } from '../../hooks/use-chat';
+import ApprovalCard from './approval-card';
+import ActionStatus from './action-status';
 
 interface ChatPanelProps {
   analysisId: string;
@@ -8,15 +11,30 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): React.JSX.Element {
+  const queryClient = useQueryClient();
   const { data: messages, isLoading } = useChatMessages(analysisId);
   const sendMessage = useSendMessage(analysisId);
   const deleteChat = useDeleteChat(analysisId);
+  const { data: actions } = useChatActions(analysisId);
+  const approveAction = useApproveAction(analysisId);
+  const rejectAction = useRejectAction(analysisId);
+  const editAction = useEditAction(analysisId);
   const [input, setInput] = useState('');
   const [streamingContent, setStreamingContent] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const isSending = sendMessage.isPending;
+
+  // Listen for new pending actions
+  useEffect(() => {
+    const cleanup = window.nswot.chat.actions.onPending((action) => {
+      if (action.analysisId === analysisId) {
+        queryClient.invalidateQueries({ queryKey: ['chat-actions', analysisId] });
+      }
+    });
+    return cleanup;
+  }, [analysisId, queryClient]);
 
   // Listen for streaming chunks
   useEffect(() => {
@@ -35,10 +53,10 @@ export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): Reac
     }
   }, [isSending]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages or actions
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+  }, [messages, streamingContent, actions]);
 
   // Focus input on mount
   useEffect(() => {
@@ -112,8 +130,48 @@ export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): Reac
         {messages && messages.length > 0 && (
           <div className="space-y-4">
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} role={msg.role} content={msg.content} />
+              <div key={msg.id}>
+                <MessageBubble role={msg.role} content={msg.content} />
+                {/* Render actions associated with this message */}
+                {actions
+                  ?.filter((a) => a.chatMessageId === msg.id)
+                  .map((action) =>
+                    action.status === 'pending' ? (
+                      <ApprovalCard
+                        key={action.id}
+                        action={action}
+                        onApprove={(id) => approveAction.mutate(id)}
+                        onReject={(id) => rejectAction.mutate(id)}
+                        onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
+                        isApproving={approveAction.isPending}
+                        isRejecting={rejectAction.isPending}
+                        isEditing={editAction.isPending}
+                      />
+                    ) : (
+                      <ActionStatus key={action.id} action={action} />
+                    ),
+                  )}
+              </div>
             ))}
+            {/* Render orphaned actions (no chatMessageId) */}
+            {actions
+              ?.filter((a) => !a.chatMessageId)
+              .map((action) =>
+                action.status === 'pending' ? (
+                  <ApprovalCard
+                    key={action.id}
+                    action={action}
+                    onApprove={(id) => approveAction.mutate(id)}
+                    onReject={(id) => rejectAction.mutate(id)}
+                    onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
+                    isApproving={approveAction.isPending}
+                    isRejecting={rejectAction.isPending}
+                    isEditing={editAction.isPending}
+                  />
+                ) : (
+                  <ActionStatus key={action.id} action={action} />
+                ),
+              )}
           </div>
         )}
 

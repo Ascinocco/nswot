@@ -84,6 +84,15 @@ export function registerChatHandlers(chatService: ChatService): void {
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.CHAT_ACTION_EDIT,
+    async (_event, actionId: string, editedInput: Record<string, unknown>): Promise<IPCResult<void>> => {
+      const result = await chatService.editAction(actionId, editedInput);
+      if (result.ok) return toIpcResult<void>(undefined);
+      return toIpcError(result.error);
+    },
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.CHAT_ACTION_LIST,
     async (_event, analysisId: string): Promise<IPCResult<ChatAction[]>> => {
       const result = await chatService.listActions(analysisId);

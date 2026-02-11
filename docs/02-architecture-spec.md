@@ -13,7 +13,7 @@
 - **Main process (Node.js)**: filesystem, database, network, analysis orchestration
 - **Preload bridge**: typed IPC surface
 
-The architecture has grown from its MVP foundation (profiles + Jira -> single-pass SWOT -> grounded chat -> markdown export) through Phase 2 (Confluence, GitHub, quality metrics) and Phase 3a-3d (codebase analysis, chat actions, comparison, themes, export). Phase 3e adds multi-provider LLM support, visualizations, and platform maturity features.
+The architecture has grown from its MVP foundation (profiles + Jira -> single-pass SWOT -> grounded chat -> markdown export) through Phase 2 (Confluence, GitHub, quality metrics) and Phase 3a-3d (codebase analysis, chat actions, comparison, themes, export). Phase 3e adds multi-provider LLM support, visualizations, and platform maturity features. Phase 4 replaces the page-based analysis results with a chat-driven agent experience built on an agent harness with tool-use.
 
 ### Layered Architecture
 
@@ -475,6 +475,43 @@ Key constraints:
 - Audit trail stored in `chat_actions` table
 - Available tools are scoped to the user's connected integrations
 
+### 8.3 Agent Harness (Phase 4)
+
+Phase 4 replaces the SSE streaming + tool-use bridge (Phase 3c) with a full agent harness that drives the entire chat experience. See `docs/18-phase4-chat-experience-plan.md` for the complete design.
+
+```text
+User Message → Agent Harness → LLM Provider (tool_use response)
+                    ↓
+               Tool Execution ← render / read / write tool
+                    ↓
+               tool_result → LLM Provider (continue)
+                    ↓
+               ... (loop until final text response)
+                    ↓
+               Store ContentBlock[] as chat message
+```
+
+Components:
+- **Tool Registry**: categorized tools (render/read/write) with declared approval requirements
+- **Execution Loop**: send → tool_use → execute → tool_result → repeat until no more tool calls
+- **Approval Gates**: write tools pause loop, emit pending event, wait for user decision (or auto-approve via memory)
+- **Interrupt Handling**: stop button cancels in-flight LLM request, stores partial response
+
+Tool taxonomy:
+
+| Category | Approval | Examples |
+|----------|----------|---------|
+| Render | Never | render_swot_analysis, render_mermaid, render_chart, render_data_table |
+| Read | Never | fetch_jira_data, fetch_confluence_data, run_codebase_analysis |
+| Write | Required (or auto via memory) | create_jira_issue, create_confluence_page, write_file |
+
+Render tools return compact confirmations as `tool_result` (not the full data) to avoid wasting context window. The data goes directly into a `ContentBlock` emitted to the renderer.
+
+Storage additions:
+- `chat_messages.content_format` — distinguishes plain text vs rich content block arrays
+- `approval_memory` table — per-conversation auto-approval tracking
+- `analyses.conversation_id` / `analyses.parent_analysis_id` — groups re-runs in a conversation
+
 ---
 
 ## 9. Jira Integration (MVP)
@@ -575,7 +612,7 @@ Only markdown export is supported:
 
 ## 13. Extension Seams
 
-These interfaces are designed for Phase 2/3/3e extension without modifying existing code:
+These interfaces are designed for Phase 2/3/3e/4 extension without modifying existing code:
 
 - **New integration provider**: Implement a new provider class (e.g., `ConfluenceProvider`), register it in `IntegrationService`. The orchestrator already collects data by iterating registered providers.
 - **New LLM provider (Phase 3e)**: Implement `LLMProvider` interface (e.g., `AnthropicProvider` for direct Claude API). Factory in `AnalysisService` selects provider based on user settings. No pipeline changes needed.
@@ -584,6 +621,8 @@ These interfaces are designed for Phase 2/3/3e extension without modifying exist
 - **Subprocess-based provider (Phase 3)**: `CodebaseProvider` demonstrates a new provider pattern — spawning a local CLI tool (Claude CLI) as a child process instead of making HTTP calls. The same service/cache/pipeline integration applies.
 - **Alternative codebase provider (Phase 3e)**: Implement `OpenCodeProvider` following the same subprocess pattern as `CodebaseProvider`. Factory selects between Claude CLI and OpenCode based on user settings.
 - **Chat tool-use actions (Phase 3c)**: The `ActionExecutor` reuses the Claude CLI subprocess pattern from `CodebaseProvider` but with MCP-scoped write access. Adding a new action type requires only a tool definition in `action-tools.ts` and a Claude CLI prompt template. See `docs/12-chat-actions-plan.md`.
+- **New agent tool (Phase 4)**: Add a tool definition to the agent harness tool registry, implement the executor function. Render, read, and write tools follow the same pattern. Approval requirements are declared per-tool in the registry. See `docs/18-phase4-chat-experience-plan.md`.
+- **New content block type (Phase 4)**: Define the block type in `ContentBlockType`, create a React renderer component in `blocks/`, and register it in `ContentBlockRenderer`. The agent harness emits blocks via render tools automatically.
 
 ---
 

@@ -85,6 +85,22 @@ export class ThemeRepository {
     return row ? toDomain(row) : null;
   }
 
+  async update(id: string, fields: { label?: string; description?: string }): Promise<Theme | null> {
+    const existing = await this.findById(id);
+    if (!existing) return null;
+
+    const label = fields.label ?? existing.label;
+    const description = fields.description ?? existing.description;
+    this.db
+      .prepare('UPDATE themes SET label = ?, description = ? WHERE id = ?')
+      .run(label, description, id);
+    return { ...existing, label, description };
+  }
+
+  async deleteById(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM themes WHERE id = ?').run(id);
+  }
+
   async deleteByAnalysis(analysisId: string): Promise<void> {
     this.db.prepare('DELETE FROM themes WHERE analysis_id = ?').run(analysisId);
   }
