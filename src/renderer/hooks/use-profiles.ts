@@ -80,3 +80,16 @@ export function useImportProfiles() {
     },
   });
 }
+
+export function useImportDirectory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (dirPath: string) => {
+      const result = await window.nswot.profiles.importDirectory(dirPath);
+      return unwrapResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.profiles });
+    },
+  });
+}

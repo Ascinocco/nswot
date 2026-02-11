@@ -124,16 +124,16 @@ Everything else moves to Phase 2+.
 
 **Depends on**: Sprint 3 (Jira integration) and Sprint 3.5 (analysis foundation).
 
-- [ ] `AnalysisService` (orchestrates full pipeline, manages status transitions)
-- [ ] Pipeline orchestration: collect (profiles + Jira) → preprocess → prompt → send → parse → validate → store
-- [ ] Collect stage: load profiles via repo, load Jira data via integration cache/provider
-- [ ] Store stage: full run persisted in single SQLite transaction (analysis + junction records)
-- [ ] Analysis run IPC handler: `ANALYSIS_RUN`
-- [ ] Progress events streaming to renderer at each pipeline stage
-- [ ] Payload preview UI before LLM send
-- [ ] Analysis run UI: role picker, profile/project selection, run button, progress display
-- [ ] SWOT results display: quadrant view with evidence citations and confidence badges
-- [ ] Corrective prompt: on first parse failure, retry once with corrective prompt template
+- [x] `AnalysisService` (orchestrates full pipeline, manages status transitions)
+- [x] Pipeline orchestration: collect (profiles + Jira) → preprocess → prompt → send → parse → validate → store
+- [x] Collect stage: load profiles via repo, load Jira data via integration cache/provider
+- [x] Store stage: full run persisted in single SQLite transaction (analysis + junction records)
+- [x] Analysis run IPC handler: `ANALYSIS_RUN`
+- [x] Progress events streaming to renderer at each pipeline stage
+- [x] Payload preview UI before LLM send
+- [x] Analysis run UI: role picker, profile/project selection, run button, progress display
+- [x] SWOT results display: quadrant view with evidence citations and confidence badges
+- [x] Corrective prompt: on first parse failure, retry once with corrective prompt template
 
 **Deliverable**: repeatable run produces structured SWOT with evidence and confidence. Pipeline is resilient and recoverable.
 
@@ -165,12 +165,12 @@ Everything else moves to Phase 2+.
 
 **Depends on**: Sprint 4 (analysis pipeline) and Sprint 4.5 (chat + export backend).
 
-- [ ] Chat UI: message list, streaming display, chat history
-- [ ] Export UI: button on analysis detail to trigger markdown export
-- [ ] Core empty/error/loading states for major routes
-- [ ] Error boundaries on major panels
-- [ ] macOS packaging with `electron-builder`
-- [ ] README for setup and first-run flow
+- [x] Chat UI: message list, streaming display, chat history
+- [x] Export UI: button on analysis detail to trigger markdown export
+- [x] Core empty/error/loading states for major routes
+- [x] Error boundaries on major panels
+- [x] macOS packaging with `electron-builder`
+- [x] README for setup and first-run flow
 
 **Deliverable**: MVP is usable by a real user from setup to shareable output.
 

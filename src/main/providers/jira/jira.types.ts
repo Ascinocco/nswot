@@ -57,10 +57,8 @@ export interface JiraChangelogEntry {
 }
 
 export interface JiraSearchResponse {
-  startAt: number;
-  maxResults: number;
-  total: number;
   issues: JiraIssue[];
+  nextPageToken?: string;
 }
 
 export interface JiraCommentsResponse {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import '../../lib/monaco-setup';
 import Editor from '@monaco-editor/react';
 import { useFileContent, useSaveFile } from '../../hooks/use-file-browser';
 

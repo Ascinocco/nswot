@@ -51,6 +51,14 @@ function DisconnectedState(): React.JSX.Element {
       <p className="text-sm text-gray-400">
         Enter your Atlassian OAuth 2.0 app credentials to connect Jira Cloud.
       </p>
+      <div className="rounded border border-gray-800 bg-gray-900 p-3">
+        <p className="text-xs text-gray-500">
+          In your Atlassian app settings, set the callback URL to:
+        </p>
+        <code className="mt-1 block text-xs text-blue-400">
+          http://localhost:17839/callback
+        </code>
+      </div>
       <div className="space-y-3">
         <div>
           <label className="mb-1 block text-sm text-gray-300">Client ID</label>

@@ -1,4 +1,5 @@
 import { HashRouter, Routes, Route, NavLink } from 'react-router-dom';
+import ErrorBoundary from './components/error-boundary';
 import WorkspacePage from './routes/workspace';
 import ProfilesPage from './routes/profiles';
 import IntegrationsPage from './routes/integrations';
@@ -43,12 +44,12 @@ export default function App(): React.JSX.Element {
         </nav>
         <main className="flex-1 overflow-y-auto p-6">
           <Routes>
-            <Route path="/" element={<WorkspacePage />} />
-            <Route path="/profiles" element={<ProfilesPage />} />
-            <Route path="/integrations" element={<IntegrationsPage />} />
-            <Route path="/analysis" element={<AnalysisPage />} />
-            <Route path="/history" element={<AnalysisHistoryPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/" element={<ErrorBoundary><WorkspacePage /></ErrorBoundary>} />
+            <Route path="/profiles" element={<ErrorBoundary><ProfilesPage /></ErrorBoundary>} />
+            <Route path="/integrations" element={<ErrorBoundary><IntegrationsPage /></ErrorBoundary>} />
+            <Route path="/analysis" element={<ErrorBoundary><AnalysisPage /></ErrorBoundary>} />
+            <Route path="/history" element={<ErrorBoundary><AnalysisHistoryPage /></ErrorBoundary>} />
+            <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
           </Routes>
         </main>
       </div>

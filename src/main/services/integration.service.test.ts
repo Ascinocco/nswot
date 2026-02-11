@@ -81,9 +81,6 @@ function createMockJiraProvider(): JiraProvider {
       { id: '1', key: 'PROJ', name: 'Project', projectTypeKey: 'software' },
     ]),
     fetchIssues: vi.fn(async () => ({
-      startAt: 0,
-      maxResults: 50,
-      total: 0,
       issues: [],
     })),
     fetchComments: vi.fn(async () => ({
@@ -336,9 +333,6 @@ describe('IntegrationService', () => {
     it('syncs epics, stories, and comments', async () => {
       vi.mocked(jiraProvider.fetchIssues)
         .mockResolvedValueOnce({
-          startAt: 0,
-          maxResults: 50,
-          total: 1,
           issues: [{
             id: '1', key: 'PROJ-1',
             fields: {
@@ -349,9 +343,6 @@ describe('IntegrationService', () => {
           }],
         })
         .mockResolvedValueOnce({
-          startAt: 0,
-          maxResults: 50,
-          total: 1,
           issues: [{
             id: '2', key: 'PROJ-2',
             fields: {

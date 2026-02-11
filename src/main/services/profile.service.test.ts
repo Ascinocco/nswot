@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 import { ProfileService } from './profile.service';
 import type { ProfileRepository } from '../repositories/profile.repository';
 import type { WorkspaceService } from './workspace.service';
@@ -209,6 +212,94 @@ describe('ProfileService', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('PROFILE_NOT_FOUND');
+      }
+    });
+  });
+
+  describe('importFromDirectory', () => {
+    let tempDir: string;
+
+    beforeEach(() => {
+      tempDir = join(tmpdir(), `nswot-test-${Date.now()}`);
+      mkdirSync(join(tempDir, 'profiles'), { recursive: true });
+    });
+
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('imports all markdown files from a directory', async () => {
+      writeFileSync(
+        join(tempDir, 'profiles', 'alice.md'),
+        '---\nname: Alice\nrole: Engineer\n---\n\n## Concerns\nScaling issues\n',
+      );
+      writeFileSync(
+        join(tempDir, 'profiles', 'bob.md'),
+        '---\nname: Bob\nrole: PM\n---\n\n## Priorities\nShip fast\n',
+      );
+      writeFileSync(
+        join(tempDir, 'profiles', 'readme.txt'),
+        'This is not a markdown file',
+      );
+
+      const svc = new ProfileService(
+        profileRepo,
+        createMockWorkspaceService('ws-1', tempDir),
+      );
+
+      const result = await svc.importFromDirectory('profiles');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(2);
+        const names = result.value.map((p) => p.name).sort();
+        expect(names).toEqual(['Alice', 'Bob']);
+      }
+    });
+
+    it('returns error when no markdown files found', async () => {
+      writeFileSync(join(tempDir, 'profiles', 'readme.txt'), 'Not a markdown file');
+
+      const svc = new ProfileService(
+        profileRepo,
+        createMockWorkspaceService('ws-1', tempDir),
+      );
+
+      const result = await svc.importFromDirectory('profiles');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('IMPORT_PARSE_ERROR');
+      }
+    });
+
+    it('returns error when no workspace is open', async () => {
+      const svc = new ProfileService(profileRepo, createMockWorkspaceService(null, null));
+      const result = await svc.importFromDirectory('profiles');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('WORKSPACE_NOT_FOUND');
+      }
+    });
+
+    it('skips files that fail to parse and imports the rest', async () => {
+      writeFileSync(
+        join(tempDir, 'profiles', 'alice.md'),
+        '---\nname: Alice\n---\n\n## Notes\nGood\n',
+      );
+      writeFileSync(
+        join(tempDir, 'profiles', 'bad.md'),
+        'No frontmatter, no name field here',
+      );
+
+      const svc = new ProfileService(
+        profileRepo,
+        createMockWorkspaceService('ws-1', tempDir),
+      );
+
+      const result = await svc.importFromDirectory('profiles');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(1);
+        expect(result.value[0]!.name).toBe('Alice');
       }
     });
   });

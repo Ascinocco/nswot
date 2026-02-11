@@ -40,3 +40,41 @@ export function useDeleteAnalysis() {
     },
   });
 }
+
+export function useRunAnalysis() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      profileIds: string[];
+      jiraProjectKeys: string[];
+      role: string;
+      modelId: string;
+      contextWindow: number;
+    }) => {
+      const result = await window.nswot.analysis.run(input);
+      return unwrapResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.analyses });
+    },
+  });
+}
+
+export function usePayloadPreview() {
+  return useMutation({
+    mutationFn: async (input: {
+      profileIds: string[];
+      jiraProjectKeys: string[];
+      role: string;
+      contextWindow: number;
+    }) => {
+      const result = await window.nswot.analysis.previewPayload(
+        input.profileIds,
+        input.jiraProjectKeys,
+        input.role,
+        input.contextWindow,
+      );
+      return unwrapResult(result);
+    },
+  });
+}

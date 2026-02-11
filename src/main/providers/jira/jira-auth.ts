@@ -6,6 +6,7 @@ import type { JiraOAuthTokens } from './jira.types';
 const ATLASSIAN_AUTH_URL = 'https://auth.atlassian.com/authorize';
 const ATLASSIAN_TOKEN_URL = 'https://auth.atlassian.com/oauth/token';
 const OAUTH_SCOPES = 'read:jira-work offline_access';
+const CALLBACK_PORT = 17839;
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 export class JiraAuthProvider {
@@ -103,10 +104,8 @@ export class JiraAuthProvider {
         });
       });
 
-      server.listen(0, () => {
-        const address = server.address();
-        const port = typeof address === 'object' && address ? address.port : 0;
-        const redirectUri = `http://localhost:${port}/callback`;
+      server.listen(CALLBACK_PORT, () => {
+        const redirectUri = `http://localhost:${CALLBACK_PORT}/callback`;
         const state = randomBytes(16).toString('hex');
 
         const authUrl = new URL(ATLASSIAN_AUTH_URL);
@@ -122,7 +121,7 @@ export class JiraAuthProvider {
 
         shell.openExternal(authUrl.toString());
 
-        resolveServer({ port, authCode: authCodePromise });
+        resolveServer({ port: CALLBACK_PORT, authCode: authCodePromise });
       });
     });
   }

@@ -1,0 +1,43 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { unwrapResult } from '../lib/ipc-error';
+
+const QUERY_KEYS = {
+  messages: (analysisId: string) => ['chat', analysisId] as const,
+};
+
+export function useChatMessages(analysisId: string | null) {
+  return useQuery({
+    queryKey: QUERY_KEYS.messages(analysisId ?? ''),
+    queryFn: async () => {
+      const result = await window.nswot.chat.getMessages(analysisId!);
+      return unwrapResult(result);
+    },
+    enabled: !!analysisId,
+  });
+}
+
+export function useSendMessage(analysisId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (content: string) => {
+      const result = await window.nswot.chat.send(analysisId, content);
+      return unwrapResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.messages(analysisId) });
+    },
+  });
+}
+
+export function useDeleteChat(analysisId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await window.nswot.chat.delete(analysisId);
+      unwrapResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.messages(analysisId) });
+    },
+  });
+}

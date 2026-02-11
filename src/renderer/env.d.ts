@@ -161,6 +161,7 @@ declare global {
       update(id: string, input: ProfileInput): Promise<IPCResult<Profile>>;
       delete(id: string): Promise<IPCResult<void>>;
       importMarkdown(filePath: string): Promise<IPCResult<Profile[]>>;
+      importDirectory(dirPath: string): Promise<IPCResult<Profile[]>>;
     };
     integrations: {
       get(): Promise<IPCResult<Integration | null>>;
@@ -173,6 +174,20 @@ declare global {
       list(): Promise<IPCResult<Analysis[]>>;
       get(id: string): Promise<IPCResult<Analysis>>;
       delete(id: string): Promise<IPCResult<void>>;
+      run(input: {
+        profileIds: string[];
+        jiraProjectKeys: string[];
+        role: string;
+        modelId: string;
+        contextWindow: number;
+      }): Promise<IPCResult<Analysis>>;
+      previewPayload(
+        profileIds: string[],
+        jiraProjectKeys: string[],
+        role: string,
+        contextWindow: number,
+      ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>>;
+      onProgress(callback: (data: { analysisId: string; stage: string; message: string }) => void): () => void;
     };
     chat: {
       getMessages(analysisId: string): Promise<IPCResult<ChatMessage[]>>;

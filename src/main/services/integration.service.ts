@@ -263,7 +263,8 @@ export class IntegrationService {
       // Prune cache if needed
       await this.cacheRepo.pruneOldest(integration.id, 5000);
 
-      // Update last synced
+      // Update status and last synced
+      await this.integrationRepo.updateStatus(integration.id, 'connected');
       await this.integrationRepo.updateLastSynced(integration.id);
 
       return ok({ syncedCount, warning });
@@ -289,19 +290,19 @@ export class IntegrationService {
     jql: string,
   ): Promise<Array<{ key: string; [k: string]: unknown }>> {
     const allIssues: Array<{ key: string; [k: string]: unknown }> = [];
-    let startAt = 0;
+    let nextPageToken: string | undefined;
 
     while (true) {
       const response = await this.circuitBreaker.execute(() =>
-        withRetry(() => this.jiraProvider.fetchIssues(cloudId, accessToken, jql, startAt)),
+        withRetry(() => this.jiraProvider.fetchIssues(cloudId, accessToken, jql, nextPageToken)),
       );
 
       for (const issue of response.issues) {
         allIssues.push(issue as unknown as { key: string; [k: string]: unknown });
       }
 
-      if (startAt + response.maxResults >= response.total) break;
-      startAt += response.maxResults;
+      if (!response.nextPageToken) break;
+      nextPageToken = response.nextPageToken;
     }
 
     return allIssues;

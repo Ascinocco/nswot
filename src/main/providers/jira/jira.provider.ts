@@ -29,13 +29,15 @@ export class JiraProvider {
     cloudId: string,
     accessToken: string,
     jql: string,
-    startAt = 0,
+    nextPageToken?: string,
   ): Promise<JiraSearchResponse> {
-    const url = new URL(`${ATLASSIAN_API_URL}/ex/jira/${cloudId}/rest/api/3/search`);
+    const url = new URL(`${ATLASSIAN_API_URL}/ex/jira/${cloudId}/rest/api/3/search/jql`);
     url.searchParams.set('jql', jql);
-    url.searchParams.set('startAt', String(startAt));
     url.searchParams.set('maxResults', '50');
     url.searchParams.set('fields', 'summary,description,issuetype,status,priority,assignee,reporter,labels,created,updated,parent');
+    if (nextPageToken) {
+      url.searchParams.set('nextPageToken', nextPageToken);
+    }
 
     const response = await this.request(url.toString(), accessToken);
     return (await response.json()) as JiraSearchResponse;
@@ -95,4 +97,5 @@ export class JiraProvider {
 
     return response;
   }
+
 }

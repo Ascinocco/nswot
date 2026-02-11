@@ -23,6 +23,7 @@ import { IntegrationRepository } from './repositories/integration.repository';
 import { IntegrationCacheRepository } from './repositories/integration-cache.repository';
 import { JiraProvider } from './providers/jira/jira.provider';
 import { IntegrationService } from './services/integration.service';
+import { AnalysisService } from './services/analysis.service';
 
 const NSWOT_DIR = join(homedir(), '.nswot');
 
@@ -129,6 +130,14 @@ const integrationService = new IntegrationService(
   secureStorage,
   preferencesRepo,
 );
+const analysisService = new AnalysisService(
+  analysisRepo,
+  profileRepo,
+  integrationRepo,
+  integrationCacheRepo,
+  settingsService,
+  workspaceService,
+);
 
 // Recovery: mark stale running analyses as failed
 analysisRepo.recoverRunning();
@@ -140,6 +149,7 @@ registerIpcHandlers({
   fileService,
   profileService,
   analysisRepo,
+  analysisService,
   chatService,
   exportService,
   integrationService,

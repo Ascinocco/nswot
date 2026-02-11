@@ -54,11 +54,8 @@ describe('JiraProvider', () => {
   });
 
   describe('fetchIssues', () => {
-    it('returns paginated issues', async () => {
+    it('returns issues', async () => {
       const response = {
-        startAt: 0,
-        maxResults: 50,
-        total: 1,
         issues: [
           {
             id: '10001',
@@ -83,20 +80,20 @@ describe('JiraProvider', () => {
         json: async () => response,
       });
 
-      const result = await provider.fetchIssues('cloud-123', 'token-123', 'project = PROJ', 0);
+      const result = await provider.fetchIssues('cloud-123', 'token-123', 'project = PROJ');
       expect(result.issues).toHaveLength(1);
-      expect(result.total).toBe(1);
     });
 
-    it('passes startAt for pagination', async () => {
+    it('passes nextPageToken for pagination', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ startAt: 50, maxResults: 50, total: 100, issues: [] }),
+        json: async () => ({ issues: [] }),
       });
 
-      await provider.fetchIssues('cloud-123', 'token-123', 'project = PROJ', 50);
+      await provider.fetchIssues('cloud-123', 'token-123', 'project = PROJ', 'abc123');
       const calledUrl = mockFetch.mock.calls[0]![0] as string;
-      expect(calledUrl).toContain('startAt=50');
+      expect(calledUrl).toContain('nextPageToken=abc123');
+      expect(calledUrl).toContain('search/jql');
     });
   });
 

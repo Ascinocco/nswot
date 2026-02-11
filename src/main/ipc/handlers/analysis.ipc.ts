@@ -1,11 +1,10 @@
-import { ipcMain } from 'electron';
+import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../channels';
-import { match } from '../../domain/result';
 import type { IPCResult, Analysis } from '../../domain/types';
 import type { AnalysisRepository } from '../../repositories/analysis.repository';
+import type { AnalysisService, RunAnalysisInput } from '../../services/analysis.service';
 import type { WorkspaceService } from '../../services/workspace.service';
 import { DomainError, ERROR_CODES } from '../../domain/errors';
-import { ok, err } from '../../domain/result';
 
 function toIpcResult<T>(data: T): IPCResult<T> {
   return { success: true, data };
@@ -17,6 +16,7 @@ function toIpcError<T>(error: { code: string; message: string }): IPCResult<T> {
 
 export function registerAnalysisHandlers(
   analysisRepo: AnalysisRepository,
+  analysisService: AnalysisService,
   workspaceService: WorkspaceService,
 ): void {
   ipcMain.handle(
@@ -75,6 +75,42 @@ export function registerAnalysisHandlers(
           new DomainError(ERROR_CODES.DB_ERROR, 'Failed to delete analysis'),
         );
       }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYSIS_RUN,
+    async (event, input: RunAnalysisInput): Promise<IPCResult<Analysis>> => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      const onProgress = (progress: { analysisId: string; stage: string; message: string }): void => {
+        if (window && !window.isDestroyed()) {
+          window.webContents.send('analysis:progress', progress);
+        }
+      };
+
+      const result = await analysisService.runAnalysis(input, onProgress);
+      if (result.ok) return toIpcResult(result.value);
+      return toIpcError(result.error);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD,
+    async (
+      _event,
+      profileIds: string[],
+      jiraProjectKeys: string[],
+      role: string,
+      contextWindow: number,
+    ): Promise<IPCResult<{ systemPrompt: string; userPrompt: string; tokenEstimate: number }>> => {
+      const result = await analysisService.getPayloadPreview(
+        profileIds,
+        jiraProjectKeys,
+        role as Analysis['role'],
+        contextWindow,
+      );
+      if (result.ok) return toIpcResult(result.value);
+      return toIpcError(result.error);
     },
   );
 }

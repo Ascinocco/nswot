@@ -12,6 +12,7 @@ export const IPC_CHANNELS = {
   PROFILE_UPDATE: 'profile:update',
   PROFILE_DELETE: 'profile:delete',
   PROFILE_IMPORT: 'profile:import',
+  PROFILE_IMPORT_DIR: 'profile:importDir',
 
   // Integrations
   INTEGRATION_GET: 'integration:get',
@@ -25,6 +26,7 @@ export const IPC_CHANNELS = {
   ANALYSIS_GET: 'analysis:get',
   ANALYSIS_LIST: 'analysis:list',
   ANALYSIS_DELETE: 'analysis:delete',
+  ANALYSIS_PREVIEW_PAYLOAD: 'analysis:previewPayload',
 
   // Chat
   CHAT_SEND: 'chat:send',

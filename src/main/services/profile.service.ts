@@ -4,7 +4,7 @@ import { DomainError, ERROR_CODES } from '../domain/errors';
 import type { Profile, ProfileInput } from '../domain/types';
 import type { ProfileRepository } from '../repositories/profile.repository';
 import type { WorkspaceService } from './workspace.service';
-import { readFileContent } from '../infrastructure/file-system';
+import { readFileContent, readDirectory } from '../infrastructure/file-system';
 import { parseProfileMarkdown } from './profile-parser';
 
 const MAX_PROFILES = 25;
@@ -135,6 +135,68 @@ export class ProfileService {
       if (cause instanceof DomainError) return err(cause);
       return err(
         new DomainError(ERROR_CODES.IMPORT_PARSE_ERROR, 'Failed to import profile', cause),
+      );
+    }
+  }
+
+  async importFromDirectory(relativePath: string): Promise<Result<Profile[], DomainError>> {
+    const workspaceId = this.workspaceService.getCurrentId();
+    const workspacePath = this.workspaceService.getCurrentPath();
+    if (!workspaceId || !workspacePath) {
+      return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
+    }
+
+    try {
+      const entries = await readDirectory(workspacePath, relativePath);
+      const mdFiles = entries.filter((e) => !e.isDirectory && e.name.endsWith('.md'));
+
+      if (mdFiles.length === 0) {
+        return err(
+          new DomainError(ERROR_CODES.IMPORT_PARSE_ERROR, 'No markdown files found in directory'),
+        );
+      }
+
+      const currentCount = await this.profileRepo.countByWorkspace(workspaceId);
+      const remaining = MAX_PROFILES - currentCount;
+      if (remaining <= 0) {
+        return err(
+          new DomainError(
+            ERROR_CODES.PROFILE_LIMIT,
+            `Cannot exceed ${MAX_PROFILES} profiles per workspace`,
+          ),
+        );
+      }
+
+      const filesToImport = mdFiles.slice(0, remaining);
+      const created: Profile[] = [];
+      const errors: string[] = [];
+
+      for (const file of filesToImport) {
+        try {
+          const content = await readFileContent(workspacePath, file.path);
+          const input = parseProfileMarkdown(content, file.path);
+          const profile = await this.profileRepo.insert(workspaceId, input);
+          created.push(profile);
+        } catch (cause) {
+          const msg = cause instanceof Error ? cause.message : String(cause);
+          errors.push(`${file.name}: ${msg}`);
+        }
+      }
+
+      if (created.length === 0 && errors.length > 0) {
+        return err(
+          new DomainError(
+            ERROR_CODES.IMPORT_PARSE_ERROR,
+            `Failed to import any profiles: ${errors.join('; ')}`,
+          ),
+        );
+      }
+
+      return ok(created);
+    } catch (cause) {
+      if (cause instanceof DomainError) return err(cause);
+      return err(
+        new DomainError(ERROR_CODES.IMPORT_PARSE_ERROR, 'Failed to import from directory', cause),
       );
     }
   }

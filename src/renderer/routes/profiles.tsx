@@ -5,8 +5,9 @@ import {
   useCreateProfile,
   useUpdateProfile,
   useDeleteProfile,
-  useImportProfiles,
+  useImportDirectory,
 } from '../hooks/use-profiles';
+import { useDirectory } from '../hooks/use-file-browser';
 import ProfileCard from '../components/profiles/profile-card';
 import ProfileForm from '../components/profiles/profile-form';
 
@@ -16,11 +17,10 @@ export default function ProfilesPage(): React.JSX.Element {
   const createProfile = useCreateProfile();
   const updateProfile = useUpdateProfile();
   const deleteProfile = useDeleteProfile();
-  const importProfiles = useImportProfiles();
+  const importDirectory = useImportDirectory();
 
   const [showForm, setShowForm] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
-  const [importPath, setImportPath] = useState('');
   const [showImport, setShowImport] = useState(false);
 
   if (!workspace) {
@@ -57,12 +57,11 @@ export default function ProfilesPage(): React.JSX.Element {
     deleteProfile.mutate(id);
   }
 
-  function handleImport(): void {
-    if (!importPath.trim()) return;
-    importProfiles.mutate(importPath.trim(), {
-      onSuccess: () => {
-        setImportPath('');
+  function handleImportDir(dirPath: string): void {
+    importDirectory.mutate(dirPath, {
+      onSuccess: (imported) => {
         setShowImport(false);
+        alert(`Imported ${imported.length} profile${imported.length !== 1 ? 's' : ''} successfully.`);
       },
     });
   }
@@ -76,7 +75,7 @@ export default function ProfilesPage(): React.JSX.Element {
             onClick={() => setShowImport(!showImport)}
             className="rounded border border-gray-700 px-3 py-1.5 text-sm text-gray-400 transition-colors hover:border-gray-600 hover:text-white"
           >
-            Import from Markdown
+            Import from Directory
           </button>
           <button
             onClick={() => {
@@ -91,31 +90,12 @@ export default function ProfilesPage(): React.JSX.Element {
       </div>
 
       {showImport && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-gray-800 bg-gray-900 p-3">
-          <input
-            type="text"
-            value={importPath}
-            onChange={(e) => setImportPath(e.target.value)}
-            placeholder="Relative path to markdown file (e.g., profiles/jane.md)"
-            className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
-          />
-          <button
-            onClick={handleImport}
-            disabled={importProfiles.isPending}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:opacity-50"
-          >
-            {importProfiles.isPending ? 'Importing...' : 'Import'}
-          </button>
-          <button
-            onClick={() => setShowImport(false)}
-            className="rounded px-2 py-2 text-gray-500 hover:text-white"
-          >
-            ×
-          </button>
-          {importProfiles.isError && (
-            <span className="text-sm text-red-400">{importProfiles.error.message}</span>
-          )}
-        </div>
+        <ImportDirectoryPicker
+          onSelect={handleImportDir}
+          onClose={() => setShowImport(false)}
+          isLoading={importDirectory.isPending}
+          error={importDirectory.isError ? importDirectory.error : null}
+        />
       )}
 
       {createProfile.isError && (
@@ -159,7 +139,7 @@ export default function ProfilesPage(): React.JSX.Element {
         <div className="rounded-lg border border-dashed border-gray-700 p-8 text-center">
           <p className="text-gray-400">No profiles yet.</p>
           <p className="mt-1 text-sm text-gray-500">
-            Add a profile manually or import from a markdown file.
+            Add a profile manually or import from a directory of markdown files.
           </p>
         </div>
       )}
@@ -178,6 +158,118 @@ export default function ProfilesPage(): React.JSX.Element {
             />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function ImportDirectoryPicker({
+  onSelect,
+  onClose,
+  isLoading,
+  error,
+}: {
+  onSelect: (dirPath: string) => void;
+  onClose: () => void;
+  isLoading: boolean;
+  error: Error | null;
+}): React.JSX.Element {
+  const [currentPath, setCurrentPath] = useState('.');
+  const { data: entries, isLoading: dirLoading } = useDirectory(currentPath);
+
+  const dirs = entries?.filter((e) => e.isDirectory) ?? [];
+  const mdFiles = entries?.filter((e) => !e.isDirectory && e.name.endsWith('.md')) ?? [];
+
+  // Build breadcrumb parts from currentPath
+  const pathParts = currentPath === '.' ? [] : currentPath.split('/');
+
+  return (
+    <div className="mb-4 rounded-lg border border-gray-800 bg-gray-900 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-sm font-bold text-gray-200">
+          Select a directory to import all .md files
+        </h4>
+        <button
+          onClick={onClose}
+          className="text-xs text-gray-500 hover:text-gray-300"
+        >
+          Cancel
+        </button>
+      </div>
+
+      {/* Breadcrumb */}
+      <div className="mb-2 flex items-center gap-1 text-xs text-gray-500">
+        <button
+          onClick={() => setCurrentPath('.')}
+          className="hover:text-blue-400"
+        >
+          workspace
+        </button>
+        {pathParts.map((part, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span>/</span>
+            <button
+              onClick={() => setCurrentPath(pathParts.slice(0, i + 1).join('/'))}
+              className="hover:text-blue-400"
+            >
+              {part}
+            </button>
+          </span>
+        ))}
+      </div>
+
+      {/* Directory listing */}
+      <div className="max-h-48 overflow-y-auto rounded border border-gray-800 bg-gray-950 p-1">
+        {dirLoading && <p className="p-2 text-xs text-gray-500">Loading...</p>}
+
+        {dirs.map((dir) => (
+          <button
+            key={dir.path}
+            onClick={() => setCurrentPath(dir.path)}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-gray-300 hover:bg-gray-800"
+          >
+            <span className="text-yellow-400">📁</span>
+            <span>{dir.name}</span>
+          </button>
+        ))}
+
+        {mdFiles.length > 0 && (
+          <div className="mt-1 border-t border-gray-800 pt-1">
+            {mdFiles.map((file) => (
+              <div
+                key={file.path}
+                className="flex items-center gap-2 px-2 py-1 text-xs text-gray-500"
+              >
+                <span>📄</span>
+                <span>{file.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!dirLoading && dirs.length === 0 && mdFiles.length === 0 && (
+          <p className="p-2 text-xs text-gray-500">No subdirectories or markdown files here.</p>
+        )}
+      </div>
+
+      {/* Info + action */}
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-xs text-gray-500">
+          {mdFiles.length > 0
+            ? `${mdFiles.length} markdown file${mdFiles.length !== 1 ? 's' : ''} in this directory`
+            : 'No markdown files in this directory'}
+        </span>
+        <button
+          onClick={() => onSelect(currentPath)}
+          disabled={isLoading || mdFiles.length === 0}
+          className="rounded bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isLoading ? 'Importing...' : `Import ${mdFiles.length} file${mdFiles.length !== 1 ? 's' : ''}`}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-2 text-sm text-red-400">{error.message}</p>
       )}
     </div>
   );

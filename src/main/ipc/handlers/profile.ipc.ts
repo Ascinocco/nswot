@@ -78,4 +78,15 @@ export function registerProfileHandlers(profileService: ProfileService): void {
       });
     },
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.PROFILE_IMPORT_DIR,
+    async (_event, dirPath: string): Promise<IPCResult<Profile[]>> => {
+      const result = await profileService.importFromDirectory(dirPath);
+      return match(result, {
+        ok: (data) => toIpcResult(data),
+        err: (error) => toIpcError(error),
+      });
+    },
+  );
 }

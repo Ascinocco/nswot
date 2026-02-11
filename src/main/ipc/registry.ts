@@ -13,6 +13,7 @@ import type { WorkspaceService } from '../services/workspace.service';
 import type { FileService } from '../services/file.service';
 import type { ProfileService } from '../services/profile.service';
 import type { AnalysisRepository } from '../repositories/analysis.repository';
+import type { AnalysisService } from '../services/analysis.service';
 import type { ChatService } from '../services/chat.service';
 import type { ExportService } from '../services/export.service';
 import type { IntegrationService } from '../services/integration.service';
@@ -24,6 +25,7 @@ export interface IpcContext {
   fileService: FileService;
   profileService: ProfileService;
   analysisRepo: AnalysisRepository;
+  analysisService: AnalysisService;
   chatService: ChatService;
   exportService: ExportService;
   integrationService: IntegrationService;
@@ -38,7 +40,7 @@ export function registerIpcHandlers(context: IpcContext): void {
   registerWorkspaceHandlers(context.workspaceService);
   registerFileHandlers(context.fileService);
   registerProfileHandlers(context.profileService);
-  registerAnalysisHandlers(context.analysisRepo, context.workspaceService);
+  registerAnalysisHandlers(context.analysisRepo, context.analysisService, context.workspaceService);
   registerChatHandlers(context.chatService);
   registerExportHandlers(context.exportService);
   registerIntegrationHandlers(context.integrationService);

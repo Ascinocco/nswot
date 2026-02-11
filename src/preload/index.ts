@@ -32,6 +32,7 @@ const api: NswotAPI = {
     update: (id, input) => ipcRenderer.invoke(IPC_CHANNELS.PROFILE_UPDATE, id, input),
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.PROFILE_DELETE, id),
     importMarkdown: (filePath) => ipcRenderer.invoke(IPC_CHANNELS.PROFILE_IMPORT, filePath),
+    importDirectory: (dirPath) => ipcRenderer.invoke(IPC_CHANNELS.PROFILE_IMPORT_DIR, dirPath),
   },
   integrations: {
     get: () => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATION_GET),
@@ -45,6 +46,15 @@ const api: NswotAPI = {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_LIST),
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET, id),
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_DELETE, id),
+    run: (input) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_RUN, input),
+    previewPayload: (profileIds, jiraProjectKeys, role, contextWindow) =>
+      ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD, profileIds, jiraProjectKeys, role, contextWindow),
+    onProgress: (callback) => {
+      const handler = (_event: unknown, data: { analysisId: string; stage: string; message: string }) =>
+        callback(data);
+      ipcRenderer.on('analysis:progress', handler);
+      return () => ipcRenderer.removeListener('analysis:progress', handler);
+    },
   },
   chat: {
     getMessages: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.CHAT_GET_MESSAGES, analysisId),
