@@ -1,6 +1,8 @@
 # nswot — Parallelized Sprint Plan (Sprint 13 → 21)
 
-> **Two-agent execution model for Phase 3b through Phase 3d.**
+> **All sprints complete. Phase 3b-3d delivered in 7 weeks with two-agent parallel execution.**
+
+> Two-agent execution model for Phase 3b through Phase 3d.
 > Reorganizes Sprints 13-21 for two concurrent agents with minimal merge conflicts and explicit dependency gates.
 > Feature scope is unchanged — only sequencing and work packaging are modified.
 
@@ -22,6 +24,7 @@
 | Sprint 17 | A | 5 | Comparison UI — route, diff view, analysis picker, summary panel, Compare button in history. 505 tests pass. |
 | Sprint 15 Frontend | B | 3 | Edit capability in approval cards, action history polish, editAction service+IPC+bridge, 4 new tests. 509 tests pass. |
 | Sprint 19b | B | 7 | Themes Editor UI — theme IPC handlers (list/get/update/delete), preload bridge, use-themes.ts hooks, themes.tsx route with inline editing + evidence viewer, App.tsx route, analysis.tsx + analysis-history.tsx "Themes" links. 509 tests pass. |
+| Sprint 21 | A | 7 | E2E integration tests (pipeline, comparison, export, themes) + documentation updates. 19 new tests across 4 files. Phase 3d exit criteria validated. |
 
 ### Gate Status
 
@@ -154,9 +157,9 @@ No detailed sprint doc existed prior to this plan. The stated Phase 3d scope is 
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
-| 21.1 | Cross-feature E2E tests | Hard dep on all prior | test files |
-| 21.2 | Documentation updates for Phase 3 | Independent | `docs/*` |
-| 21.3 | Phase 3d exit criteria validation | Hard dep on all prior | — |
+| 21.1 | ~~Cross-feature E2E tests~~ [x] | Hard dep on all prior | test files |
+| 21.2 | ~~Documentation updates for Phase 3~~ [x] | Independent | `docs/*` |
+| 21.3 | ~~Phase 3d exit criteria validation~~ [x] | Hard dep on all prior | — |
 
 ---
 
@@ -536,7 +539,7 @@ main (stable)
 | 4 | Sprint 20: CSV/PDF export, VP Engineering role, macOS x64 build target | **Complete** | — |
 | 5 | Sprint 18a: Multi-step pipeline architecture refactor (**CRITICAL PATH**) | **Complete** | — |
 | 6 | Sprint 19a: Themes data layer + extraction step | **Complete** | — |
-| 7 | Sprint 21: E2E testing, documentation updates, exit criteria | Blocked | All prior merges |
+| 7 | Sprint 21: E2E testing, documentation updates, exit criteria | **Complete** | — |
 
 ### Shared Integration Tasks
 
@@ -547,12 +550,12 @@ main (stable)
 | End of Week 3 | Phase 3c sign-off: all 6 action types work E2E | Both | Sprint 15F complete; full E2E pending Sprint 21 |
 | End of Week 5 | **Gate 2 review: pipeline refactor produces identical output** | B implements, A validates | **Done** |
 | End of Week 6 | Gate 3: step registry integration test (all steps run in sequence) | Both | **PASSED** (Sprint 18b complete) |
-| End of Week 7 | Phase 3d exit criteria validation | Both | Pending |
+| End of Week 7 | Phase 3d exit criteria validation | Both | **Done** — Sprint 21 complete, all exit criteria met |
 
 ### Items Ready Now
 
-- **Agent A**: Sprint 18b (extraction + synthesis steps) is complete. All Agent A sprints are done.
-- **Agent B**: Sprint 19b (themes editor UI) complete. Sprint 21 (E2E testing + docs) is the only remaining sprint — now unblocked (Sprint 18b complete, Gate 3 passed).
+- **All sprints complete.** Sprint 21 (E2E testing + documentation) delivered by Agent A. Phase 3b-3d is fully delivered.
+- Final test count: 566 tests across 47 files. All gates passed.
 
 ---
 

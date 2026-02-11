@@ -483,3 +483,140 @@ The SWOT LLM can then cite evidence like:
   "quote": "The auth module has 0% test coverage — 47 TODO comments reference 'temporary auth bypass'"
 }
 ```
+
+---
+
+## Multi-Step Pipeline Prompts (Phase 3d)
+
+When `multiStep: true`, the pipeline uses three sequential LLM calls with distinct prompts.
+
+### Extraction Prompt
+
+**System prompt:**
+```
+You are an expert organizational analyst. Extract discrete signals from the provided data sources.
+For each signal, identify:
+- sourceType and sourceId (must match an input source)
+- The signal itself (a factual observation)
+- category: one of theme, risk, strength, concern, metric
+- A direct quote from the source
+
+Also identify key patterns — recurring themes or cross-source patterns you observe.
+
+Return valid JSON in the specified schema. Do not fabricate quotes.
+```
+
+**Output schema:**
+```json
+{
+  "signals": [
+    {
+      "sourceType": "profile | jira | confluence | github | codebase",
+      "sourceId": "string",
+      "signal": "string",
+      "category": "theme | risk | strength | concern | metric",
+      "quote": "string"
+    }
+  ],
+  "keyPatterns": ["string"]
+}
+```
+
+### Synthesis Prompt
+
+**System prompt:**
+```
+You are an expert at cross-source correlation. Given extracted signals from multiple data sources,
+identify correlations — claims supported by signals from 2+ source types.
+
+For each correlation, assess agreement strength (strong/moderate/weak) and note any conflicts.
+Produce a synthesisMarkdown summary that highlights the most important cross-source findings.
+```
+
+**Output schema:**
+```json
+{
+  "correlations": [
+    {
+      "claim": "string",
+      "supportingSignals": ["...extracted signals..."],
+      "sourceTypes": ["profile", "jira"],
+      "agreement": "strong | moderate | weak",
+      "conflicts": ["string"]
+    }
+  ],
+  "synthesisMarkdown": "## Synthesis\n\n..."
+}
+```
+
+**Context threading:** The synthesis prompt includes all signals from the extraction step as input data.
+
+### SwotGenerationStep Enhancement
+
+When synthesis output is available, SwotGenerationStep appends a section to its user prompt:
+
+```
+## Cross-Source Synthesis (Pre-Analysis)
+
+The following synthesis was produced by correlating signals across all data sources.
+Use it to inform and strengthen your SWOT analysis — especially for cross-source
+triangulation and confidence assessment.
+
+{synthesisMarkdown}
+```
+
+### Theme Extraction Prompt
+
+**System prompt:**
+```
+You are an expert at identifying cross-cutting themes in organizational data.
+Given stakeholder profiles and data source evidence, identify recurring themes
+that span multiple sources or stakeholders.
+
+For each theme, provide:
+- A short label
+- A description of the theme
+- Evidence references (sourceType, sourceId, quote)
+- Frequency count (how many sources mention it)
+
+Return valid JSON. Do not fabricate quotes.
+```
+
+**Output schema:**
+```json
+{
+  "themes": [
+    {
+      "label": "string",
+      "description": "string",
+      "evidenceRefs": [
+        { "sourceType": "string", "sourceId": "string", "quote": "string" }
+      ],
+      "frequency": 1
+    }
+  ]
+}
+```
+
+---
+
+## VP of Engineering Role (Phase 3d)
+
+The VP of Engineering role extends the system prompt with portfolio-level strategic context:
+
+```
+You are analyzing this organization from the perspective of a VP of Engineering.
+Focus on:
+- Portfolio-level strategy and investment priorities across multiple teams
+- Cross-organizational coordination challenges and dependencies
+- Engineering culture, hiring, and retention signals
+- Platform vs product investment balance
+- Technical strategy alignment with business objectives
+- Organizational scalability and team topology concerns
+
+Weight your analysis toward strategic and organizational factors rather than
+individual team execution details. Elevate patterns that affect multiple teams
+or the engineering organization as a whole.
+```
+
+This role instruction is prepended to the SWOT generation system prompt when `role === 'vp_engineering'`.

@@ -378,9 +378,53 @@ CREATE TABLE preferences (
 
 ---
 
-## 7. Analysis Pipeline (MVP)
+## 7. Analysis Pipeline
 
-MVP uses a **single-pass pipeline** instead of multi-step LLM chaining.
+The pipeline supports two modes: **single-step** (default) and **multi-step**.
+
+### 7.0 Pipeline Architecture
+
+The pipeline is built on a step-chain pattern:
+
+```ts
+interface PipelineStep {
+  name: string;
+  execute(context: PipelineContext, onProgress: StepProgressFn): Promise<PipelineContext>;
+}
+```
+
+**PipelineContext** carries all inputs and accumulates outputs as steps execute:
+
+```text
+PipelineContext
+  ├── Inputs: analysisId, role, modelId, contextWindow, anonymizedProfiles,
+  │           inputSnapshot, dataSources, connectedSources, llmCaller
+  └── Outputs (accumulated): extractionOutput?, synthesisOutput?, themes?,
+                              swotOutput?, summariesOutput?, qualityMetrics?,
+                              rawLlmResponse?, warning?
+```
+
+**LlmCaller** abstracts LLM communication — each step calls `llmCaller.call(messages)` and receives `{ content, finishReason }`. This enables easy mocking in tests and future provider swapping.
+
+**AnalysisOrchestrator** runs steps sequentially, threading the context through each:
+
+```ts
+class AnalysisOrchestrator {
+  constructor(private steps: PipelineStep[]) {}
+  async run(context: PipelineContext, onProgress): Promise<PipelineContext> {
+    for (const step of this.steps) { context = await step.execute(context, onProgress); }
+    return context;
+  }
+}
+```
+
+**Single-step mode** (default): `[SwotGenerationStep]` — one LLM call, backward compatible with MVP.
+
+**Multi-step mode** (`multiStep: true`): `[ExtractionStep, SynthesisStep, SwotGenerationStep]` — three LLM calls with context threading.
+
+Each step has its own corrective prompt builder. On parse failure, the step retries once with a corrective message explaining the error and requesting valid JSON.
+
+### 7.0.1 Single-Pass Pipeline (Default)
 
 ```text
 Collect -> Preprocess -> Prompt/Send -> Parse/Validate -> Store
@@ -432,7 +476,32 @@ Validation rules:
 
 On second parse failure, analysis is stored as `failed` with diagnostic message.
 
-### 7.5 Store
+### 7.5 Multi-Step Pipeline (Phase 3d)
+
+When `multiStep: true`, the pipeline runs three steps instead of one:
+
+```text
+ExtractionStep → SynthesisStep → SwotGenerationStep
+```
+
+**ExtractionStep** (`stages: extracting`):
+- Sends profiles + data source markdown to LLM
+- Parses `ExtractionOutput`: `signals[]` (sourceType, sourceId, signal, category, quote) + `keyPatterns[]`
+- Signal categories: theme, risk, strength, concern, metric
+- Output stored on `context.extractionOutput`
+
+**SynthesisStep** (`stages: synthesizing`):
+- Reads `context.extractionOutput.signals` and correlates across sources
+- Parses `SynthesisOutput`: `correlations[]` (claim, supportingSignals, sourceTypes, agreement, conflicts) + `synthesisMarkdown`
+- If extraction produced no signals, returns empty synthesis without LLM call
+- Output stored on `context.synthesisOutput`
+
+**SwotGenerationStep** (`stages: building_prompt`):
+- When `context.synthesisOutput?.synthesisMarkdown` is available, appends it to the user prompt under a "Cross-Source Synthesis (Pre-Analysis)" header
+- Otherwise runs identically to single-step mode
+- Produces `swotOutput`, `summariesOutput`, `qualityMetrics`
+
+### 7.6 Store
 
 - Store `input_snapshot`, structured output, and raw response via analysis repository
 - Save `analysis_profiles` junction records

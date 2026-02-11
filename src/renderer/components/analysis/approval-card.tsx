@@ -83,12 +83,12 @@ function JiraIssuePreview({ input }: { input: Record<string, unknown> }): React.
       <FieldRow label="Project" value={String(input.project ?? '')} />
       <FieldRow label="Type" value={String(input.issueType ?? '')} />
       <FieldRow label="Summary" value={String(input.summary ?? '')} />
-      {input.priority && <FieldRow label="Priority" value={String(input.priority)} />}
-      {input.parentKey && <FieldRow label="Parent" value={String(input.parentKey)} />}
+      {!!input.priority && <FieldRow label="Priority" value={String(input.priority)} />}
+      {!!input.parentKey && <FieldRow label="Parent" value={String(input.parentKey)} />}
       {Array.isArray(input.labels) && input.labels.length > 0 && (
         <FieldRow label="Labels" value={input.labels.join(', ')} />
       )}
-      {input.description && (
+      {!!input.description && (
         <div className="mt-1">
           <span className="text-xs font-medium text-gray-400">Description:</span>
           <p className="mt-0.5 max-h-20 overflow-y-auto whitespace-pre-wrap text-xs text-gray-300">
@@ -142,7 +142,7 @@ function JiraCommentPreview({ input }: { input: Record<string, unknown> }): Reac
   return (
     <div className="space-y-1">
       <FieldRow label="Issue" value={String(input.issueKey ?? '')} />
-      {input.comment && (
+      {!!input.comment && (
         <div className="mt-1">
           <span className="text-xs font-medium text-gray-400">Comment:</span>
           <p className="mt-0.5 max-h-20 overflow-y-auto whitespace-pre-wrap text-xs text-gray-300">
@@ -159,8 +159,8 @@ function ConfluencePagePreview({ input }: { input: Record<string, unknown> }): R
     <div className="space-y-1">
       <FieldRow label="Space" value={String(input.space ?? '')} />
       <FieldRow label="Title" value={String(input.title ?? '')} />
-      {input.parentPageId && <FieldRow label="Parent" value={String(input.parentPageId)} />}
-      {input.content && (
+      {!!input.parentPageId && <FieldRow label="Parent" value={String(input.parentPageId)} />}
+      {!!input.content && (
         <div className="mt-1">
           <span className="text-xs font-medium text-gray-400">Content preview:</span>
           <p className="mt-0.5 max-h-20 overflow-y-auto whitespace-pre-wrap text-xs text-gray-300">
@@ -181,7 +181,7 @@ function GitHubIssuePreview({ input }: { input: Record<string, unknown> }): Reac
       {Array.isArray(input.labels) && input.labels.length > 0 && (
         <FieldRow label="Labels" value={input.labels.join(', ')} />
       )}
-      {input.body && (
+      {!!input.body && (
         <div className="mt-1">
           <span className="text-xs font-medium text-gray-400">Body:</span>
           <p className="mt-0.5 max-h-20 overflow-y-auto whitespace-pre-wrap text-xs text-gray-300">
@@ -200,7 +200,7 @@ function GitHubPRPreview({ input }: { input: Record<string, unknown> }): React.J
       <FieldRow label="Repo" value={String(input.repo ?? '')} />
       <FieldRow label="Title" value={String(input.title ?? '')} />
       <FieldRow label="Branch" value={`${String(input.head ?? '')} → ${String(input.base ?? '')}`} />
-      {input.body && (
+      {!!input.body && (
         <div className="mt-1">
           <span className="text-xs font-medium text-gray-400">Description:</span>
           <p className="mt-0.5 max-h-20 overflow-y-auto whitespace-pre-wrap text-xs text-gray-300">

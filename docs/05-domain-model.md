@@ -13,9 +13,15 @@ Workspace (aggregate root)
   │     └── IntegrationCacheEntry (max 5000 per integration)
   ├── Analysis (unbounded)
   │     ├── AnalysisProfile (junction — which profiles were included)
-  │     └── ChatMessage (per analysis thread)
+  │     ├── ChatMessage (per analysis thread)
+  │     │     └── ChatAction (tool-use actions triggered from chat)
+  │     └── Theme (cross-cutting themes extracted from analysis)
   └── Preferences (key-value, workspace-scoped)
 ```
+
+**Value objects** (not persisted, computed on demand):
+- `ComparisonResult` — diff between two analyses
+- `ItemDelta` — individual SWOT item change within a comparison
 
 ---
 
@@ -150,7 +156,7 @@ A single SWOT analysis run. Immutable after completion.
 interface Analysis {
   id: string;              // UUID
   workspaceId: string;     // FK -> Workspace
-  role: 'staff_engineer' | 'senior_em';
+  role: 'staff_engineer' | 'senior_em' | 'vp_engineering';
   modelId: string;         // OpenRouter model ID used
   status: 'pending' | 'running' | 'completed' | 'failed';
   config: AnalysisConfig;  // Which profiles, projects, and options were used
@@ -168,6 +174,9 @@ interface Analysis {
 interface AnalysisConfig {
   profileIds: string[];
   jiraProjectKeys: string[];
+  confluenceSpaceKeys: string[];  // Phase 3
+  githubRepos: string[];          // Phase 3
+  codebaseRepos: string[];        // Phase 3
 }
 
 interface SwotOutput {
@@ -186,20 +195,26 @@ interface SwotItem {
 }
 
 interface EvidenceEntry {
-  sourceType: 'profile' | 'jira';       // MVP: only these two. Phase 2+: 'confluence', 'github'
+  sourceType: 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
   sourceId: string;                      // ID of the source entity
   sourceLabel: string;                   // Human-readable label
   quote: string;                         // Relevant excerpt
 }
 
 interface SummariesOutput {
-  profiles: string;  // Markdown summary
-  jira: string;      // Markdown summary
+  profiles: string;            // Markdown summary
+  jira: string;                // Markdown summary
+  confluence: string | null;   // Phase 3
+  github: string | null;       // Phase 3
+  codebase: string | null;     // Phase 3
 }
 
 interface AnonymizedPayload {
   profiles: AnonymizedProfile[];
   jiraData: unknown;
+  confluenceData: unknown | null;   // Phase 3
+  githubData: unknown | null;       // Phase 3
+  codebaseData: unknown | null;     // Phase 3
   pseudonymMap: Record<string, string>; // "Stakeholder A" -> real name (local only)
 }
 
@@ -260,6 +275,100 @@ interface ChatMessage {
 - Messages belong to exactly one analysis (one chat thread per analysis)
 - Messages are append-only (no edits, no deletes in MVP)
 - Content is stored as-is (markdown). Rendering happens in the renderer.
+
+---
+
+### ChatAction (Phase 3c)
+
+A tool-use action triggered from chat. Tracks the full lifecycle from LLM suggestion through user approval to execution.
+
+```ts
+interface ChatAction {
+  id: string;              // UUID
+  analysisId: string;      // FK -> Analysis
+  chatMessageId: string;   // FK -> ChatMessage (the assistant message containing the tool call)
+  toolName: string;        // e.g., 'jira_create_issue', 'confluence_create_page'
+  toolInput: unknown;      // JSON — the arguments the LLM passed to the tool
+  status: 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'rejected';
+  result: unknown | null;  // JSON — execution result or error details
+  createdAt: string;       // ISO 8601
+  executedAt: string | null;
+}
+```
+
+**Invariants:**
+- Status transitions: `pending -> approved -> executing -> completed | failed` or `pending -> rejected`
+- User approval is mandatory before execution (no auto-execution)
+- Only create/add operations — no updates, no deletes
+- `toolInput` is immutable after creation
+- Result is populated only after execution attempt
+
+---
+
+### Theme (Phase 3d)
+
+A cross-cutting theme extracted from analysis data. Themes are editable by the user after extraction.
+
+```ts
+interface Theme {
+  id: string;              // UUID
+  analysisId: string;      // FK -> Analysis
+  label: string;           // Short theme name (e.g., "On-call burnout")
+  description: string;     // Longer explanation
+  evidenceRefs: EvidenceEntry[];  // Supporting evidence from sources
+  sourceTypes: string[];   // Unique source types referenced (e.g., ['profile', 'jira'])
+  frequency: number;       // How many sources mention this theme
+  createdAt: string;       // ISO 8601
+}
+```
+
+**Invariants:**
+- Themes belong to exactly one analysis
+- `label` must be non-empty
+- `frequency` >= 1
+- Themes are mutable (label, description can be edited by user)
+- Themes can be deleted by user
+
+---
+
+### ComparisonResult (Value Object)
+
+Computed diff between two analyses. Not persisted — generated on demand by `ComparisonService`.
+
+```ts
+interface ComparisonResult {
+  analysisIdA: string;
+  analysisIdB: string;
+  deltas: ItemDelta[];
+  summary: ComparisonSummary;
+  createdAt: string;
+}
+
+interface ItemDelta {
+  kind: 'added' | 'removed' | 'changed';
+  category: 'strengths' | 'weaknesses' | 'opportunities' | 'threats';
+  claim: string;           // The claim text (from B for added/changed, from A for removed)
+  matchedClaim?: string;   // The paired claim from the other analysis (for changed items)
+  similarity?: number;     // 0-1 similarity score (for changed items)
+  confidenceDelta?: string; // e.g., 'medium → high' (for changed items)
+  sourceDelta?: string;    // Summary of evidence changes
+}
+
+interface ComparisonSummary {
+  totalAdded: number;
+  totalRemoved: number;
+  totalChanged: number;
+  strengths: { added: number; removed: number; changed: number };
+  weaknesses: { added: number; removed: number; changed: number };
+  opportunities: { added: number; removed: number; changed: number };
+  threats: { added: number; removed: number; changed: number };
+}
+```
+
+**Invariants:**
+- Both analyses must have `status: 'completed'` and non-null `swotOutput`
+- `summary` counts must match `deltas` array breakdown
+- Similarity threshold for "changed" vs "added+removed" is configurable (default: 0.3)
 
 ---
 
@@ -341,6 +450,21 @@ interface ChatRepository {
   insert(analysisId: string, role: string, content: string): Promise<ChatMessage>;
 }
 
+interface ChatActionRepository {
+  findByAnalysis(analysisId: string): Promise<ChatAction[]>;
+  findById(id: string): Promise<ChatAction | null>;
+  insert(action: Omit<ChatAction, 'id' | 'createdAt' | 'executedAt'>): Promise<ChatAction>;
+  updateStatus(id: string, status: string, result?: unknown): Promise<void>;
+}
+
+interface ThemeRepository {
+  findByAnalysis(analysisId: string): Promise<Theme[]>;
+  findById(id: string): Promise<Theme | null>;
+  insertMany(analysisId: string, themes: Omit<Theme, 'id' | 'createdAt'>[]): Promise<Theme[]>;
+  update(id: string, fields: Partial<Pick<Theme, 'label' | 'description'>>): Promise<Theme | null>;
+  deleteById(id: string): Promise<void>;
+}
+
 interface PreferencesRepository {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
@@ -360,8 +484,9 @@ Services enforce business rules and orchestrate multi-repository operations.
 | `ProfileService` | Enforce 25-profile limit, validate input, delegate to `ProfileRepository` |
 | `IntegrationService` | Manage connection lifecycle, coordinate provider fetch + cache, enforce cache limits |
 | `AnalysisService` | Orchestrate pipeline (collect -> preprocess -> prompt -> parse -> store), manage status transitions, handle recovery |
-| `ChatService` | Assemble context (analysis + recent messages), token budget, delegate to LLM provider |
-| `ExportService` | Read analysis from repo, generate markdown, write to workspace via FileSystem |
+| `ChatService` | Assemble context (analysis + recent messages), token budget, delegate to LLM provider, manage chat actions (approval/rejection/execution) |
+| `ComparisonService` | Diff two completed analyses, compute deltas with similarity scoring, generate summary |
+| `ExportService` | Read analysis from repo, generate markdown/CSV/PDF, write to workspace via FileSystem |
 | `SettingsService` | Coordinate preferences repo + safeStorage for keys, model selection |
 
 ---

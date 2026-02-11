@@ -176,19 +176,28 @@ Users must have for codebase analysis and chat actions:
 
 ### Exit Criteria
 
-- User can run codebase analysis on selected repos via Claude CLI
-- Codebase evidence appears in SWOT items with source citations
-- Analysis works with and without codebase data (graceful degradation)
-- User can create Jira issues/epics directly from chat recommendations with approval
-- Every chat action has an audit trail and visible status
-- Users can compare at least two runs side by side
-- Follow-through metrics improve (fewer stale recommendations)
+**Phase 3d (Delivered):**
+- [x] User can run codebase analysis on selected repos via Claude CLI
+- [x] Codebase evidence appears in SWOT items with source citations
+- [x] Analysis works with and without codebase data (graceful degradation)
+- [x] User can create Jira issues/epics directly from chat recommendations with approval
+- [x] Every chat action has an audit trail and visible status
+- [x] Users can compare at least two runs side by side
+- [x] Multi-step LLM pipeline (extraction -> synthesis -> SWOT) operational
+- [x] Themes are extracted and editable
+- [x] CSV and PDF export functional
+- [x] VP of Engineering role available
+- [x] macOS x64 (Intel) builds
+- [x] E2E integration tests validate cross-feature flows (pipeline, comparison, export, themes)
+
+**Deferred to Phase 3e:**
 - User can run SWOT analysis via either OpenRouter or direct Anthropic API
 - User can run codebase analysis via either Claude CLI or OpenCode
 - Chat can write markdown, CSV, and Mermaid files to workspace with user approval
 - Mermaid diagrams render in-app; at least one interactive D3/Chart.js chart in results
 - First-launch wizard completes successfully for new users
 - Auto-update downloads and applies updates from GitHub Releases
+- Follow-through metrics improve (fewer stale recommendations)
 
 ---
 
