@@ -249,10 +249,10 @@ describe('ActionExecutor', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('authentication required');
+      expect(result.error).toContain('authentication failed');
     });
 
-    it('rejects on timeout', async () => {
+    it('returns failure on timeout', async () => {
       const shortExecutor = new ActionExecutor({ timeoutMs: 1 });
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
@@ -268,14 +268,81 @@ describe('ActionExecutor', () => {
         return child;
       });
 
-      await expect(
-        shortExecutor.execute('create_jira_issue', {
-          project: 'PROJ',
-          issueType: 'Task',
-          summary: 'Test',
-          description: 'Desc',
-        }),
-      ).rejects.toThrow('timed out');
+      const result = await shortExecutor.execute('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Task',
+        summary: 'Test',
+        description: 'Desc',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('timed out');
+    });
+
+    it('returns failure when CLI not found (ENOENT)', async () => {
+      vi.mocked(spawn).mockImplementation(() => {
+        const err = new Error('spawn claude ENOENT') as NodeJS.ErrnoException;
+        err.code = 'ENOENT';
+        throw err;
+      });
+
+      const result = await executor.execute('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Task',
+        summary: 'Test',
+        description: 'Desc',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Claude CLI not found');
+    });
+
+    it('classifies MCP errors in stderr', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      child.stdout.on.mockImplementation(() => {});
+      child.stderr.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') handler(Buffer.from('MCP server jira not configured'));
+      });
+      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
+        if (event === 'close') handler(1);
+        return child;
+      });
+
+      const result = await executor.execute('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Task',
+        summary: 'Test',
+        description: 'Desc',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('MCP server not configured');
+    });
+
+    it('classifies permission errors in stderr', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      child.stdout.on.mockImplementation(() => {});
+      child.stderr.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') handler(Buffer.from('403 Forbidden'));
+      });
+      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
+        if (event === 'close') handler(1);
+        return child;
+      });
+
+      const result = await executor.execute('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Task',
+        summary: 'Test',
+        description: 'Desc',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Permission denied');
     });
 
     it('respects custom options', async () => {
@@ -304,6 +371,143 @@ describe('ActionExecutor', () => {
         expect.arrayContaining(['--model', 'opus', '--max-turns', '10']),
         expect.anything(),
       );
+    });
+  });
+
+  describe('buildPrompt (action-specific)', () => {
+    it('builds batch jira prompt with sequential issue list', () => {
+      const prompt = executor.buildPrompt('create_jira_issues', {
+        issues: [
+          { project: 'PROJ', issueType: 'Epic', summary: 'Parent Epic', description: 'Desc' },
+          { project: 'PROJ', issueType: 'Story', summary: 'Child Story', description: 'Desc', parentRef: '0' },
+        ],
+      });
+
+      expect(prompt).toContain('batch of Jira issue creations');
+      expect(prompt).toContain('1. Issue:');
+      expect(prompt).toContain('2. Issue:');
+      expect(prompt).toContain('parent: issue #0 from this batch');
+      expect(prompt).toContain('JSON array');
+    });
+
+    it('builds confluence prompt with page content block', () => {
+      const prompt = executor.buildPrompt('create_confluence_page', {
+        space: 'ENG',
+        title: 'SWOT Analysis Summary',
+        content: '# Overview\n\nKey findings from the analysis.',
+        parentPageId: 'page-123',
+      });
+
+      expect(prompt).toContain('Create a Confluence page');
+      expect(prompt).toContain('space: ENG');
+      expect(prompt).toContain('title: SWOT Analysis Summary');
+      expect(prompt).toContain('parentPageId: page-123');
+      expect(prompt).toContain('PAGE CONTENT (markdown):');
+      expect(prompt).toContain('# Overview');
+    });
+
+    it('builds github PR prompt with branch context', () => {
+      const prompt = executor.buildPrompt('create_github_pr', {
+        repo: 'org/repo',
+        title: 'Fix auth module',
+        body: '## Changes\n\nFixed the auth issue.',
+        head: 'fix/auth-module',
+        base: 'main',
+      });
+
+      expect(prompt).toContain('Create a GitHub pull request');
+      expect(prompt).toContain('repo: org/repo');
+      expect(prompt).toContain('head: fix/auth-module');
+      expect(prompt).toContain('base: main');
+      expect(prompt).toContain('PR BODY (markdown):');
+      expect(prompt).toContain('## Changes');
+    });
+
+    it('uses generic prompt for simple actions', () => {
+      const prompt = executor.buildPrompt('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Task',
+        summary: 'Simple task',
+        description: 'Do the thing',
+      });
+
+      expect(prompt).toContain('ACTION: create_jira_issue');
+      expect(prompt).toContain('- project: PROJ');
+      expect(prompt).toContain('Execute this now.');
+    });
+
+    it('uses generic prompt for add_jira_comment', () => {
+      const prompt = executor.buildPrompt('add_jira_comment', {
+        issueKey: 'PROJ-123',
+        comment: 'Here is the comment',
+      });
+
+      expect(prompt).toContain('ACTION: add_jira_comment');
+      expect(prompt).toContain('- issueKey: PROJ-123');
+    });
+
+    it('uses generic prompt for create_github_issue', () => {
+      const prompt = executor.buildPrompt('create_github_issue', {
+        repo: 'org/repo',
+        title: 'Bug report',
+        body: 'Something is broken',
+      });
+
+      expect(prompt).toContain('ACTION: create_github_issue');
+      expect(prompt).toContain('- repo: org/repo');
+    });
+  });
+
+  describe('parseBatchOutput', () => {
+    it('parses successful batch result array', () => {
+      const batchResult = [
+        { success: true, id: 'PROJ-100', url: 'https://jira.example.com/PROJ-100' },
+        { success: true, id: 'PROJ-101', url: 'https://jira.example.com/PROJ-101' },
+      ];
+      const raw = JSON.stringify({ result: JSON.stringify(batchResult) });
+
+      const result = executor.parseBatchOutput(raw);
+      expect(result.success).toBe(true);
+      expect(result.id).toContain('PROJ-100');
+      expect(result.id).toContain('PROJ-101');
+    });
+
+    it('detects partial batch failure', () => {
+      const batchResult = [
+        { success: true, id: 'PROJ-100', url: 'https://jira.example.com/PROJ-100' },
+        { success: false, error: 'Project not found' },
+      ];
+      const raw = JSON.stringify({ result: JSON.stringify(batchResult) });
+
+      const result = executor.parseBatchOutput(raw);
+      expect(result.success).toBe(false);
+      expect(result.id).toContain('PROJ-100');
+      expect(result.error).toContain('Partial batch failure');
+      expect(result.error).toContain('Project not found');
+    });
+
+    it('handles single result fallback for batch', () => {
+      const singleResult = { success: true, id: 'PROJ-100' };
+      const raw = JSON.stringify(singleResult);
+
+      const result = executor.parseBatchOutput(raw);
+      expect(result.success).toBe(true);
+      expect(result.id).toBe('PROJ-100');
+    });
+
+    it('parses batch from code fence', () => {
+      const batchResult = [{ success: true, id: 'PROJ-200' }];
+      const raw = '```json\n' + JSON.stringify(batchResult) + '\n```';
+
+      const result = executor.parseBatchOutput(raw);
+      expect(result.success).toBe(true);
+      expect(result.id).toContain('PROJ-200');
+    });
+
+    it('returns failure on malformed batch output', () => {
+      const result = executor.parseBatchOutput('not valid json');
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Failed to parse batch result');
     });
   });
 });

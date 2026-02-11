@@ -31,29 +31,51 @@ export class ActionExecutor {
       prompt,
     ];
 
-    const { stdout, stderr, exitCode } = await this.spawnWithTimeout(
-      'claude',
-      args,
-      undefined,
-      this.options.timeoutMs,
-    );
+    try {
+      const { stdout, stderr, exitCode } = await this.spawnWithTimeout(
+        'claude',
+        args,
+        undefined,
+        this.options.timeoutMs,
+      );
 
-    if (exitCode !== 0) {
-      const errorMsg = stderr.trim() || `Claude CLI exited with code ${exitCode}`;
-      return { success: false, error: errorMsg };
+      if (exitCode !== 0) {
+        return { success: false, error: classifyCliError(stderr, exitCode) };
+      }
+
+      if (toolName === 'create_jira_issues') {
+        return this.parseBatchOutput(stdout);
+      }
+
+      return this.parseOutput(stdout);
+    } catch (err) {
+      if (err instanceof Error) {
+        if (isSpawnNotFoundError(err)) {
+          return { success: false, error: 'Claude CLI not found. Install it from https://claude.ai/download' };
+        }
+        if (err.message.includes('timed out')) {
+          return { success: false, error: `Action execution timed out after ${this.options.timeoutMs}ms` };
+        }
+      }
+      throw err;
     }
-
-    return this.parseOutput(stdout);
   }
 
   buildPrompt(toolName: ActionToolName, toolInput: Record<string, unknown>): string {
-    const details = Object.entries(toolInput)
-      .map(([key, value]) => {
-        const formatted =
-          Array.isArray(value) ? JSON.stringify(value) : String(value);
-        return `- ${key}: ${formatted}`;
-      })
-      .join('\n');
+    switch (toolName) {
+      case 'create_jira_issues':
+        return this.buildBatchJiraPrompt(toolInput);
+      case 'create_confluence_page':
+        return this.buildConfluencePrompt(toolInput);
+      case 'create_github_pr':
+        return this.buildGitHubPrPrompt(toolInput);
+      default:
+        return this.buildGenericPrompt(toolName, toolInput);
+    }
+  }
+
+  private buildGenericPrompt(toolName: ActionToolName, toolInput: Record<string, unknown>): string {
+    const details = formatToolInput(toolInput);
 
     return [
       'Execute the following action using the available MCP tools. Do not modify the content.',
@@ -62,6 +84,101 @@ export class ActionExecutor {
       `ACTION: ${toolName}`,
       'DETAILS:',
       details,
+      '',
+      'Execute this now.',
+    ].join('\n');
+  }
+
+  private buildBatchJiraPrompt(toolInput: Record<string, unknown>): string {
+    const issues = toolInput['issues'] as Array<Record<string, unknown>> | undefined;
+    if (!issues || issues.length === 0) {
+      return this.buildGenericPrompt('create_jira_issues', toolInput);
+    }
+
+    const issueList = issues
+      .map((issue, i) => {
+        const lines = Object.entries(issue)
+          .filter(([key]) => key !== 'parentRef')
+          .map(([key, value]) => {
+            const formatted = Array.isArray(value) ? JSON.stringify(value) : String(value);
+            return `  - ${key}: ${formatted}`;
+          });
+        const parentRef = issue['parentRef'];
+        if (parentRef !== undefined) {
+          lines.push(`  - parent: issue #${parentRef} from this batch`);
+        }
+        return `${i + 1}. Issue:\n${lines.join('\n')}`;
+      })
+      .join('\n\n');
+
+    return [
+      'Execute the following batch of Jira issue creations using MCP tools.',
+      'Create them in order. If an issue references a parent from this batch, use the key from the already-created parent issue.',
+      '',
+      'Return results as a JSON array, one entry per issue. Each entry has: success (boolean), id (issue key), url (link), error (if failed).',
+      '',
+      'ISSUES:',
+      issueList,
+      '',
+      'Execute this now. Create all issues in sequence.',
+    ].join('\n');
+  }
+
+  private buildConfluencePrompt(toolInput: Record<string, unknown>): string {
+    const space = toolInput['space'] ?? 'unknown';
+    const title = toolInput['title'] ?? 'Untitled';
+    const content = toolInput['content'] ?? '';
+    const parentPageId = toolInput['parentPageId'];
+
+    const lines = [
+      'Create a Confluence page using the available MCP tools. Do not modify the content.',
+      'Return the result as JSON with the fields: success (boolean), id (page ID), url (link to the page), error (if failed).',
+      '',
+      `ACTION: create_confluence_page`,
+      'DETAILS:',
+      `- space: ${space}`,
+      `- title: ${title}`,
+    ];
+
+    if (parentPageId) {
+      lines.push(`- parentPageId: ${parentPageId}`);
+    }
+
+    lines.push(
+      '',
+      'PAGE CONTENT (markdown):',
+      '---',
+      String(content),
+      '---',
+      '',
+      'Execute this now.',
+    );
+
+    return lines.join('\n');
+  }
+
+  private buildGitHubPrPrompt(toolInput: Record<string, unknown>): string {
+    const repo = toolInput['repo'] ?? 'unknown';
+    const title = toolInput['title'] ?? 'Untitled';
+    const body = toolInput['body'] ?? '';
+    const head = toolInput['head'] ?? 'unknown';
+    const base = toolInput['base'] ?? 'main';
+
+    return [
+      'Create a GitHub pull request using the available MCP tools. Do not modify the content.',
+      'Return the result as JSON with the fields: success (boolean), id (PR number), url (link to the PR), error (if failed).',
+      '',
+      'ACTION: create_github_pr',
+      'DETAILS:',
+      `- repo: ${repo}`,
+      `- title: ${title}`,
+      `- head: ${head}`,
+      `- base: ${base}`,
+      '',
+      'PR BODY (markdown):',
+      '---',
+      String(body),
+      '---',
       '',
       'Execute this now.',
     ].join('\n');
@@ -90,6 +207,54 @@ export class ActionExecutor {
       };
     } catch {
       return { success: false, error: `Failed to parse action result: ${jsonStr.slice(0, 200)}` };
+    }
+  }
+
+  parseBatchOutput(rawOutput: string): ActionResult {
+    let textContent: string;
+
+    try {
+      const envelope = JSON.parse(rawOutput) as { result?: string; content?: string };
+      textContent = envelope.result ?? envelope.content ?? rawOutput;
+    } catch {
+      textContent = rawOutput;
+    }
+
+    const fenceMatch = textContent.match(/```json\s*([\s\S]*?)```/);
+    const jsonStr = fenceMatch ? fenceMatch[1]!.trim() : textContent.trim();
+
+    try {
+      const parsed = JSON.parse(jsonStr) as unknown;
+
+      // Batch result is an array
+      if (Array.isArray(parsed)) {
+        const results = parsed as ActionResult[];
+        const allSuccess = results.every((r) => r.success);
+        const ids = results.map((r) => r.id).filter(Boolean).join(', ');
+        const urls = results.map((r) => r.url).filter(Boolean).join(', ');
+        const errors = results.filter((r) => !r.success).map((r) => r.error).filter(Boolean);
+
+        if (allSuccess) {
+          return { success: true, id: ids, url: urls };
+        }
+        return {
+          success: false,
+          id: ids || undefined,
+          url: urls || undefined,
+          error: `Partial batch failure: ${errors.join('; ') || 'some issues failed to create'}`,
+        };
+      }
+
+      // Single result (fallback)
+      const result = parsed as ActionResult;
+      return {
+        success: result.success ?? false,
+        id: result.id,
+        url: result.url,
+        error: result.error,
+      };
+    } catch {
+      return { success: false, error: `Failed to parse batch result: ${jsonStr.slice(0, 200)}` };
     }
   }
 
@@ -148,4 +313,35 @@ export class ActionExecutor {
       });
     });
   }
+}
+
+function formatToolInput(input: Record<string, unknown>): string {
+  return Object.entries(input)
+    .map(([key, value]) => {
+      const formatted = Array.isArray(value) ? JSON.stringify(value) : String(value);
+      return `- ${key}: ${formatted}`;
+    })
+    .join('\n');
+}
+
+function classifyCliError(stderr: string, exitCode: number): string {
+  const lower = stderr.toLowerCase();
+  if (lower.includes('authentication') || lower.includes('not authenticated') || lower.includes('login required')) {
+    return `Claude CLI authentication failed. Please run 'claude login' first. (exit ${exitCode})`;
+  }
+  if (lower.includes('mcp') && (lower.includes('not configured') || lower.includes('not found') || lower.includes('unavailable'))) {
+    return `MCP server not configured or unavailable. Check your Claude CLI MCP settings. (exit ${exitCode})`;
+  }
+  if (lower.includes('permission') || lower.includes('forbidden') || lower.includes('403')) {
+    return `Permission denied. Check your MCP server permissions. (exit ${exitCode})`;
+  }
+  if (lower.includes('rate limit') || lower.includes('429') || lower.includes('too many')) {
+    return `Rate limited by external service. Wait and try again. (exit ${exitCode})`;
+  }
+  return stderr.trim() || `Claude CLI exited with code ${exitCode}`;
+}
+
+function isSpawnNotFoundError(err: Error): boolean {
+  const nodeErr = err as NodeJS.ErrnoException;
+  return nodeErr.code === 'ENOENT' || err.message.includes('ENOENT');
 }

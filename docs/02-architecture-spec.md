@@ -13,7 +13,7 @@
 - **Main process (Node.js)**: filesystem, database, network, analysis orchestration
 - **Preload bridge**: typed IPC surface
 
-The MVP architecture is intentionally narrow: profiles + Jira -> single-pass SWOT -> grounded chat -> markdown export.
+The architecture has grown from its MVP foundation (profiles + Jira -> single-pass SWOT -> grounded chat -> markdown export) through Phase 2 (Confluence, GitHub, quality metrics) and Phase 3a-3d (codebase analysis, chat actions, comparison, themes, export). Phase 3e adds multi-provider LLM support, visualizations, and platform maturity features.
 
 ### Layered Architecture
 
@@ -31,7 +31,8 @@ Each concern lives in a distinct layer. Dependencies flow downward only.
 │    (data access — SQLite queries, domain mapping)    │
 ├─────────────────────────────────────────────────────┤
 │                   Providers                          │
-│  (external clients — Jira, OpenRouter, Claude CLI)   │
+│  (external clients — Jira, Confluence, GitHub,       │
+│   OpenRouter, Anthropic, Claude CLI, OpenCode)        │
 ├─────────────────────────────────────────────────────┤
 │                 Infrastructure                       │
 │   (SQLite, safeStorage, fs, circuit breaker, retry)  │
@@ -253,6 +254,10 @@ class CodebaseProvider {
   async isAvailable(): Promise<boolean> { ... }  // Claude CLI installed + authed
 }
 ```
+
+**Phase 3e — Multi-Provider LLM**: The `LLMProvider` interface (implemented by `OpenRouterProvider`) gains a second implementation: `AnthropicProvider` for direct Claude API access. A factory in `AnalysisService` selects the active provider based on user settings. No pipeline changes needed — the provider abstraction handles this cleanly.
+
+**Phase 3e — Multi-Provider Codebase Analysis**: `CodebaseProvider` gains an alternative: `OpenCodeProvider`, which spawns OpenCode instead of Claude CLI. Same structured prompt and output parsing contract. Provider selection is a user setting.
 
 ### 4.5 Infrastructure
 
@@ -570,13 +575,14 @@ Only markdown export is supported:
 
 ## 13. Extension Seams
 
-These interfaces are designed for Phase 2/3 extension without modifying existing code:
+These interfaces are designed for Phase 2/3/3e extension without modifying existing code:
 
 - **New integration provider**: Implement a new provider class (e.g., `ConfluenceProvider`), register it in `IntegrationService`. The orchestrator already collects data by iterating registered providers.
-- **New LLM provider**: Implement `LLMProvider` interface, swap in `AnalysisService`. No pipeline changes needed.
+- **New LLM provider (Phase 3e)**: Implement `LLMProvider` interface (e.g., `AnthropicProvider` for direct Claude API). Factory in `AnalysisService` selects provider based on user settings. No pipeline changes needed.
 - **New export format**: Add a new method to `ExportService`. No upstream changes.
 - **Multi-step pipeline**: Replace the single prompt call in the orchestrator with a step chain. Input/output types for each stage are already defined.
 - **Subprocess-based provider (Phase 3)**: `CodebaseProvider` demonstrates a new provider pattern — spawning a local CLI tool (Claude CLI) as a child process instead of making HTTP calls. The same service/cache/pipeline integration applies.
+- **Alternative codebase provider (Phase 3e)**: Implement `OpenCodeProvider` following the same subprocess pattern as `CodebaseProvider`. Factory selects between Claude CLI and OpenCode based on user settings.
 - **Chat tool-use actions (Phase 3c)**: The `ActionExecutor` reuses the Claude CLI subprocess pattern from `CodebaseProvider` but with MCP-scoped write access. Adding a new action type requires only a tool definition in `action-tools.ts` and a Claude CLI prompt template. See `docs/12-chat-actions-plan.md`.
 
 ---

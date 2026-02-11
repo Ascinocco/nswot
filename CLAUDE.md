@@ -4,7 +4,7 @@
 
 nswot is a local-first Electron desktop app that turns stakeholder interview notes and Jira signals into evidence-backed SWOT analyses. Primary user: staff engineers in org-level problem-solving roles.
 
-**Current phase**: MVP (Phase 1) — profiles + Jira -> single-pass SWOT -> grounded chat -> markdown export.
+**Current phase**: Phase 3 (Codebase Intelligence & Comparability). Phases 1-2 complete. Phase 3a-3d in progress, Phase 3e (Platform Maturity & Multi-Provider) planned.
 
 ## Documentation
 
@@ -17,10 +17,14 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - `docs/07-testing-strategy.md` — Testing pyramid and scope
 - `docs/08-prompt-engineering.md` — LLM prompt templates
 - `docs/09-adr/` — Architecture Decision Records
+- `docs/10-phase2-sprints.md` — Phase 2 sprint plan (Confluence, GitHub, quality metrics)
+- `docs/11-codebase-analysis-plan.md` — Codebase analysis via Claude CLI feature plan
+- `docs/12-chat-actions-plan.md` — Chat actions via tool-use bridge feature plan
 - `docs/13-ci-cd-and-release.md` — CI/CD workflow and release automation spec
 - `docs/14-release-operations-runbook.md` — Release operations and failure triage runbook
 - `docs/15-local-prerequisites-and-mcp-setup.md` — Local prerequisites and MCP setup commands
 - `docs/16-parallel-sprint-plan.md` — Two-agent parallel execution plan for Sprints 13-21 (Phase 3b-3d)
+- `docs/17-parallel-sprints-agents-plan.md` — Agent execution plans for parallel sprints
 - `docs/future/` — Post-MVP vision docs (preserved, not active)
 
 ## Tech Stack
@@ -32,7 +36,7 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - **Validation**: Zod (renderer form validation only)
 - **Build**: Vite (renderer), tsx (main process dev)
 - **Package**: electron-builder
-- **LLM**: OpenRouter via OpenAI-compatible SDK
+- **LLM**: OpenRouter via OpenAI-compatible SDK (Phase 3e adds direct Anthropic API as alternative)
 - **Styling**: Tailwind CSS
 
 ## Architecture Patterns
@@ -48,7 +52,7 @@ IPC Handlers -> Services -> Repositories / Providers -> Infrastructure
 - **IPC Handlers** (`src/main/ipc/handlers/`): Transport only. Deserialize input, call service, serialize result. No business logic.
 - **Services** (`src/main/services/`): Business rules, orchestration, validation. Services depend on repositories and providers.
 - **Repositories** (`src/main/repositories/`): Data access. SQLite queries in, domain types out. No business logic.
-- **Providers** (`src/main/providers/`): External API clients (Jira, OpenRouter). Handle auth, serialization, raw HTTP. Wrapped in circuit breaker + retry.
+- **Providers** (`src/main/providers/`): External API clients (Jira, Confluence, GitHub, OpenRouter, Claude CLI). Handle auth, serialization, raw HTTP/subprocess. Wrapped in circuit breaker + retry.
 - **Infrastructure** (`src/main/infrastructure/`): Shared utilities — database connection, safeStorage, circuit breaker, retry, file system.
 - **Domain** (`src/main/domain/`): Types, errors, Result type. No dependencies on anything else.
 
@@ -115,4 +119,4 @@ result.match({
 - **No writes outside workspace.** All fs operations validate resolved path starts with workspace root.
 - **No secrets in SQLite or plaintext.** API keys and OAuth tokens go through safeStorage only.
 - **No evidence, no claim.** SWOT items without concrete evidence are omitted or marked low confidence.
-- **MVP scope only.** Do not implement Confluence, GitHub, themes editor, PDF/CSV export, or chat file generation. These are Phase 2+.
+- **Current scope: Phase 3.** Phases 1-2 are complete. Phase 3 covers codebase analysis, chat actions, comparison, themes, export, multi-provider, and visualizations. Do not implement Phase 4 features (chat-focused experience). See `docs/04-phases-roadmap.md`.

@@ -125,4 +125,21 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_chat_actions_status ON chat_actions(status);
     `,
   },
+  {
+    version: 4,
+    description: 'Add themes table for extracted analysis themes',
+    sql: `
+      CREATE TABLE IF NOT EXISTS themes (
+        id TEXT PRIMARY KEY,
+        analysis_id TEXT NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+        label TEXT NOT NULL,
+        description TEXT NOT NULL,
+        evidence_refs TEXT NOT NULL DEFAULT '[]',
+        source_types TEXT NOT NULL DEFAULT '[]',
+        frequency INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_themes_analysis_id ON themes(analysis_id);
+    `,
+  },
 ];

@@ -8,7 +8,11 @@
 
 **Sprint 13: Completed by Agent A, Week 1.**
 **Sprint 14 Foundation: Completed by Agent B, Week 1. Gate 1 artifacts ready for review.**
+**Sprint 14 Backend: Completed by Agent A, Week 2.**
+**Sprint 15 Backend: Completed by Agent A, Week 3.**
 **Sprint 20: Completed by Agent B, Week 4. CSV/PDF export, VP Engineering role, macOS x64 build target.**
+**Sprint 18a: Completed by Agent B, Week 5. Multi-step pipeline architecture refactor (Gate 2). All existing tests pass unchanged.**
+**Sprint 19a: Completed by Agent B, Week 6. Themes data layer + extraction step. Theme types, migration v4, ThemeRepository, ThemeExtractionStep pipeline step. 484 tests pass.**
 
 ---
 
@@ -48,15 +52,15 @@ Key insight: Sprint 13 (Phase 3b — codebase polish) and Sprint 14 (Phase 3c �
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
-| 14.1 | OpenRouter tool-use integration in chat service (stream parsing for `tool_calls`, `finish_reason` detection) | Hard dep on Sprint 12 (existing chat service) | **`src/main/services/chat.service.ts`** (HOT) |
+| 14.1 | ~~OpenRouter tool-use integration in chat service (stream parsing for `tool_calls`, `finish_reason` detection)~~ [x] | Hard dep on Sprint 12 (existing chat service) | **`src/main/services/chat.service.ts`** (HOT) |
 | 14.2 | ~~ActionExecutor: spawn Claude CLI with MCP-scoped prompt, parse result~~ [x] | Independent (reuses CodebaseProvider pattern) | NEW `src/main/providers/actions/action-executor.ts` |
-| 14.3 | Pending action IPC event flow (main → renderer) | Soft dep on 14.1 | `src/main/ipc/handlers/chat.ipc.ts`, `src/main/ipc/channels.ts` |
-| 14.4 | Approval/rejection IPC handlers (renderer → main) | Soft dep on 14.3 | `chat.ipc.ts`, `channels.ts`, `src/preload/api.ts` |
+| 14.3 | ~~Pending action IPC event flow (main → renderer)~~ [x] | Soft dep on 14.1 | `src/main/ipc/handlers/chat.ipc.ts`, `src/main/ipc/channels.ts` |
+| 14.4 | ~~Approval/rejection IPC handlers (renderer → main)~~ [x] | Soft dep on 14.3 | `chat.ipc.ts`, `channels.ts`, `src/preload/api.ts` |
 | 14.5 | ~~`chat_actions` table (migration) + ChatActionRepository~~ [x] | Independent | NEW migration, NEW `src/main/repositories/chat-action.repository.ts` |
 | 14.6 | Approval card component in chat panel | Soft dep on 14.3 IPC contract | NEW `src/renderer/components/chat/approval-card.tsx`, `chat-panel.tsx` |
 | 14.7 | Action status display (executing, success, failed) | Soft dep on 14.6 | NEW `src/renderer/components/chat/action-status.tsx` |
 | 14.8 | ~~Jira actions: tool definitions + CLI prompts~~ [x] | Independent | NEW `src/main/providers/actions/action-tools.ts`, `action.types.ts` |
-| 14.9 | Chat system prompt update with action instructions | Soft dep on 14.1 | `src/main/analysis/prompt-builder.ts` or `chat.service.ts` |
+| 14.9 | ~~Chat system prompt update with action instructions~~ [x] | Soft dep on 14.1 | `src/main/analysis/prompt-builder.ts` or `chat.service.ts` |
 
 ---
 
@@ -66,12 +70,12 @@ Key insight: Sprint 13 (Phase 3b — codebase polish) and Sprint 14 (Phase 3c �
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
-| 15.1 | Confluence action: create page tool def + CLI prompt | Hard dep on Sprint 14 (ActionExecutor exists) | `action-tools.ts`, `action-executor.ts` |
-| 15.2 | GitHub actions: create issue + create PR tool defs + CLI prompts | Hard dep on Sprint 14 | `action-tools.ts`, `action-executor.ts` |
+| 15.1 | ~~Confluence action: create page tool def + CLI prompt~~ [x] | Hard dep on Sprint 14 (ActionExecutor exists) | `action-tools.ts`, `action-executor.ts` |
+| 15.2 | ~~GitHub actions: create issue + create PR tool defs + CLI prompts~~ [x] | Hard dep on Sprint 14 | `action-tools.ts`, `action-executor.ts` |
 | 15.3 | Edit capability in approval cards | Soft dep on 14.6 | `approval-card.tsx` |
 | 15.4 | Action history display in chat (inline status cards) | Soft dep on 14.5 | `chat-panel.tsx`, NEW `action-history.tsx` |
-| 15.5 | Available actions detection (scope tools to connected integrations) | Hard dep on 14.1, 14.8 | `chat.service.ts` |
-| 15.6 | Error handling: CLI failures, MCP errors, partial batch failures | Hard dep on 14.2 | `action-executor.ts`, `chat.service.ts` |
+| 15.5 | ~~Available actions detection (scope tools to connected integrations)~~ [x] | Hard dep on 14.1, 14.8 | `chat.service.ts` |
+| 15.6 | ~~Error handling: CLI failures, MCP errors, partial batch failures~~ [x] | Hard dep on 14.2 | `action-executor.ts`, `chat.service.ts` |
 | 15.7 | Testing: tool-use stream parsing, approval flow, action execution | Hard dep on all Sprint 14 | test files |
 
 ---
@@ -103,11 +107,11 @@ No detailed sprint doc existed prior to this plan. The stated Phase 3d scope is 
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
-| 18.1 | Refactor `analysis/orchestrator.ts` to step-chain architecture | Independent | **`src/main/analysis/orchestrator.ts`** (MAJOR), `analysis.service.ts` |
-| 18.2 | Define StepResult interface, step registry | Independent | NEW `src/main/analysis/pipeline-step.ts` |
+| 18.1 | ~~Refactor `analysis/orchestrator.ts` to step-chain architecture~~ [x] | Independent | **`src/main/analysis/orchestrator.ts`** (MAJOR), `analysis.service.ts` |
+| 18.2 | ~~Define StepResult interface, step registry~~ [x] | Independent | NEW `src/main/analysis/pipeline-step.ts` |
 | 18.3 | Extraction step (theme/signal extraction from raw data) | Soft dep on 18.1 | NEW `src/main/analysis/steps/extraction.ts` |
 | 18.4 | Synthesis step (cross-source correlation) | Soft dep on 18.1 | NEW `src/main/analysis/steps/synthesis.ts` |
-| 18.5 | SWOT generation step (produces final SwotOutput) | Soft dep on 18.1 | NEW `src/main/analysis/steps/swot-generation.ts` |
+| 18.5 | ~~SWOT generation step (produces final SwotOutput)~~ [x] | Soft dep on 18.1 | NEW `src/main/analysis/steps/swot-generation.ts` |
 | 18.6 | Per-step corrective prompt on parse failure | Soft dep on 18.1 | `response-parser.ts`, step implementations |
 
 **Sprint 19: Themes Layer**
@@ -496,8 +500,8 @@ main (stable)
 | Week | Task | Status | Blocked By |
 |------|------|--------|------------|
 | 1 | Sprint 13: Codebase Analysis Polish (all 8 tasks) | Complete | Sprint 12 merged |
-| 2 | Sprint 14 Backend: tool-use bridge in `chat.service.ts`, action IPC, system prompt | Blocked | Week 1 Agent B merge (Gate 1) |
-| 3 | Sprint 15 Backend: Confluence/GitHub actions, available actions detection, error handling | Blocked | Week 2 Agent A merge |
+| 2 | Sprint 14 Backend: tool-use bridge in `chat.service.ts`, action IPC, system prompt | Complete | Week 1 Agent B merge (Gate 1) |
+| 3 | Sprint 15 Backend: Confluence/GitHub actions, available actions detection, error handling | Complete | Week 2 Agent A merge |
 | 4 | Sprint 16: Comparison backend (service, diff algo, repo, IPC) | Ready now | None |
 | 5 | Sprint 17: Comparison UI (route, diff viz, selection) | Blocked | Week 4 Agent A merge |
 | 6 | Sprint 18b: Extraction + synthesis steps, per-step corrective prompt | Blocked | Week 5 Agent B merge (Gate 2) |
@@ -511,8 +515,8 @@ main (stable)
 | 2 | Sprint 14 Frontend: Approval card, action status, chat panel integration | Blocked | Gate 1 (type contract) |
 | 3 | Sprint 15 Frontend: Edit cards, action history, testing | Blocked | Week 2 Agent B merge |
 | 4 | Sprint 20: CSV/PDF export, VP Engineering role, macOS x64 build target | Complete | None |
-| 5 | Sprint 18a: Multi-step pipeline architecture refactor (**CRITICAL PATH**) | Ready now | None |
-| 6 | Sprint 19a: Themes data layer + extraction step | Blocked | Week 5 Agent B merge (Gate 2) |
+| 5 | Sprint 18a: Multi-step pipeline architecture refactor (**CRITICAL PATH**) | Complete | None |
+| 6 | Sprint 19a: Themes data layer + extraction step | Complete | Week 5 Agent B merge (Gate 2) |
 | 7 | Sprint 21: E2E testing, documentation updates, exit criteria | Blocked | All prior merges |
 
 ### Shared Integration Tasks

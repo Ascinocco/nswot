@@ -1,8 +1,8 @@
 # nswot — Full Product Specification (Post-MVP Vision)
 
-> This document preserves the complete product vision for nswot beyond MVP.
-> It is **not the active spec** for current development. See `docs/01-product-spec.md` for the canonical MVP scope.
-> Features described here are planned for Phase 2 and Phase 3 as defined in `docs/04-phases-roadmap.md`.
+> This document preserves the complete product vision for nswot.
+> It is **not the active spec** for current development. See `docs/01-product-spec.md` for the MVP baseline and `docs/04-phases-roadmap.md` for the current phase plan through Phase 3e and the Phase 4 placeholder.
+> Many features described here have been delivered in Phases 1-3d or are planned for Phase 3e.
 
 ---
 
@@ -191,12 +191,15 @@ You are an expert AI assistant specialized in understanding, reasoning about, an
 
 ## Explicitly Out of Scope for V1
 
-- Claude Code dependency or integration
+**Now delivered or planned:**
+- ~~Claude Code dependency or integration~~ — Claude CLI delivered in Phase 3a; OpenCode planned for Phase 3e
+- ~~Direct Anthropic API~~ — planned for Phase 3e as alternative LLM provider alongside OpenRouter
+
+**Permanently excluded:**
 - LLM-off mode
 - Slide-ready or presentation export
 - Atlassian Server / Data Center support
 - Image generation (PNG/SVG)
-- Direct Anthropic API (deferred to V2; OpenRouter only for V1)
 - General-purpose coding assistant features
 
 ---

@@ -211,6 +211,31 @@ export interface ChatAction {
   executedAt: string | null;
 }
 
+export interface ThemeEvidenceRef {
+  sourceType: EvidenceSourceType;
+  sourceId: string;
+  quote: string;
+}
+
+export interface ThemeOutput {
+  label: string;
+  description: string;
+  evidenceRefs: ThemeEvidenceRef[];
+  sourceTypes: EvidenceSourceType[];
+  frequency: number;
+}
+
+export interface Theme {
+  id: string;
+  analysisId: string;
+  label: string;
+  description: string;
+  evidenceRefs: ThemeEvidenceRef[];
+  sourceTypes: EvidenceSourceType[];
+  frequency: number;
+  createdAt: string;
+}
+
 export interface IPCResult<T> {
   success: boolean;
   data?: T;

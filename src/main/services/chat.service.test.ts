@@ -211,4 +211,291 @@ describe('buildChatSystemPrompt', () => {
     expect(prompt).toContain('follow-up analyst');
     expect(prompt).not.toContain('Strong team');
   });
+
+  it('includes ACTIONS section when connectedIntegrations provided', () => {
+    const analysis = makeCompletedAnalysis({
+      config: { profileIds: ['p1'], jiraProjectKeys: ['PROJ', 'TEAM'], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+    });
+    const prompt = buildChatSystemPrompt(analysis, ['jira']);
+    expect(prompt).toContain('ACTIONS:');
+    expect(prompt).toContain('tools available to create artifacts');
+    expect(prompt).toContain('Available Jira projects: PROJ, TEAM');
+  });
+
+  it('excludes ACTIONS section when no integrations connected', () => {
+    const analysis = makeCompletedAnalysis();
+    const prompt = buildChatSystemPrompt(analysis);
+    expect(prompt).not.toContain('ACTIONS:');
+  });
+
+  it('includes Confluence spaces in ACTIONS section', () => {
+    const analysis = makeCompletedAnalysis({
+      config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: ['ENG', 'DOCS'], githubRepos: [], codebaseRepos: [] },
+    });
+    const prompt = buildChatSystemPrompt(analysis, ['confluence']);
+    expect(prompt).toContain('ACTIONS:');
+    expect(prompt).toContain('Available Confluence spaces: ENG, DOCS');
+  });
+
+  it('includes GitHub repos in ACTIONS section', () => {
+    const analysis = makeCompletedAnalysis({
+      config: { profileIds: ['p1'], jiraProjectKeys: [], confluenceSpaceKeys: [], githubRepos: ['org/repo1', 'org/repo2'], codebaseRepos: [] },
+    });
+    const prompt = buildChatSystemPrompt(analysis, ['github']);
+    expect(prompt).toContain('ACTIONS:');
+    expect(prompt).toContain('Available GitHub repos: org/repo1, org/repo2');
+  });
+
+  it('includes all integrations when multiple connected', () => {
+    const analysis = makeCompletedAnalysis({
+      config: { profileIds: ['p1'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: ['ENG'], githubRepos: ['org/repo'], codebaseRepos: [] },
+    });
+    const prompt = buildChatSystemPrompt(analysis, ['jira', 'confluence', 'github']);
+    expect(prompt).toContain('Available Jira projects: PROJ');
+    expect(prompt).toContain('Available Confluence spaces: ENG');
+    expect(prompt).toContain('Available GitHub repos: org/repo');
+  });
+});
+
+describe('getConnectedIntegrations', () => {
+  it('returns jira when jiraProjectKeys is non-empty', () => {
+    const analysis = makeCompletedAnalysis({
+      config: { profileIds: ['p1'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: [], githubRepos: [], codebaseRepos: [] },
+    });
+    expect(getConnectedIntegrations(analysis)).toEqual(['jira']);
+  });
+
+  it('returns empty array when no integrations configured', () => {
+    const analysis = makeCompletedAnalysis();
+    expect(getConnectedIntegrations(analysis)).toEqual([]);
+  });
+
+  it('returns all connected integrations', () => {
+    const analysis = makeCompletedAnalysis({
+      config: { profileIds: ['p1'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: ['ENG'], githubRepos: ['org/repo'], codebaseRepos: [] },
+    });
+    expect(getConnectedIntegrations(analysis)).toEqual(['jira', 'confluence', 'github']);
+  });
+});
+
+describe('ChatService actions', () => {
+  let chatRepo: ChatRepository;
+  let chatActionRepo: ChatActionRepository;
+  let analysisRepo: AnalysisRepository;
+  let settingsService: SettingsService;
+  let actionExecutor: ActionExecutor;
+  let service: ChatService;
+
+  const pendingAction: ChatAction = {
+    id: 'action-1',
+    analysisId: 'analysis-1',
+    chatMessageId: 'msg-1',
+    toolName: 'create_jira_issue',
+    toolInput: {
+      _toolCallId: 'call_123',
+      project: 'PROJ',
+      issueType: 'Epic',
+      summary: 'Test epic',
+      description: 'Test desc',
+    },
+    status: 'pending',
+    result: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    executedAt: null,
+  };
+
+  beforeEach(() => {
+    chatRepo = {
+      findByAnalysis: vi.fn().mockResolvedValue([]),
+      insert: vi.fn().mockImplementation(async (analysisId, role, content) => ({
+        id: 'msg-2',
+        analysisId,
+        role,
+        content,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      })),
+      deleteByAnalysis: vi.fn().mockResolvedValue(undefined),
+      countByAnalysis: vi.fn().mockResolvedValue(0),
+    } as unknown as ChatRepository;
+
+    chatActionRepo = {
+      insert: vi.fn().mockImplementation(async (analysisId, toolName, toolInput, chatMessageId) => ({
+        id: 'action-new',
+        analysisId,
+        chatMessageId,
+        toolName,
+        toolInput,
+        status: 'pending',
+        result: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        executedAt: null,
+      })),
+      findById: vi.fn().mockResolvedValue(pendingAction),
+      findByAnalysis: vi.fn().mockResolvedValue([pendingAction]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      deleteByAnalysis: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ChatActionRepository;
+
+    analysisRepo = {
+      findById: vi.fn().mockResolvedValue(makeCompletedAnalysis()),
+    } as unknown as AnalysisRepository;
+
+    settingsService = {
+      getApiKey: vi.fn().mockReturnValue('sk-test-key'),
+    } as unknown as SettingsService;
+
+    actionExecutor = {
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        id: 'PROJ-123',
+        url: 'https://jira.example.com/PROJ-123',
+      }),
+    } as unknown as ActionExecutor;
+
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, actionExecutor);
+  });
+
+  describe('listActions', () => {
+    it('returns actions for analysis', async () => {
+      const result = await service.listActions('analysis-1');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(1);
+        expect(result.value[0]!.toolName).toBe('create_jira_issue');
+      }
+    });
+
+    it('returns empty array when no action repo', async () => {
+      const serviceNoActions = new ChatService(chatRepo, analysisRepo, settingsService);
+      const result = await serviceNoActions.listActions('analysis-1');
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toEqual([]);
+      }
+    });
+  });
+
+  describe('approveAction', () => {
+    it('executes action and updates status', async () => {
+      // Keep a sibling pending so continuation is not triggered (avoids fetch)
+      vi.mocked(chatActionRepo.findByAnalysis).mockResolvedValue([
+        { ...pendingAction, status: 'completed' },
+        { ...pendingAction, id: 'action-2', status: 'pending' },
+      ]);
+
+      const result = await service.approveAction('action-1', vi.fn());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.success).toBe(true);
+        expect(result.value.id).toBe('PROJ-123');
+      }
+
+      // Should update status to approved, then executing
+      expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('action-1', 'approved');
+      expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('action-1', 'executing');
+      // Should execute with clean input (no _toolCallId)
+      expect(actionExecutor.execute).toHaveBeenCalledWith('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Epic',
+        summary: 'Test epic',
+        description: 'Test desc',
+      });
+      // Should update final status
+      expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('action-1', 'completed', {
+        success: true,
+        id: 'PROJ-123',
+        url: 'https://jira.example.com/PROJ-123',
+      });
+    });
+
+    it('returns error when action not found', async () => {
+      vi.mocked(chatActionRepo.findById).mockResolvedValue(null);
+
+      const result = await service.approveAction('nonexistent', vi.fn());
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('ACTION_NOT_FOUND');
+      }
+    });
+
+    it('returns error when action is not pending', async () => {
+      vi.mocked(chatActionRepo.findById).mockResolvedValue({
+        ...pendingAction,
+        status: 'completed',
+      });
+
+      const result = await service.approveAction('action-1', vi.fn());
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('ACTION_INVALID_STATUS');
+      }
+    });
+
+    it('returns error when no action support configured', async () => {
+      const serviceNoActions = new ChatService(chatRepo, analysisRepo, settingsService);
+      const result = await serviceNoActions.approveAction('action-1', vi.fn());
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('INTERNAL_ERROR');
+      }
+    });
+
+    it('handles action executor failure', async () => {
+      vi.mocked(actionExecutor.execute).mockRejectedValue(new Error('CLI not found'));
+      // Keep a sibling pending so continuation is not triggered
+      vi.mocked(chatActionRepo.findByAnalysis).mockResolvedValue([
+        { ...pendingAction, status: 'failed' },
+        { ...pendingAction, id: 'action-2', status: 'pending' },
+      ]);
+
+      const result = await service.approveAction('action-1', vi.fn());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.success).toBe(false);
+        expect(result.value.error).toBe('CLI not found');
+      }
+      expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('action-1', 'failed', {
+        success: false,
+        error: 'CLI not found',
+      });
+    });
+  });
+
+  describe('rejectAction', () => {
+    it('rejects action and updates status', async () => {
+      // Keep a sibling pending so continuation is not triggered (avoids fetch)
+      vi.mocked(chatActionRepo.findByAnalysis).mockResolvedValue([
+        { ...pendingAction, status: 'rejected' },
+        { ...pendingAction, id: 'action-2', status: 'pending' },
+      ]);
+
+      const result = await service.rejectAction('action-1', vi.fn());
+      expect(result.ok).toBe(true);
+      expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('action-1', 'rejected');
+    });
+
+    it('returns error when action not found', async () => {
+      vi.mocked(chatActionRepo.findById).mockResolvedValue(null);
+
+      const result = await service.rejectAction('nonexistent', vi.fn());
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('ACTION_NOT_FOUND');
+      }
+    });
+
+    it('returns error when action is not pending', async () => {
+      vi.mocked(chatActionRepo.findById).mockResolvedValue({
+        ...pendingAction,
+        status: 'approved',
+      });
+
+      const result = await service.rejectAction('action-1', vi.fn());
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.code).toBe('ACTION_INVALID_STATUS');
+      }
+    });
+  });
 });

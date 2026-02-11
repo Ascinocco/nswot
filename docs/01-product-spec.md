@@ -65,15 +65,24 @@ If this loop works reliably, the core product value is proven.
 
 ## Out of Scope for MVP
 
-- Confluence integration (Phase 2)
-- GitHub integration (Phase 3)
-- Theme editor (rename/merge/delete UI)
-- Mermaid/chart visualizations
-- CSV/PDF export
-- Chat-driven file generation
-- Multi-provider LLM support (OpenRouter only)
-- Cross-platform shipping (Windows/Linux deferred)
-- VP of Engineering role (Phase 2+)
+Items delivered or planned for later phases:
+
+- ~~Confluence integration~~ (delivered in Phase 2)
+- ~~GitHub integration~~ (delivered in Phase 2)
+- Theme editor (Phase 3d)
+- Mermaid/chart visualizations (Phase 3e)
+- CSV/PDF export (Phase 3d)
+- Chat-driven file generation (Phase 3e)
+- Multi-provider LLM support (Phase 3e)
+- Cross-platform shipping (macOS x64 in Phase 3d; Windows/Linux TBD)
+- VP of Engineering role (Phase 3d)
+
+Permanently excluded:
+
+- Monaco Editor upgrade (basic editor is sufficient)
+- LLM-off mode
+- Slide/presentation export
+- Atlassian Server / Data Center support
 
 ---
 

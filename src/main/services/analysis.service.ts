@@ -5,8 +5,6 @@ import type {
   Analysis,
   Profile,
   AnonymizedPayload,
-  SwotOutput,
-  SummariesOutput,
   IntegrationCacheEntry,
 } from '../domain/types';
 import type { JiraIssue, JiraComment } from '../providers/jira/jira.types';
@@ -25,13 +23,13 @@ import { IntegrationCacheRepository } from '../repositories/integration-cache.re
 import type { SettingsService } from './settings.service';
 import type { WorkspaceService } from './workspace.service';
 import { anonymizeProfiles, scrubIntegrationAuthors } from '../analysis/anonymizer';
-import { buildSystemPrompt, buildUserPrompt, buildCorrectivePrompt, PROMPT_VERSION } from '../analysis/prompt-builder';
+import { buildSystemPrompt, buildUserPrompt } from '../analysis/prompt-builder';
 import type { PromptDataSources } from '../analysis/prompt-builder';
-import { parseAnalysisResponse } from '../analysis/response-parser';
-import { validateEvidence } from '../analysis/evidence-validator';
-import { computeQualityMetrics } from '../analysis/quality-metrics';
 import { calculateTokenBudget } from '../analysis/token-budget';
 import type { ConnectedSource } from '../analysis/token-budget';
+import { AnalysisOrchestrator } from '../analysis/orchestrator';
+import { SwotGenerationStep } from '../analysis/steps/swot-generation';
+import type { LlmCaller, LlmResponse } from '../analysis/pipeline-step';
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const LLM_TEMPERATURE = 0.2;
@@ -151,92 +149,51 @@ export class AnalysisService {
         })),
       );
 
-      // Stage 3: Build prompt
-      onProgress({ analysisId: analysis.id, stage: 'building_prompt', message: 'Constructing analysis prompt...' });
+      // Stages 3-6: Run analysis pipeline (build prompt → LLM → parse → validate)
       const connectedSources: ConnectedSource[] = [];
       if (jiraMarkdown) connectedSources.push('jira');
       if (confluenceMarkdown) connectedSources.push('confluence');
       if (githubMarkdown) connectedSources.push('github');
       if (codebaseMarkdown) connectedSources.push('codebase');
-      const budget = calculateTokenBudget(input.contextWindow, connectedSources);
-      const systemPrompt = buildSystemPrompt();
+
       const dataSources: PromptDataSources = {
         jiraDataMarkdown: jiraMarkdown,
         confluenceDataMarkdown: confluenceMarkdown,
         githubDataMarkdown: githubMarkdown,
         codebaseDataMarkdown: codebaseMarkdown,
       };
-      const userPrompt = buildUserPrompt(input.role, anonymizedProfiles, dataSources, budget);
 
-      // Stage 4: Send to LLM
-      onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Sending to LLM — waiting for first tokens...' });
-      const onToken = (tokenCount: number): void => {
-        onProgress({
-          analysisId: analysis.id,
-          stage: 'sending',
-          message: `Generating response — ${tokenCount.toLocaleString()} tokens so far...`,
-        });
+      const llmCaller: LlmCaller = {
+        call: (messages, modelId, onToken) =>
+          this.sendToOpenRouter(apiKey, modelId, messages, onToken),
       };
-      let llmResult = await this.callLlm(apiKey, input.modelId, systemPrompt, userPrompt, onToken);
-      let rawResponse = llmResult.content;
 
-      // Stage 5: Parse response
-      onProgress({ analysisId: analysis.id, stage: 'parsing', message: 'Parsing LLM response...' });
-      let parseResult = parseAnalysisResponse(rawResponse);
-
-      // Corrective retry on first parse failure
-      if (!parseResult.ok) {
-        const truncated = llmResult.finishReason === 'length';
-        const errorDetail = truncated
-          ? `${parseResult.error.message} (response was truncated — output token limit reached. Be more concise.)`
-          : parseResult.error.message;
-
-        onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Retrying with corrective prompt...' });
-        const correctivePrompt = buildCorrectivePrompt(errorDetail);
-        llmResult = await this.callLlmWithHistory(
-          apiKey,
-          input.modelId,
-          systemPrompt,
-          userPrompt,
-          rawResponse,
-          correctivePrompt,
-          onToken,
-        );
-        rawResponse = llmResult.content;
-
-        onProgress({ analysisId: analysis.id, stage: 'parsing', message: 'Parsing corrected response...' });
-        parseResult = parseAnalysisResponse(rawResponse);
-
-        if (!parseResult.ok) {
-          throw parseResult.error;
-        }
-      }
-
-      const { swotOutput, summariesOutput } = parseResult.value;
-
-      // Stage 6: Validate evidence
-      onProgress({ analysisId: analysis.id, stage: 'validating', message: 'Validating evidence references...' });
-      const validationResult = validateEvidence(swotOutput, inputSnapshot);
-      let warning: string | undefined;
-
-      if (validationResult.ok && !validationResult.value.valid) {
-        warning = `Evidence validation warnings: ${validationResult.value.warnings.join('; ')}`;
-      }
-      if (!validationResult.ok) {
-        throw validationResult.error;
-      }
-
-      // Compute quality metrics
-      const qualityMetrics = computeQualityMetrics(swotOutput);
+      const orchestrator = new AnalysisOrchestrator([new SwotGenerationStep()]);
+      const pipelineResult = await orchestrator.run(
+        {
+          analysisId: analysis.id,
+          role: input.role,
+          modelId: input.modelId,
+          contextWindow: input.contextWindow,
+          anonymizedProfiles,
+          inputSnapshot,
+          dataSources,
+          connectedSources,
+          llmCaller,
+        },
+        (stage, message) => {
+          onProgress({ analysisId: analysis.id, stage: stage as AnalysisStage, message });
+        },
+      );
 
       // Stage 7: Store results
       onProgress({ analysisId: analysis.id, stage: 'storing', message: 'Storing results...' });
       await this.analysisRepo.storeResult(analysis.id, {
-        swotOutput,
-        summariesOutput,
-        qualityMetrics,
-        rawLlmResponse: rawResponse,
-        warning,
+        swotOutput: pipelineResult.swotOutput!,
+        summariesOutput: pipelineResult.summariesOutput!,
+        qualityMetrics: pipelineResult.qualityMetrics!,
+        rawLlmResponse: pipelineResult.rawLlmResponse!,
+        warning: pipelineResult.warning,
       });
 
       onProgress({ analysisId: analysis.id, stage: 'completed', message: 'Analysis complete!' });
@@ -420,38 +377,6 @@ export class AnalysisService {
     return formatCodebaseMarkdown(analyses);
   }
 
-  private async callLlm(
-    apiKey: string,
-    modelId: string,
-    systemPrompt: string,
-    userPrompt: string,
-    onToken?: (tokenCount: number) => void,
-  ): Promise<LlmResponse> {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ];
-    return this.sendToOpenRouter(apiKey, modelId, messages, onToken);
-  }
-
-  private async callLlmWithHistory(
-    apiKey: string,
-    modelId: string,
-    systemPrompt: string,
-    userPrompt: string,
-    previousResponse: string,
-    correctivePrompt: string,
-    onToken?: (tokenCount: number) => void,
-  ): Promise<LlmResponse> {
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-      { role: 'assistant', content: previousResponse },
-      { role: 'user', content: correctivePrompt },
-    ];
-    return this.sendToOpenRouter(apiKey, modelId, messages, onToken);
-  }
-
   private async sendToOpenRouter(
     apiKey: string,
     modelId: string,
@@ -580,11 +505,6 @@ export class AnalysisService {
 
     return { content: fullContent, finishReason };
   }
-}
-
-interface LlmResponse {
-  content: string;
-  finishReason: string | null;
 }
 
 function formatJiraMarkdown(
