@@ -242,6 +242,35 @@ declare global {
     createdAt: string;
   }
 
+  type ActionStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'rejected';
+
+  type ActionToolName =
+    | 'create_jira_issue'
+    | 'create_jira_issues'
+    | 'add_jira_comment'
+    | 'create_confluence_page'
+    | 'create_github_issue'
+    | 'create_github_pr';
+
+  interface ActionResult {
+    success: boolean;
+    id?: string;
+    url?: string;
+    error?: string;
+  }
+
+  interface ChatAction {
+    id: string;
+    analysisId: string;
+    chatMessageId: string | null;
+    toolName: ActionToolName;
+    toolInput: Record<string, unknown>;
+    status: ActionStatus;
+    result: ActionResult | null;
+    createdAt: string;
+    executedAt: string | null;
+  }
+
   interface NswotAPI {
     system: {
       ping(): Promise<IPCResult<string>>;
@@ -337,6 +366,12 @@ declare global {
       send(analysisId: string, content: string): Promise<IPCResult<ChatMessage>>;
       delete(analysisId: string): Promise<IPCResult<void>>;
       onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
+      actions: {
+        approve(actionId: string): Promise<IPCResult<ActionResult>>;
+        reject(actionId: string): Promise<IPCResult<void>>;
+        list(analysisId: string): Promise<IPCResult<ChatAction[]>>;
+        onPending(callback: (action: ChatAction) => void): () => void;
+      };
     };
     export: {
       markdown(analysisId: string): Promise<IPCResult<string>>;

@@ -1,4 +1,4 @@
-import type { IPCResult, Workspace, Profile, ProfileInput, Analysis, ChatMessage, Integration } from '../main/domain/types';
+import type { IPCResult, Workspace, Profile, ProfileInput, Analysis, ChatMessage, ChatAction, ActionResult, Integration } from '../main/domain/types';
 import type { LlmModel } from '../main/providers/llm/llm.types';
 import type { FileEntry } from '../main/infrastructure/file-system';
 import type { JiraProject } from '../main/providers/jira/jira.types';
@@ -107,6 +107,12 @@ export interface NswotAPI {
     send(analysisId: string, content: string): Promise<IPCResult<ChatMessage>>;
     delete(analysisId: string): Promise<IPCResult<void>>;
     onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
+    actions: {
+      approve(actionId: string): Promise<IPCResult<ActionResult>>;
+      reject(actionId: string): Promise<IPCResult<void>>;
+      list(analysisId: string): Promise<IPCResult<ChatAction[]>>;
+      onPending(callback: (action: ChatAction) => void): () => void;
+    };
   };
   export: {
     markdown(analysisId: string): Promise<IPCResult<string>>;

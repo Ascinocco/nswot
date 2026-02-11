@@ -277,12 +277,172 @@ export class ChatService {
     }
   }
 
+  async approveAction(
+    actionId: string,
+    onChunk: (chunk: string) => void,
+  ): Promise<Result<ActionResult, DomainError>> {
+    if (!this.chatActionRepo || !this.actionExecutor) {
+      return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Action support not configured'));
+    }
+
+    const action = await this.chatActionRepo.findById(actionId);
+    if (!action) {
+      return err(new DomainError(ERROR_CODES.ACTION_NOT_FOUND, `Action "${actionId}" not found`));
+    }
+    if (action.status !== 'pending') {
+      return err(new DomainError(ERROR_CODES.ACTION_INVALID_STATUS, `Action is ${action.status}, expected pending`));
+    }
+
+    // Update status to approved, then executing
+    await this.chatActionRepo.updateStatus(actionId, 'approved');
+    await this.chatActionRepo.updateStatus(actionId, 'executing');
+
+    // Extract the tool call ID and clean input for executor
+    const { _toolCallId, ...cleanInput } = action.toolInput;
+    const toolCallId = (_toolCallId as string) ?? `call_${actionId}`;
+
+    try {
+      // Execute via ActionExecutor
+      const actionResult = await this.actionExecutor.execute(action.toolName, cleanInput);
+
+      // Update action status based on result
+      const finalStatus = actionResult.success ? 'completed' : 'failed';
+      await this.chatActionRepo.updateStatus(actionId, finalStatus, actionResult);
+
+      // Check if all sibling actions (same chatMessageId) are resolved
+      const allResolved = await this.areAllSiblingActionsResolved(action);
+      if (allResolved) {
+        await this.continueAfterToolResults(action.analysisId, action.chatMessageId, onChunk);
+      }
+
+      return ok(actionResult);
+    } catch (cause) {
+      const failResult: ActionResult = {
+        success: false,
+        error: cause instanceof Error ? cause.message : 'Execution failed',
+      };
+      await this.chatActionRepo.updateStatus(actionId, 'failed', failResult);
+      return ok(failResult);
+    }
+  }
+
+  async rejectAction(
+    actionId: string,
+    onChunk: (chunk: string) => void,
+  ): Promise<Result<void, DomainError>> {
+    if (!this.chatActionRepo) {
+      return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Action support not configured'));
+    }
+
+    const action = await this.chatActionRepo.findById(actionId);
+    if (!action) {
+      return err(new DomainError(ERROR_CODES.ACTION_NOT_FOUND, `Action "${actionId}" not found`));
+    }
+    if (action.status !== 'pending') {
+      return err(new DomainError(ERROR_CODES.ACTION_INVALID_STATUS, `Action is ${action.status}, expected pending`));
+    }
+
+    await this.chatActionRepo.updateStatus(actionId, 'rejected');
+
+    // Check if all sibling actions are resolved
+    const allResolved = await this.areAllSiblingActionsResolved(action);
+    if (allResolved) {
+      await this.continueAfterToolResults(action.analysisId, action.chatMessageId, onChunk);
+    }
+
+    return ok(undefined);
+  }
+
+  async listActions(analysisId: string): Promise<Result<ChatAction[], DomainError>> {
+    if (!this.chatActionRepo) {
+      return ok([]);
+    }
+
+    try {
+      const actions = await this.chatActionRepo.findByAnalysis(analysisId);
+      return ok(actions);
+    } catch (cause) {
+      return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to list actions', cause));
+    }
+  }
+
+  private async areAllSiblingActionsResolved(action: ChatAction): Promise<boolean> {
+    if (!this.chatActionRepo || !action.chatMessageId) return true;
+    const siblings = await this.chatActionRepo.findByAnalysis(action.analysisId);
+    const related = siblings.filter((a) => a.chatMessageId === action.chatMessageId);
+    return related.every((a) => a.status === 'completed' || a.status === 'failed' || a.status === 'rejected');
+  }
+
+  private async continueAfterToolResults(
+    analysisId: string,
+    chatMessageId: string | null,
+    onChunk: (chunk: string) => void,
+  ): Promise<void> {
+    if (!this.chatActionRepo) return;
+
+    const apiKey = this.settingsService.getApiKey();
+    if (!apiKey) return;
+
+    const analysis = await this.analysisRepo.findById(analysisId);
+    if (!analysis) return;
+
+    // Get all resolved actions for this assistant message
+    const allActions = await this.chatActionRepo.findByAnalysis(analysisId);
+    const resolvedActions = allActions.filter((a) => a.chatMessageId === chatMessageId);
+
+    const connectedIntegrations = getConnectedIntegrations(analysis);
+    const systemPrompt = buildChatSystemPrompt(analysis, connectedIntegrations.length > 0 ? connectedIntegrations : undefined);
+    const history = await this.chatRepo.findByAnalysis(analysisId);
+
+    const contextWindow = 128_000;
+    const budget = calculateChatTokenBudget(contextWindow);
+
+    let trimmedSystemPrompt = systemPrompt;
+    if (estimateTokens(systemPrompt) > budget.systemPrompt) {
+      trimmedSystemPrompt = trimToTokenBudget(systemPrompt, budget.systemPrompt);
+    }
+
+    // Build messages: history up to but not including the assistant tool-call message,
+    // then the assistant message with tool_calls, then tool results
+    const messages = buildChatMessagesWithToolResults(
+      trimmedSystemPrompt,
+      history,
+      resolvedActions,
+      chatMessageId,
+      budget.chatHistory,
+    );
+
+    // Stream continuation from OpenRouter
+    const tools = connectedIntegrations.length > 0
+      ? getToolsByIntegration(connectedIntegrations)
+      : undefined;
+
+    const continuation = await this.streamCompletion(apiKey, analysis.modelId, messages, onChunk, tools);
+
+    // Store the continuation as a new assistant message
+    if (continuation.content) {
+      await this.chatRepo.insert(analysisId, 'assistant', continuation.content);
+    }
+  }
+
   private async streamCompletion(
     apiKey: string,
     modelId: string,
-    messages: Array<{ role: string; content: string }>,
+    messages: Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string }>,
     onChunk: (chunk: string) => void,
-  ): Promise<string> {
+    tools?: ActionToolDefinition[],
+  ): Promise<StreamResult> {
+    const body: Record<string, unknown> = {
+      model: modelId,
+      messages,
+      temperature: CHAT_TEMPERATURE,
+      max_tokens: CHAT_MAX_TOKENS,
+      stream: true,
+    };
+    if (tools && tools.length > 0) {
+      body['tools'] = tools;
+    }
+
     const response = await fetch(OPENROUTER_CHAT_URL, {
       method: 'POST',
       headers: {
@@ -291,13 +451,7 @@ export class ChatService {
         'HTTP-Referer': 'https://nswot.app',
         'X-Title': 'nswot',
       },
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        temperature: CHAT_TEMPERATURE,
-        max_tokens: CHAT_MAX_TOKENS,
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
@@ -322,6 +476,7 @@ export class ChatService {
     const decoder = new TextDecoder();
     let fullContent = '';
     let buffer = '';
+    const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -339,12 +494,47 @@ export class ChatService {
 
         try {
           const parsed = JSON.parse(data) as {
-            choices?: Array<{ delta?: { content?: string } }>;
+            choices?: Array<{
+              delta?: {
+                content?: string;
+                tool_calls?: Array<{
+                  index: number;
+                  id?: string;
+                  function?: { name?: string; arguments?: string };
+                }>;
+              };
+              finish_reason?: string | null;
+            }>;
           };
-          const content = parsed.choices?.[0]?.delta?.content;
+          const choice = parsed.choices?.[0];
+          if (!choice) continue;
+
+          // Accumulate text content
+          const content = choice.delta?.content;
           if (content) {
             fullContent += content;
             onChunk(content);
+          }
+
+          // Accumulate tool calls (streamed incrementally)
+          const deltaToolCalls = choice.delta?.tool_calls;
+          if (deltaToolCalls) {
+            for (const dtc of deltaToolCalls) {
+              const existing = toolCallAccumulator.get(dtc.index);
+              if (existing) {
+                // Append incremental arguments
+                if (dtc.function?.arguments) {
+                  existing.arguments += dtc.function.arguments;
+                }
+              } else {
+                // First chunk for this tool call — has id and name
+                toolCallAccumulator.set(dtc.index, {
+                  id: dtc.id ?? `call_${dtc.index}`,
+                  name: dtc.function?.name ?? '',
+                  arguments: dtc.function?.arguments ?? '',
+                });
+              }
+            }
           }
         } catch {
           // Skip malformed SSE chunks
@@ -352,7 +542,12 @@ export class ChatService {
       }
     }
 
-    return fullContent;
+    const toolCalls: ParsedToolCall[] | null =
+      toolCallAccumulator.size > 0
+        ? Array.from(toolCallAccumulator.values())
+        : null;
+
+    return { content: fullContent, toolCalls };
   }
 }
 
@@ -379,5 +574,79 @@ function buildChatMessages(
   }
 
   messages.push(...historyMessages);
+  return messages;
+}
+
+function buildChatMessagesWithToolResults(
+  systemPrompt: string,
+  history: ChatMessage[],
+  resolvedActions: ChatAction[],
+  toolCallMessageId: string | null,
+  historyTokenBudget: number,
+): Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string }> {
+  const messages: Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  // Add history up to and including the user message before the tool-call assistant message
+  let tokenCount = 0;
+  const historyMessages: Array<{ role: string; content?: string; tool_calls?: unknown[]; tool_call_id?: string }> = [];
+
+  // Work backwards, but stop at (don't include) the tool-call assistant message
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i]!;
+    if (msg.id === toolCallMessageId) continue; // Skip the partial text message — we'll reconstruct it
+    const tokens = estimateTokens(msg.content);
+    if (tokenCount + tokens > historyTokenBudget) break;
+    tokenCount += tokens;
+    historyMessages.unshift({ role: msg.role, content: msg.content });
+  }
+
+  messages.push(...historyMessages);
+
+  // Find the assistant message that triggered tool calls (for its text content)
+  const toolCallMsg = history.find((m) => m.id === toolCallMessageId);
+  const assistantContent = toolCallMsg?.content || '';
+
+  // Reconstruct the assistant message with tool_calls
+  const toolCalls = resolvedActions.map((a) => {
+    const { _toolCallId, ...cleanInput } = a.toolInput;
+    return {
+      id: (_toolCallId as string) ?? `call_${a.id}`,
+      type: 'function' as const,
+      function: {
+        name: a.toolName,
+        arguments: JSON.stringify(cleanInput),
+      },
+    };
+  });
+
+  const assistantMsg: { role: string; content?: string; tool_calls?: unknown[] } = {
+    role: 'assistant',
+    tool_calls: toolCalls,
+  };
+  if (assistantContent) {
+    assistantMsg.content = assistantContent;
+  }
+  messages.push(assistantMsg);
+
+  // Add tool results for each resolved action
+  for (const a of resolvedActions) {
+    const toolCallId = (a.toolInput['_toolCallId'] as string) ?? `call_${a.id}`;
+    let resultContent: string;
+    if (a.status === 'rejected') {
+      resultContent = 'User declined this action. Do not retry. Continue the conversation without creating it.';
+    } else if (a.result) {
+      resultContent = JSON.stringify(a.result);
+    } else {
+      resultContent = JSON.stringify({ success: false, error: 'No result available' });
+    }
+    messages.push({
+      role: 'tool',
+      tool_call_id: toolCallId,
+      content: resultContent,
+    });
+  }
+
   return messages;
 }

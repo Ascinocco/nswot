@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ChatService, buildChatSystemPrompt } from './chat.service';
+import { ChatService, buildChatSystemPrompt, getConnectedIntegrations } from './chat.service';
 import type { ChatRepository } from '../repositories/chat.repository';
+import type { ChatActionRepository } from '../repositories/chat-action.repository';
 import type { AnalysisRepository } from '../repositories/analysis.repository';
 import type { SettingsService } from './settings.service';
-import type { Analysis, ChatMessage } from '../domain/types';
+import type { ActionExecutor } from '../providers/actions/action-executor';
+import type { Analysis, ChatMessage, ChatAction } from '../domain/types';
 
 function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
   return {

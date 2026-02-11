@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../main/ipc/channels';
 import type { NswotAPI } from './api';
+import type { ChatAction } from '../main/domain/types';
 
 const api: NswotAPI = {
   system: {
@@ -110,6 +111,19 @@ const api: NswotAPI = {
         callback(data);
       ipcRenderer.on('chat:chunk', handler);
       return () => ipcRenderer.removeListener('chat:chunk', handler);
+    },
+    actions: {
+      approve: (actionId: string) =>
+        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_APPROVE, actionId),
+      reject: (actionId: string) =>
+        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_REJECT, actionId),
+      list: (analysisId: string) =>
+        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_LIST, analysisId),
+      onPending: (callback: (action: ChatAction) => void) => {
+        const handler = (_event: unknown, action: ChatAction) => callback(action);
+        ipcRenderer.on(IPC_CHANNELS.CHAT_ACTION_PENDING, handler);
+        return () => ipcRenderer.removeListener(IPC_CHANNELS.CHAT_ACTION_PENDING, handler);
+      },
     },
   },
   export: {

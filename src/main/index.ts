@@ -11,6 +11,8 @@ import { WorkspaceRepository } from './repositories/workspace.repository';
 import { ProfileRepository } from './repositories/profile.repository';
 import { AnalysisRepository } from './repositories/analysis.repository';
 import { ChatRepository } from './repositories/chat.repository';
+import { ChatActionRepository } from './repositories/chat-action.repository';
+import { ActionExecutor } from './providers/actions/action-executor';
 import { OpenRouterProvider } from './providers/llm/openrouter.provider';
 import { CircuitBreaker } from './infrastructure/circuit-breaker';
 import { SettingsService } from './services/settings.service';
@@ -139,7 +141,9 @@ const settingsService = new SettingsService(
 const workspaceService = new WorkspaceService(workspaceRepo, preferencesRepo);
 const fileService = new FileService(workspaceService);
 const profileService = new ProfileService(profileRepo, workspaceService);
-const chatService = new ChatService(chatRepo, analysisRepo, settingsService);
+const chatActionRepo = new ChatActionRepository(db);
+const actionExecutor = new ActionExecutor();
+const chatService = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, actionExecutor);
 const exportService = new ExportService(analysisRepo);
 const integrationService = new IntegrationService(
   integrationRepo,
