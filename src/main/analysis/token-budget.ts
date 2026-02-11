@@ -12,7 +12,7 @@ export type ConnectedSource = 'jira' | 'confluence' | 'github';
 
 const SYSTEM_PROMPT_OVERHEAD = 500;
 const SCHEMA_OVERHEAD = 500;
-const CHARS_PER_TOKEN = 4; // rough estimate
+const CHARS_PER_TOKEN = 3; // conservative estimate for mixed markdown/HTML content
 
 const PROFILES_SHARE = 0.3;
 const BUFFER_SHARE = 0.1;
@@ -22,7 +22,7 @@ export function calculateTokenBudget(
   modelContextWindow: number,
   connectedSources: ConnectedSource[] = [],
 ): TokenBudget {
-  const outputReserve = Math.min(8192, Math.floor(modelContextWindow * 0.15));
+  const outputReserve = Math.min(16384, Math.floor(modelContextWindow * 0.15));
   const available =
     modelContextWindow - outputReserve - SCHEMA_OVERHEAD - SYSTEM_PROMPT_OVERHEAD;
 

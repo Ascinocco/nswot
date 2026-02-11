@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCurrentWorkspace } from '../hooks/use-workspace';
 import { useProfiles } from '../hooks/use-profiles';
 import { useRunAnalysis, usePayloadPreview } from '../hooks/use-analysis';
@@ -26,6 +26,9 @@ const STAGE_LABELS: Record<string, string> = {
   failed: 'Analysis failed',
 };
 
+// Module-level state — survives SPA navigation (component unmount/remount)
+let activeAnalysisId: string | null = null;
+
 export default function AnalysisPage(): React.JSX.Element {
   const { data: workspace } = useCurrentWorkspace();
   const { data: profiles } = useProfiles(!!workspace);
@@ -47,9 +50,17 @@ export default function AnalysisPage(): React.JSX.Element {
   const [role, setRole] = useState<string>('staff_engineer');
   const [progress, setProgress] = useState<{ stage: string; message: string } | null>(null);
   const [completedAnalysis, setCompletedAnalysis] = useState<Analysis | null>(null);
+  const [analysisRunning, setAnalysisRunning] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const selectedModelId = preferences?.['selectedModelId'] ?? null;
   const selectedModel = models?.find((m) => m.id === selectedModelId);
@@ -95,10 +106,57 @@ export default function AnalysisPage(): React.JSX.Element {
     }
   }, [githubRepos]);
 
+  // Recover running or recently-completed analysis on mount
+  useEffect(() => {
+    if (!activeAnalysisId) return;
+    const recoverId = activeAnalysisId;
+
+    const recover = async (): Promise<void> => {
+      const result = await window.nswot.analysis.get(recoverId);
+      if (!result.success || !mountedRef.current) return;
+
+      const analysis = result.data;
+      if (!analysis) return;
+      if (analysis.status === 'completed' && analysis.swotOutput) {
+        setCompletedAnalysis(analysis);
+        setProgress({ stage: 'completed', message: 'Analysis complete!' });
+        activeAnalysisId = null;
+      } else if (analysis.status === 'failed') {
+        setProgress({ stage: 'failed', message: analysis.error ?? 'Analysis failed' });
+        setAnalysisError(analysis.error ?? 'Analysis failed');
+        activeAnalysisId = null;
+      } else if (analysis.status === 'running') {
+        setAnalysisRunning(true);
+        setProgress({ stage: 'sending', message: 'Analysis in progress...' });
+      }
+    };
+    recover();
+  }, []);
+
   // Listen for progress events
   useEffect(() => {
     const cleanup = window.nswot.analysis.onProgress((data) => {
+      activeAnalysisId = data.analysisId;
       setProgress({ stage: data.stage, message: data.message });
+
+      if (data.stage === 'completed') {
+        // Fetch the full analysis result from DB
+        window.nswot.analysis.get(data.analysisId).then((result) => {
+          if (result.success && result.data && mountedRef.current) {
+            setCompletedAnalysis(result.data);
+          }
+          activeAnalysisId = null;
+          if (mountedRef.current) setAnalysisRunning(false);
+        });
+      }
+
+      if (data.stage === 'failed') {
+        activeAnalysisId = null;
+        if (mountedRef.current) {
+          setAnalysisRunning(false);
+          setAnalysisError(data.message);
+        }
+      }
     });
     return cleanup;
   }, []);
@@ -108,6 +166,8 @@ export default function AnalysisPage(): React.JSX.Element {
 
     setProgress({ stage: 'collecting', message: 'Starting analysis...' });
     setCompletedAnalysis(null);
+    setAnalysisRunning(true);
+    setAnalysisError(null);
     setShowPreview(false);
 
     try {
@@ -120,9 +180,14 @@ export default function AnalysisPage(): React.JSX.Element {
         modelId: selectedModelId,
         contextWindow,
       });
-      setCompletedAnalysis(result);
+      if (mountedRef.current) {
+        setCompletedAnalysis(result);
+        setAnalysisRunning(false);
+      }
     } catch {
-      // Error is already shown via progress events
+      if (mountedRef.current) {
+        setAnalysisRunning(false);
+      }
     }
   }, [selectedModelId, selectedProfileIds, selectedJiraKeys, selectedConfluenceKeys, selectedGithubRepos, role, contextWindow, runAnalysis]);
 
@@ -157,7 +222,7 @@ export default function AnalysisPage(): React.JSX.Element {
     );
   }
 
-  const isRunning = runAnalysis.isPending;
+  const isRunning = runAnalysis.isPending || analysisRunning;
   const canRun = selectedProfileIds.length > 0 && !!selectedModelId && !isRunning;
 
   return (
@@ -427,10 +492,12 @@ export default function AnalysisPage(): React.JSX.Element {
       )}
 
       {/* Error */}
-      {runAnalysis.isError && (
+      {(runAnalysis.isError || analysisError) && (
         <div className="rounded-lg border border-red-800 bg-red-900/20 p-4">
           <p className="text-sm text-red-300">
-            {runAnalysis.error instanceof Error ? runAnalysis.error.message : 'Analysis failed'}
+            {runAnalysis.error instanceof Error
+              ? runAnalysis.error.message
+              : analysisError ?? 'Analysis failed'}
           </p>
         </div>
       )}

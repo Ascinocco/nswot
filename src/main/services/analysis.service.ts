@@ -33,7 +33,7 @@ import type { ConnectedSource } from '../analysis/token-budget';
 
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const LLM_TEMPERATURE = 0.2;
-const LLM_MAX_TOKENS = 8192;
+const LLM_MAX_TOKENS = 16384;
 
 export type AnalysisStage =
   | 'collecting'
@@ -162,7 +162,8 @@ export class AnalysisService {
 
       // Stage 4: Send to LLM
       onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Sending to LLM...' });
-      let rawResponse = await this.callLlm(apiKey, input.modelId, systemPrompt, userPrompt);
+      let llmResult = await this.callLlm(apiKey, input.modelId, systemPrompt, userPrompt);
+      let rawResponse = llmResult.content;
 
       // Stage 5: Parse response
       onProgress({ analysisId: analysis.id, stage: 'parsing', message: 'Parsing LLM response...' });
@@ -170,9 +171,14 @@ export class AnalysisService {
 
       // Corrective retry on first parse failure
       if (!parseResult.ok) {
+        const truncated = llmResult.finishReason === 'length';
+        const errorDetail = truncated
+          ? `${parseResult.error.message} (response was truncated — output token limit reached. Be more concise.)`
+          : parseResult.error.message;
+
         onProgress({ analysisId: analysis.id, stage: 'sending', message: 'Retrying with corrective prompt...' });
-        const correctivePrompt = buildCorrectivePrompt(parseResult.error.message);
-        rawResponse = await this.callLlmWithHistory(
+        const correctivePrompt = buildCorrectivePrompt(errorDetail);
+        llmResult = await this.callLlmWithHistory(
           apiKey,
           input.modelId,
           systemPrompt,
@@ -180,6 +186,7 @@ export class AnalysisService {
           rawResponse,
           correctivePrompt,
         );
+        rawResponse = llmResult.content;
 
         onProgress({ analysisId: analysis.id, stage: 'parsing', message: 'Parsing corrected response...' });
         parseResult = parseAnalysisResponse(rawResponse);
@@ -372,7 +379,7 @@ export class AnalysisService {
     modelId: string,
     systemPrompt: string,
     userPrompt: string,
-  ): Promise<string> {
+  ): Promise<LlmResponse> {
     const messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -387,7 +394,7 @@ export class AnalysisService {
     userPrompt: string,
     previousResponse: string,
     correctivePrompt: string,
-  ): Promise<string> {
+  ): Promise<LlmResponse> {
     const messages = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -401,7 +408,7 @@ export class AnalysisService {
     apiKey: string,
     modelId: string,
     messages: Array<{ role: string; content: string }>,
-  ): Promise<string> {
+  ): Promise<LlmResponse> {
     const response = await fetch(OPENROUTER_CHAT_URL, {
       method: 'POST',
       headers: {
@@ -421,28 +428,44 @@ export class AnalysisService {
 
     if (!response.ok) {
       const status = response.status;
+      let detail = '';
+      try {
+        const errBody = (await response.json()) as { error?: { message?: string } };
+        detail = errBody.error?.message ?? '';
+      } catch {
+        // ignore parse failure on error body
+      }
       if (status === 401 || status === 403) {
-        throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'Invalid API key');
+        throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, detail || 'Invalid API key');
       }
       if (status === 429) {
-        throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, 'Rate limited by OpenRouter');
+        throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, detail || 'Rate limited by OpenRouter');
       }
-      throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, `OpenRouter returned status ${status}`);
+      throw new DomainError(
+        ERROR_CODES.LLM_REQUEST_FAILED,
+        detail || `OpenRouter returned status ${status}`,
+      );
     }
 
     const body = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
       error?: { message?: string };
     };
 
-    const content = body.choices?.[0]?.message?.content;
+    const choice = body.choices?.[0];
+    const content = choice?.message?.content;
     if (!content) {
       const errorMsg = body.error?.message ?? 'Empty response from LLM';
       throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, errorMsg);
     }
 
-    return content;
+    return { content, finishReason: choice?.finish_reason ?? null };
   }
+}
+
+interface LlmResponse {
+  content: string;
+  finishReason: string | null;
 }
 
 function formatJiraMarkdown(
