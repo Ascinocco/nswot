@@ -62,6 +62,18 @@ export class ConfluenceService {
         );
       }
 
+      // Verify the token has Confluence scopes (classic or granular)
+      const grantedScopes = tokens.scope ? tokens.scope.split(' ') : [];
+      const hasConfluenceScope = grantedScopes.some((s) => s.includes('confluence'));
+      if (!hasConfluenceScope) {
+        return err(
+          new DomainError(
+            ERROR_CODES.CONFLUENCE_AUTH_FAILED,
+            'Your Atlassian OAuth token is missing Confluence permissions. In the Atlassian Developer Console, ensure both Classic and Granular Confluence scopes are enabled, then disconnect Jira and reconnect.',
+          ),
+        );
+      }
+
       // Get the Jira integration to read cloudId/siteUrl
       const jiraIntegration = await this.integrationRepo.findByWorkspaceAndProvider(
         workspaceId,
@@ -396,7 +408,7 @@ export class ConfluenceService {
       if (cause.status === 401 || cause.status === 403) {
         return new DomainError(
           ERROR_CODES.CONFLUENCE_AUTH_FAILED,
-          'Confluence authentication failed',
+          'Confluence authentication failed. Try disconnecting Jira and reconnecting to refresh your Atlassian permissions.',
           cause,
         );
       }

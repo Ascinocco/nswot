@@ -5,7 +5,7 @@ import type { JiraOAuthTokens } from './jira.types';
 
 const ATLASSIAN_AUTH_URL = 'https://auth.atlassian.com/authorize';
 const ATLASSIAN_TOKEN_URL = 'https://auth.atlassian.com/oauth/token';
-const OAUTH_SCOPES = 'read:jira-work read:confluence-content.all read:confluence-space.summary offline_access';
+const OAUTH_SCOPES = 'read:jira-work read:confluence-content.all read:confluence-space.summary read:space:confluence read:page:confluence read:comment:confluence offline_access';
 const CALLBACK_PORT = 17839;
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 

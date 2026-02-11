@@ -49,8 +49,18 @@ function DisconnectedState({ jiraConnected }: { jiraConnected: boolean }): React
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-400">
-        Confluence will use the same Atlassian OAuth token as Jira. No additional credentials
-        needed.
+        Confluence uses the same Atlassian OAuth token as Jira. Your OAuth app must have Confluence
+        API scopes enabled in the{' '}
+        <a
+          href="https://developer.atlassian.com/console/myapps/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-400 underline hover:text-blue-300"
+        >
+          Atlassian Developer Console
+        </a>{' '}
+        (under Permissions). If you added scopes after connecting Jira, disconnect and reconnect
+        Jira first.
       </p>
       <button
         onClick={() => connectConfluence.mutate()}

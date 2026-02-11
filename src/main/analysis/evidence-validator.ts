@@ -69,67 +69,46 @@ function buildValidSourceIds(snapshot: AnonymizedPayload): Set<string> {
   return ids;
 }
 
-function extractJiraSourceIds(jiraData: unknown, ids: Set<string>): void {
-  if (!jiraData || typeof jiraData !== 'object') return;
-  const data = jiraData as Record<string, unknown>;
+function getMarkdown(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const record = data as Record<string, unknown>;
+  if (typeof record['markdown'] === 'string') return record['markdown'];
+  return null;
+}
 
-  const collections = ['epics', 'stories', 'comments', 'changelog'] as const;
-  for (const collection of collections) {
-    const items = data[collection];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      if (typeof item === 'object' && item !== null) {
-        const record = item as Record<string, unknown>;
-        const key = record['key'] ?? record['issueKey'];
-        if (typeof key === 'string') {
-          ids.add(`jira:${key}`);
-        }
-      }
-    }
+function extractJiraSourceIds(jiraData: unknown, ids: Set<string>): void {
+  const markdown = getMarkdown(jiraData);
+  if (!markdown) return;
+
+  // Markdown format: "- [PROJ-123] Summary..." and "On [PROJ-123]: ..."
+  const pattern = /\[([A-Z][A-Z0-9]+-\d+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(markdown)) !== null) {
+    ids.add(`jira:${match[1]}`);
   }
 }
 
 function extractConfluenceSourceIds(confluenceData: unknown, ids: Set<string>): void {
-  if (!confluenceData || typeof confluenceData !== 'object') return;
-  const data = confluenceData as Record<string, unknown>;
+  const markdown = getMarkdown(confluenceData);
+  if (!markdown) return;
 
-  const collections = ['pages', 'comments'] as const;
-  for (const collection of collections) {
-    const items = data[collection];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      if (typeof item === 'object' && item !== null) {
-        const record = item as Record<string, unknown>;
-        const id = record['id'];
-        const title = record['title'] ?? record['pageTitle'];
-        if (typeof title === 'string') {
-          ids.add(`confluence:${title}`);
-        }
-        if (typeof id === 'string') {
-          ids.add(`confluence:${id}`);
-        }
-      }
-    }
+  // Markdown format: "- [Page Title] (ID: abc123, Updated: ...)"
+  const pattern = /- \[(.+?)\] \(ID: (\w+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(markdown)) !== null) {
+    ids.add(`confluence:${match[1]}`);
+    ids.add(`confluence:${match[2]}`);
   }
 }
 
 function extractGithubSourceIds(githubData: unknown, ids: Set<string>): void {
-  if (!githubData || typeof githubData !== 'object') return;
-  const data = githubData as Record<string, unknown>;
+  const markdown = getMarkdown(githubData);
+  if (!markdown) return;
 
-  const collections = ['prs', 'issues', 'prComments'] as const;
-  for (const collection of collections) {
-    const items = data[collection];
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      if (typeof item === 'object' && item !== null) {
-        const record = item as Record<string, unknown>;
-        const fullName = record['repoFullName'] ?? record['full_name'];
-        const number = record['number'] ?? record['prNumber'];
-        if (typeof fullName === 'string' && (typeof number === 'number' || typeof number === 'string')) {
-          ids.add(`github:${fullName}#${number}`);
-        }
-      }
-    }
+  // Markdown format: "- [owner/repo#123] Title..."
+  const pattern = /\[([^\]]+#\d+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(markdown)) !== null) {
+    ids.add(`github:${match[1]}`);
   }
 }
