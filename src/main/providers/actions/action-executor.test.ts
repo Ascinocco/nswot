@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ActionExecutor } from './action-executor';
+import type { FileService } from '../../services/file.service';
+import { ok, err } from '../../domain/result';
+import { DomainError, ERROR_CODES } from '../../domain/errors';
 
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
@@ -15,6 +18,14 @@ function createMockChildProcess() {
     kill: vi.fn(),
   };
   return cp;
+}
+
+function createMockFileService(): FileService {
+  return {
+    writeFile: vi.fn().mockResolvedValue(ok(undefined)),
+    readFile: vi.fn().mockResolvedValue(ok('')),
+    listDirectory: vi.fn().mockResolvedValue(ok([])),
+  } as unknown as FileService;
 }
 
 describe('ActionExecutor', () => {
@@ -508,6 +519,101 @@ describe('ActionExecutor', () => {
       const result = executor.parseBatchOutput('not valid json');
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to parse batch result');
+    });
+  });
+
+  describe('file-write execution', () => {
+    it('writes file via FileService for write_markdown_file', async () => {
+      const fileService = createMockFileService();
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_markdown_file', {
+        path: 'reports/summary.md',
+        content: '# Summary\n\nKey findings.',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.id).toBe('reports/summary.md');
+      expect(fileService.writeFile).toHaveBeenCalledWith('reports/summary.md', '# Summary\n\nKey findings.');
+      expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it('writes file via FileService for write_csv_file', async () => {
+      const fileService = createMockFileService();
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_csv_file', {
+        path: 'exports/data.csv',
+        content: 'name,score\nAlice,10',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.id).toBe('exports/data.csv');
+    });
+
+    it('writes file via FileService for write_mermaid_file', async () => {
+      const fileService = createMockFileService();
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_mermaid_file', {
+        path: 'diagrams/arch.mmd',
+        content: 'graph TD\n  A --> B',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.id).toBe('diagrams/arch.mmd');
+    });
+
+    it('returns error when FileService is not available', async () => {
+      const noFileExecutor = new ActionExecutor();
+
+      const result = await noFileExecutor.execute('write_markdown_file', {
+        path: 'test.md',
+        content: 'test',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('File service not available');
+    });
+
+    it('returns error when path is missing', async () => {
+      const fileService = createMockFileService();
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_markdown_file', {
+        content: 'test',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Missing required field: path');
+    });
+
+    it('returns error when content is missing', async () => {
+      const fileService = createMockFileService();
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_markdown_file', {
+        path: 'test.md',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Missing required field: content');
+    });
+
+    it('returns error when FileService write fails', async () => {
+      const fileService = createMockFileService();
+      vi.mocked(fileService.writeFile).mockResolvedValue(
+        err(new DomainError(ERROR_CODES.WORKSPACE_PATH_INVALID, 'Path resolves outside workspace root')),
+      );
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_markdown_file', {
+        path: '../../../etc/passwd',
+        content: 'malicious',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Path resolves outside workspace root');
     });
   });
 });

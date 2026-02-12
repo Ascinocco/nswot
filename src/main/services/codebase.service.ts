@@ -5,7 +5,7 @@ import type { Integration, CodebaseConfig } from '../domain/types';
 import type { IntegrationRepository } from '../repositories/integration.repository';
 import type { IntegrationCacheRepository } from '../repositories/integration-cache.repository';
 import type { WorkspaceService } from './workspace.service';
-import type { CodebaseProvider } from '../providers/codebase/codebase.provider';
+import type { CodebaseProviderInterface } from '../providers/codebase/codebase-provider.interface';
 import type { SecureStorage } from '../infrastructure/safe-storage';
 import type {
   CodebaseAnalysis,
@@ -46,7 +46,7 @@ export class CodebaseService {
     private readonly integrationRepo: IntegrationRepository,
     private readonly cacheRepo: IntegrationCacheRepository,
     private readonly workspaceService: WorkspaceService,
-    private readonly codebaseProvider: CodebaseProvider,
+    private readonly codebaseProvider: CodebaseProviderInterface,
     private readonly secureStorage: SecureStorage,
   ) {}
 

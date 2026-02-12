@@ -49,6 +49,7 @@ export const IPC_CHANNELS = {
   ANALYSIS_LIST: 'analysis:list',
   ANALYSIS_DELETE: 'analysis:delete',
   ANALYSIS_PREVIEW_PAYLOAD: 'analysis:previewPayload',
+  ANALYSIS_GET_PSEUDONYM_MAP: 'analysis:getPseudonymMap',
 
   // Chat
   CHAT_SEND: 'chat:send',
@@ -90,6 +91,19 @@ export const IPC_CHANNELS = {
   CHAT_ACTION_REJECT: 'chat:action:reject',
   CHAT_ACTION_EDIT: 'chat:action:edit',
   CHAT_ACTION_LIST: 'chat:action:list',
+
+  // LLM Provider
+  LLM_GET_PROVIDER: 'llm:getProvider',
+  LLM_SET_PROVIDER: 'llm:setProvider',
+
+  // Editor Context
+  CHAT_SET_EDITOR_CONTEXT: 'chat:setEditorContext',
+
+  // File Watcher
+  FILE_CHANGED: 'file:changed',
+
+  // Menu
+  MENU_NAVIGATE: 'menu:navigate',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

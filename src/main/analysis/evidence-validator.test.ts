@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateEvidence } from './evidence-validator';
+import { validateEvidence, computeSourceCoverage } from './evidence-validator';
 import type { SwotOutput, AnonymizedPayload } from '../domain/types';
 
 function makeSnapshot(profileLabels: string[]): AnonymizedPayload {
@@ -323,5 +323,122 @@ describe('validateEvidence', () => {
       expect(result.value.warnings).toHaveLength(1);
       expect(result.value.warnings[0]).toContain('github:owner/repo#2');
     }
+  });
+});
+
+describe('computeSourceCoverage', () => {
+  it('computes profile coverage correctly', () => {
+    const snapshot = makeSnapshot(['Stakeholder A', 'Stakeholder B', 'Stakeholder C']);
+    const swotOutput: SwotOutput = {
+      strengths: [{
+        claim: 'Good',
+        evidence: [
+          { sourceType: 'profile', sourceId: 'profile:Stakeholder A', sourceLabel: 'A', quote: 'Good' },
+          { sourceType: 'profile', sourceId: 'profile:Stakeholder C', sourceLabel: 'C', quote: 'Great' },
+        ],
+        impact: 'High', recommendation: 'Continue', confidence: 'high',
+      }],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+    };
+
+    const coverage = computeSourceCoverage(swotOutput, snapshot);
+    const profileCoverage = coverage.find((c) => c.sourceType === 'profile');
+    expect(profileCoverage).toBeDefined();
+    expect(profileCoverage!.cited).toBe(2);
+    expect(profileCoverage!.total).toBe(3);
+  });
+
+  it('computes Jira coverage from markdown snapshot', () => {
+    const snapshot = makeSnapshot(['Stakeholder A']);
+    // Jira data has PROJ-1 and PROJ-10
+    const swotOutput: SwotOutput = {
+      strengths: [{
+        claim: 'Active',
+        evidence: [
+          { sourceType: 'jira', sourceId: 'jira:PROJ-1', sourceLabel: 'PROJ-1', quote: 'Active' },
+        ],
+        impact: 'Good', recommendation: 'Continue', confidence: 'medium',
+      }],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+    };
+
+    const coverage = computeSourceCoverage(swotOutput, snapshot);
+    const jiraCoverage = coverage.find((c) => c.sourceType === 'jira');
+    expect(jiraCoverage).toBeDefined();
+    expect(jiraCoverage!.cited).toBe(1);
+    expect(jiraCoverage!.total).toBe(2); // PROJ-1 and PROJ-10
+  });
+
+  it('returns empty array when no sources available', () => {
+    const snapshot: AnonymizedPayload = {
+      profiles: [],
+      jiraData: null,
+      confluenceData: null,
+      githubData: null,
+      codebaseData: null,
+      pseudonymMap: {},
+    };
+
+    const swotOutput: SwotOutput = {
+      strengths: [],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+    };
+
+    const coverage = computeSourceCoverage(swotOutput, snapshot);
+    expect(coverage).toEqual([]);
+  });
+
+  it('computes coverage across multiple source types', () => {
+    const snapshot: AnonymizedPayload = {
+      profiles: [{ label: 'Stakeholder A', role: null, team: null, concerns: null, priorities: null, quotes: [], notes: null }],
+      jiraData: { markdown: '- [PROJ-1] Epic\n' },
+      confluenceData: null,
+      githubData: { markdown: '- [owner/repo#5] PR title\n' },
+      codebaseData: { markdown: '### [owner/repo]\nArch\n' },
+      pseudonymMap: {},
+    };
+
+    const swotOutput: SwotOutput = {
+      strengths: [{
+        claim: 'Multi-source finding',
+        evidence: [
+          { sourceType: 'profile', sourceId: 'profile:Stakeholder A', sourceLabel: 'A', quote: 'Good' },
+          { sourceType: 'jira', sourceId: 'jira:PROJ-1', sourceLabel: 'PROJ-1', quote: 'Tracked' },
+          { sourceType: 'codebase', sourceId: 'codebase:owner/repo', sourceLabel: 'repo', quote: 'Clean' },
+        ],
+        impact: 'Strong', recommendation: 'Continue', confidence: 'high',
+      }],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+    };
+
+    const coverage = computeSourceCoverage(swotOutput, snapshot);
+    expect(coverage).toHaveLength(4); // profile, jira, github, codebase
+    expect(coverage.find((c) => c.sourceType === 'profile')!.cited).toBe(1);
+    expect(coverage.find((c) => c.sourceType === 'jira')!.cited).toBe(1);
+    expect(coverage.find((c) => c.sourceType === 'github')!.cited).toBe(0);
+    expect(coverage.find((c) => c.sourceType === 'codebase')!.cited).toBe(1);
+  });
+
+  it('counts zero citations when no evidence references a source', () => {
+    const snapshot = makeSnapshot(['Stakeholder A', 'Stakeholder B']);
+    const swotOutput: SwotOutput = {
+      strengths: [],
+      weaknesses: [],
+      opportunities: [],
+      threats: [],
+    };
+
+    const coverage = computeSourceCoverage(swotOutput, snapshot);
+    const profileCoverage = coverage.find((c) => c.sourceType === 'profile');
+    expect(profileCoverage!.cited).toBe(0);
+    expect(profileCoverage!.total).toBe(2);
   });
 });

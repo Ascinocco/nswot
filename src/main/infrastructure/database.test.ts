@@ -31,7 +31,7 @@ describe('initializeDatabase', () => {
   it('sets user_version to latest migration version', () => {
     const db = initializeDatabase(':memory:');
     const version = db.pragma('user_version', { simple: true });
-    expect(version).toBe(4);
+    expect(version).toBe(5);
     db.close();
   });
 

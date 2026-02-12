@@ -67,4 +67,22 @@ export function registerSettingsHandlers(settingsService: SettingsService): void
       });
     },
   );
+
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_GET_PROVIDER,
+    (): IPCResult<string> => {
+      return toIpcResult(settingsService.getLlmProviderType());
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.LLM_SET_PROVIDER,
+    async (_event, type: string): Promise<IPCResult<void>> => {
+      const result = await settingsService.setPreference('llmProviderType', type);
+      return match(result, {
+        ok: () => toIpcResult<void>(undefined),
+        err: (error) => toIpcError(error),
+      });
+    },
+  );
 }

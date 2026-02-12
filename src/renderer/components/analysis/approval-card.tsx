@@ -17,6 +17,9 @@ const TOOL_LABELS: Record<ActionToolName, string> = {
   create_confluence_page: 'Create Confluence Page',
   create_github_issue: 'Create GitHub Issue',
   create_github_pr: 'Create GitHub PR',
+  write_markdown_file: 'Write Markdown File',
+  write_csv_file: 'Write CSV File',
+  write_mermaid_file: 'Write Mermaid Diagram',
 };
 
 const TOOL_ICONS: Record<ActionToolName, string> = {
@@ -26,6 +29,9 @@ const TOOL_ICONS: Record<ActionToolName, string> = {
   create_confluence_page: 'C',
   create_github_issue: 'GH',
   create_github_pr: 'PR',
+  write_markdown_file: 'MD',
+  write_csv_file: 'CSV',
+  write_mermaid_file: 'MMD',
 };
 
 const inputClasses =
@@ -227,7 +233,27 @@ function ToolPreview({ toolName, toolInput }: { toolName: ActionToolName; toolIn
       return <GitHubIssuePreview input={toolInput} />;
     case 'create_github_pr':
       return <GitHubPRPreview input={toolInput} />;
+    default:
+      return <FileWritePreview toolName={toolName} input={toolInput} />;
   }
+}
+
+function FileWritePreview({ toolName, input }: { toolName: string; input: Record<string, unknown> }): React.JSX.Element {
+  const path = String(input['path'] ?? '');
+  const content = String(input['content'] ?? '');
+  const previewLines = content.split('\n').slice(0, 10).join('\n');
+  const truncated = content.split('\n').length > 10;
+
+  return (
+    <div className="space-y-2 text-xs">
+      <FieldRow label="File" value={path} />
+      <FieldRow label="Type" value={toolName.replace('write_', '').replace('_file', '').toUpperCase()} />
+      <div>
+        <span className="text-xs font-medium text-gray-400">Content preview:</span>
+        <pre className="mt-1 max-h-40 overflow-auto rounded bg-gray-950 p-2 text-xs text-gray-300">{previewLines}{truncated ? '\n...' : ''}</pre>
+      </div>
+    </div>
+  );
 }
 
 // --- Editable forms ---
@@ -347,6 +373,8 @@ function ToolEditForm({
       return <GitHubIssueEditForm input={toolInput} onChange={onChange} />;
     case 'create_github_pr':
       return <GitHubPREditForm input={toolInput} onChange={onChange} />;
+    default:
+      return <FileWritePreview toolName={toolName} input={toolInput} />;
   }
 }
 

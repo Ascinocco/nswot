@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef as useReactRef } from 'react';
 import '../../lib/monaco-setup';
 import Editor from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 import { useFileContent, useSaveFile } from '../../hooks/use-file-browser';
+import { useEditorContext } from '../../lib/editor-context';
+import MermaidPreview from './mermaid-preview';
 
 interface EditorPaneProps {
   filePath: string | null;
@@ -33,13 +36,21 @@ export default function EditorPane({ filePath }: EditorPaneProps): React.JSX.Ele
   const saveFile = useSaveFile();
   const [editorValue, setEditorValue] = useState<string>('');
   const [isDirty, setIsDirty] = useState(false);
+  const editorRef = useReactRef<editor.IStandaloneCodeEditor | null>(null);
+  const { setFilePath, setContentPreview, setSelectedText } = useEditorContext();
+
+  // Update editor context when file changes
+  useEffect(() => {
+    setFilePath(filePath);
+  }, [filePath, setFilePath]);
 
   useEffect(() => {
     if (content !== undefined) {
       setEditorValue(content);
+      setContentPreview(content);
       setIsDirty(false);
     }
-  }, [content]);
+  }, [content, setContentPreview]);
 
   const handleSave = useCallback(() => {
     if (filePath && isDirty) {
@@ -75,6 +86,12 @@ export default function EditorPane({ filePath }: EditorPaneProps): React.JSX.Ele
     );
   }
 
+  const isMermaid = filePath.endsWith('.mmd');
+
+  if (isMermaid) {
+    return <MermaidPreview content={editorValue} filePath={filePath} />;
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-gray-800 px-3 py-2">
@@ -97,7 +114,20 @@ export default function EditorPane({ filePath }: EditorPaneProps): React.JSX.Ele
           theme="vs-dark"
           onChange={(value) => {
             setEditorValue(value ?? '');
+            setContentPreview(value ?? '');
             setIsDirty(true);
+          }}
+          onMount={(monacoEditor) => {
+            editorRef.current = monacoEditor;
+            monacoEditor.onDidChangeCursorSelection(() => {
+              const selection = monacoEditor.getSelection();
+              if (selection && !selection.isEmpty()) {
+                const selectedText = monacoEditor.getModel()?.getValueInRange(selection) ?? null;
+                setSelectedText(selectedText);
+              } else {
+                setSelectedText(null);
+              }
+            });
           }}
           options={{
             minimap: { enabled: false },

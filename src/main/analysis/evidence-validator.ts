@@ -1,7 +1,7 @@
 import { ok, err } from '../domain/result';
 import type { Result } from '../domain/result';
 import { DomainError, ERROR_CODES } from '../domain/errors';
-import type { SwotOutput, AnonymizedPayload } from '../domain/types';
+import type { SwotOutput, AnonymizedPayload, SourceCoverageEntry } from '../domain/types';
 
 export interface ValidationResult {
   valid: boolean;
@@ -128,4 +128,66 @@ function extractCodebaseSourceIds(codebaseData: unknown, ids: Set<string>): void
   while ((match = pattern.exec(markdown)) !== null) {
     ids.add(`codebase:${match[1]}`);
   }
+}
+
+/**
+ * Compute per-source-type coverage: how many available sources were actually cited
+ * in the SWOT output evidence.
+ */
+export function computeSourceCoverage(
+  swotOutput: SwotOutput,
+  inputSnapshot: AnonymizedPayload,
+): SourceCoverageEntry[] {
+  // Collect all cited sourceIds from the SWOT output
+  const citedSourceIds = new Set<string>();
+  const quadrants = ['strengths', 'weaknesses', 'opportunities', 'threats'] as const;
+  for (const quadrant of quadrants) {
+    for (const item of swotOutput[quadrant]) {
+      for (const evidence of item.evidence) {
+        citedSourceIds.add(evidence.sourceId);
+      }
+    }
+  }
+
+  // Build per-type available source IDs
+  const availableByType: Record<string, Set<string>> = {};
+
+  // Profiles
+  if (inputSnapshot.profiles.length > 0) {
+    availableByType['profile'] = new Set(
+      inputSnapshot.profiles.map((p) => `profile:${p.label}`),
+    );
+  }
+
+  // Jira
+  const jiraIds = new Set<string>();
+  if (inputSnapshot.jiraData) extractJiraSourceIds(inputSnapshot.jiraData, jiraIds);
+  if (jiraIds.size > 0) availableByType['jira'] = jiraIds;
+
+  // Confluence
+  const confluenceIds = new Set<string>();
+  if (inputSnapshot.confluenceData) extractConfluenceSourceIds(inputSnapshot.confluenceData, confluenceIds);
+  if (confluenceIds.size > 0) availableByType['confluence'] = confluenceIds;
+
+  // GitHub
+  const githubIds = new Set<string>();
+  if (inputSnapshot.githubData) extractGithubSourceIds(inputSnapshot.githubData, githubIds);
+  if (githubIds.size > 0) availableByType['github'] = githubIds;
+
+  // Codebase
+  const codebaseIds = new Set<string>();
+  if (inputSnapshot.codebaseData) extractCodebaseSourceIds(inputSnapshot.codebaseData, codebaseIds);
+  if (codebaseIds.size > 0) availableByType['codebase'] = codebaseIds;
+
+  // Compute coverage for each type
+  const coverage: SourceCoverageEntry[] = [];
+  for (const [sourceType, availableIds] of Object.entries(availableByType)) {
+    let cited = 0;
+    for (const id of availableIds) {
+      if (citedSourceIds.has(id)) cited++;
+    }
+    coverage.push({ sourceType, cited, total: availableIds.size });
+  }
+
+  return coverage;
 }

@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import type { CodebaseAnalysis, CodebasePrerequisites, CodebaseAnalysisOptions } from './codebase.types';
+import type { CodebaseProviderInterface } from './codebase-provider.interface';
 
 interface SpawnResult {
   stdout: string;
@@ -11,7 +12,13 @@ interface SpawnResult {
   timedOut: boolean;
 }
 
-export class CodebaseProvider {
+export class ClaudeCliCodebaseProvider implements CodebaseProviderInterface {
+  readonly name = 'claude_cli';
+
+  async isAvailable(): Promise<boolean> {
+    return this.commandExists('claude');
+  }
+
   async checkPrerequisites(): Promise<CodebasePrerequisites> {
     const [cli, git] = await Promise.all([
       this.commandExists('claude'),
@@ -460,3 +467,6 @@ export class CodebaseProvider {
     });
   }
 }
+
+/** Backwards-compatible alias — index.ts and existing imports still use CodebaseProvider */
+export { ClaudeCliCodebaseProvider as CodebaseProvider };

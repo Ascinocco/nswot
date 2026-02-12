@@ -3,7 +3,15 @@ import Markdown from 'react-markdown';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatMessages, useSendMessage, useDeleteChat, useChatActions, useApproveAction, useRejectAction, useEditAction } from '../../hooks/use-chat';
 import ApprovalCard from './approval-card';
+import FileApprovalCard from '../chat/file-approval-card';
 import ActionStatus from './action-status';
+import { useEditorContext } from '../../lib/editor-context';
+
+const FILE_WRITE_TOOLS: Set<string> = new Set([
+  'write_markdown_file',
+  'write_csv_file',
+  'write_mermaid_file',
+]);
 
 interface ChatPanelProps {
   analysisId: string;
@@ -23,6 +31,7 @@ export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): Reac
   const [streamingContent, setStreamingContent] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { filePath: editorFilePath } = useEditorContext();
 
   const isSending = sendMessage.isPending;
 
@@ -137,16 +146,29 @@ export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): Reac
                   ?.filter((a) => a.chatMessageId === msg.id)
                   .map((action) =>
                     action.status === 'pending' ? (
-                      <ApprovalCard
-                        key={action.id}
-                        action={action}
-                        onApprove={(id) => approveAction.mutate(id)}
-                        onReject={(id) => rejectAction.mutate(id)}
-                        onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
-                        isApproving={approveAction.isPending}
-                        isRejecting={rejectAction.isPending}
-                        isEditing={editAction.isPending}
-                      />
+                      FILE_WRITE_TOOLS.has(action.toolName) ? (
+                        <FileApprovalCard
+                          key={action.id}
+                          action={action}
+                          onApprove={(id) => approveAction.mutate(id)}
+                          onReject={(id) => rejectAction.mutate(id)}
+                          onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
+                          isApproving={approveAction.isPending}
+                          isRejecting={rejectAction.isPending}
+                          isEditing={editAction.isPending}
+                        />
+                      ) : (
+                        <ApprovalCard
+                          key={action.id}
+                          action={action}
+                          onApprove={(id) => approveAction.mutate(id)}
+                          onReject={(id) => rejectAction.mutate(id)}
+                          onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
+                          isApproving={approveAction.isPending}
+                          isRejecting={rejectAction.isPending}
+                          isEditing={editAction.isPending}
+                        />
+                      )
                     ) : (
                       <ActionStatus key={action.id} action={action} />
                     ),
@@ -158,16 +180,29 @@ export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): Reac
               ?.filter((a) => !a.chatMessageId)
               .map((action) =>
                 action.status === 'pending' ? (
-                  <ApprovalCard
-                    key={action.id}
-                    action={action}
-                    onApprove={(id) => approveAction.mutate(id)}
-                    onReject={(id) => rejectAction.mutate(id)}
-                    onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
-                    isApproving={approveAction.isPending}
-                    isRejecting={rejectAction.isPending}
-                    isEditing={editAction.isPending}
-                  />
+                  FILE_WRITE_TOOLS.has(action.toolName) ? (
+                    <FileApprovalCard
+                      key={action.id}
+                      action={action}
+                      onApprove={(id) => approveAction.mutate(id)}
+                      onReject={(id) => rejectAction.mutate(id)}
+                      onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
+                      isApproving={approveAction.isPending}
+                      isRejecting={rejectAction.isPending}
+                      isEditing={editAction.isPending}
+                    />
+                  ) : (
+                    <ApprovalCard
+                      key={action.id}
+                      action={action}
+                      onApprove={(id) => approveAction.mutate(id)}
+                      onReject={(id) => rejectAction.mutate(id)}
+                      onEdit={(id, editedInput) => editAction.mutate({ actionId: id, editedInput })}
+                      isApproving={approveAction.isPending}
+                      isRejecting={rejectAction.isPending}
+                      isEditing={editAction.isPending}
+                    />
+                  )
                 ) : (
                   <ActionStatus key={action.id} action={action} />
                 ),
@@ -195,6 +230,13 @@ export default function ChatPanel({ analysisId, onClose }: ChatPanelProps): Reac
 
       {/* Input */}
       <div className="border-t border-gray-800 p-3">
+        {editorFilePath && (
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="rounded bg-blue-900/40 px-2 py-0.5 text-[10px] font-medium text-blue-300">
+              Editor: {editorFilePath.split('/').pop()}
+            </span>
+          </div>
+        )}
         {sendMessage.isError && (
           <p className="mb-2 text-xs text-red-400">
             {sendMessage.error instanceof Error ? sendMessage.error.message : 'Failed to send message'}

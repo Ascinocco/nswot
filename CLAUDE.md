@@ -4,7 +4,7 @@
 
 nswot is a local-first Electron desktop app that turns stakeholder interview notes and Jira signals into evidence-backed SWOT analyses. Primary user: staff engineers in org-level problem-solving roles.
 
-**Current phase**: Phase 3 (Codebase Intelligence & Comparability). Phases 1-2 complete. Phase 3a-3d in progress, Phase 3e (Platform Maturity & Multi-Provider) planned.
+**Current phase**: Phase 3e complete (Platform Maturity & Multi-Provider). Phases 1-3d complete. Phase 4 (Chat-Driven Agent Experience) planned next.
 
 ## Documentation
 
@@ -26,6 +26,8 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - `docs/16-parallel-sprint-plan.md` — Two-agent parallel execution plan for Sprints 13-21 (Phase 3b-3d)
 - `docs/17-parallel-sprints-agents-plan.md` — Agent execution plans for parallel sprints
 - `docs/18-phase4-chat-experience-plan.md` — Phase 4 chat-driven agent experience plan
+- `docs/19-phase3e-sprint-plan.md` — Phase 3e parallelized sprint plan (Sprints 22-35)
+- `docs/20-phase3e-agents-plan.md` — Phase 3e per-sprint agent execution instructions
 - `docs/future/` — Post-MVP vision docs (preserved, not active)
 
 ## Tech Stack
@@ -37,7 +39,8 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - **Validation**: Zod (renderer form validation only)
 - **Build**: Vite (renderer), tsx (main process dev)
 - **Package**: electron-builder
-- **LLM**: OpenRouter via OpenAI-compatible SDK (Phase 3e adds direct Anthropic API as alternative)
+- **LLM**: Multi-provider — OpenRouter (default) or direct Anthropic API, selected via `LLMProvider` interface + factory
+- **Codebase Analysis**: Multi-provider — Claude CLI (default) or OpenCode, selected via `CodebaseProviderInterface` + factory
 - **Styling**: Tailwind CSS
 
 ## Architecture Patterns
@@ -53,8 +56,8 @@ IPC Handlers -> Services -> Repositories / Providers -> Infrastructure
 - **IPC Handlers** (`src/main/ipc/handlers/`): Transport only. Deserialize input, call service, serialize result. No business logic.
 - **Services** (`src/main/services/`): Business rules, orchestration, validation. Services depend on repositories and providers.
 - **Repositories** (`src/main/repositories/`): Data access. SQLite queries in, domain types out. No business logic.
-- **Providers** (`src/main/providers/`): External API clients (Jira, Confluence, GitHub, OpenRouter, Claude CLI). Handle auth, serialization, raw HTTP/subprocess. Wrapped in circuit breaker + retry.
-- **Infrastructure** (`src/main/infrastructure/`): Shared utilities — database connection, safeStorage, circuit breaker, retry, file system.
+- **Providers** (`src/main/providers/`): External API clients (Jira, Confluence, GitHub, OpenRouter, Anthropic, Claude CLI, OpenCode). Handle auth, serialization, raw HTTP/subprocess. Wrapped in circuit breaker + retry. LLM providers implement `LLMProvider` interface; codebase providers implement `CodebaseProviderInterface`.
+- **Infrastructure** (`src/main/infrastructure/`): Shared utilities — database connection, safeStorage, circuit breaker, retry, file system, structured logger, file watcher.
 - **Domain** (`src/main/domain/`): Types, errors, Result type. No dependencies on anything else.
 
 ### Key Rules
@@ -120,4 +123,6 @@ result.match({
 - **No writes outside workspace.** All fs operations validate resolved path starts with workspace root.
 - **No secrets in SQLite or plaintext.** API keys and OAuth tokens go through safeStorage only.
 - **No evidence, no claim.** SWOT items without concrete evidence are omitted or marked low confidence.
-- **Current scope: Phase 3.** Phases 1-2 are complete. Phase 3 covers codebase analysis, chat actions, comparison, themes, export, multi-provider, and visualizations. Do not implement Phase 4 features (chat-focused experience). See `docs/04-phases-roadmap.md`.
+- **Current scope: Phase 3 complete, Phase 4 next.** Phases 1-3e are complete. Phase 3 covered codebase analysis, chat actions, comparison, themes, export, multi-provider LLM/codebase, visualizations, onboarding, de-anonymization, structured logging, and file watching. Do not implement Phase 4 features (chat-driven agent experience) without explicit instruction. See `docs/04-phases-roadmap.md`.
+- **Structured logging.** Use `Logger` singleton (`src/main/infrastructure/logger.ts`) — `logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug()`. Logs to console and `~/.nswot/logs/nswot-YYYY-MM-DD.log` with daily rotation.
+- **Multi-provider pattern.** LLM and codebase providers are selected via factory based on user preference. Add new providers by implementing `LLMProvider` or `CodebaseProviderInterface` and registering in the factory. Provider type stored as preference (`llmProviderType`, `codebaseProviderType`).

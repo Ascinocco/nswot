@@ -151,6 +151,63 @@ export const CHAT_ACTION_TOOLS: ActionToolDefinition[] = [
   },
 ];
 
+export const FILE_WRITE_TOOLS: ActionToolDefinition[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'write_markdown_file',
+      description:
+        'Write a markdown (.md) file to the user\'s workspace. The user will review and approve before writing. Path is relative to the workspace root.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative file path (e.g., "reports/swot-summary.md")' },
+          content: { type: 'string', description: 'File content in markdown' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_csv_file',
+      description:
+        'Write a CSV (.csv) file to the user\'s workspace. The user will review and approve before writing. Path is relative to the workspace root.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative file path (e.g., "exports/findings.csv")' },
+          content: { type: 'string', description: 'CSV content with header row' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_mermaid_file',
+      description:
+        'Write a Mermaid diagram (.mmd) file to the user\'s workspace. The user will review and approve before writing. Path is relative to the workspace root.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Workspace-relative file path (e.g., "diagrams/architecture.mmd")' },
+          content: { type: 'string', description: 'Mermaid diagram syntax' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+];
+
+export const FILE_WRITE_TOOL_NAMES = FILE_WRITE_TOOLS.map((t) => t.function.name);
+
+export function isFileWriteTool(toolName: string): boolean {
+  return FILE_WRITE_TOOL_NAMES.includes(toolName);
+}
+
 export const TOOL_NAMES = CHAT_ACTION_TOOLS.map((t) => t.function.name);
 
 export function getToolsByIntegration(connectedIntegrations: string[]): ActionToolDefinition[] {

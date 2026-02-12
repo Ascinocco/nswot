@@ -1,5 +1,7 @@
-import { HashRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { useEffect } from 'react';
+import { HashRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/error-boundary';
+import { useOnboardingStatus } from './hooks/use-onboarding';
 import WorkspacePage from './routes/workspace';
 import ProfilesPage from './routes/profiles';
 import IntegrationsPage from './routes/integrations';
@@ -8,6 +10,7 @@ import AnalysisHistoryPage from './routes/analysis-history';
 import ComparisonPage from './routes/comparison';
 import ThemesPage from './routes/themes';
 import SettingsPage from './routes/settings';
+import OnboardingPage from './routes/onboarding';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Workspace' },
@@ -19,10 +22,38 @@ const NAV_ITEMS = [
   { to: '/settings', label: 'Settings' },
 ] as const;
 
-export default function App(): React.JSX.Element {
+function MenuHandler(): null {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const cleanup = window.nswot.menu.onNavigate((path) => {
+      navigate(path);
+    });
+    return cleanup;
+  }, [navigate]);
+  return null;
+}
+
+function OnboardingRedirect(): null {
+  const { data: isComplete, isLoading } = useOnboardingStatus();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && isComplete === false && location.pathname !== '/onboarding') {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [isComplete, isLoading, navigate, location.pathname]);
+
+  return null;
+}
+
+function AppShell(): React.JSX.Element {
+  const location = useLocation();
+  const isOnboarding = location.pathname === '/onboarding';
+
   return (
-    <HashRouter>
-      <div className="flex h-screen bg-gray-950 text-gray-100">
+    <div className="flex h-screen bg-gray-950 text-gray-100">
+      {!isOnboarding && (
         <nav className="flex w-52 shrink-0 flex-col border-r border-gray-800 bg-gray-900 p-4">
           <h1 className="mb-6 text-lg font-bold tracking-tight text-white">nswot</h1>
           <ul className="flex flex-col gap-1">
@@ -45,19 +76,30 @@ export default function App(): React.JSX.Element {
             ))}
           </ul>
         </nav>
-        <main className="flex-1 overflow-y-auto p-6">
-          <Routes>
-            <Route path="/" element={<ErrorBoundary><WorkspacePage /></ErrorBoundary>} />
-            <Route path="/profiles" element={<ErrorBoundary><ProfilesPage /></ErrorBoundary>} />
-            <Route path="/integrations" element={<ErrorBoundary><IntegrationsPage /></ErrorBoundary>} />
-            <Route path="/analysis" element={<ErrorBoundary><AnalysisPage /></ErrorBoundary>} />
-            <Route path="/history" element={<ErrorBoundary><AnalysisHistoryPage /></ErrorBoundary>} />
-            <Route path="/comparison" element={<ErrorBoundary><ComparisonPage /></ErrorBoundary>} />
-            <Route path="/themes/:analysisId" element={<ErrorBoundary><ThemesPage /></ErrorBoundary>} />
-            <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
-          </Routes>
-        </main>
-      </div>
+      )}
+      <main className="flex-1 overflow-y-auto p-6">
+        <Routes>
+          <Route path="/" element={<ErrorBoundary><WorkspacePage /></ErrorBoundary>} />
+          <Route path="/profiles" element={<ErrorBoundary><ProfilesPage /></ErrorBoundary>} />
+          <Route path="/integrations" element={<ErrorBoundary><IntegrationsPage /></ErrorBoundary>} />
+          <Route path="/analysis" element={<ErrorBoundary><AnalysisPage /></ErrorBoundary>} />
+          <Route path="/history" element={<ErrorBoundary><AnalysisHistoryPage /></ErrorBoundary>} />
+          <Route path="/comparison" element={<ErrorBoundary><ComparisonPage /></ErrorBoundary>} />
+          <Route path="/themes/:analysisId" element={<ErrorBoundary><ThemesPage /></ErrorBoundary>} />
+          <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
+          <Route path="/onboarding" element={<ErrorBoundary><OnboardingPage /></ErrorBoundary>} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+export default function App(): React.JSX.Element {
+  return (
+    <HashRouter>
+      <MenuHandler />
+      <OnboardingRedirect />
+      <AppShell />
     </HashRouter>
   );
 }

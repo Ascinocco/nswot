@@ -95,6 +95,26 @@ export function registerAnalysisHandlers(
   );
 
   ipcMain.handle(
+    IPC_CHANNELS.ANALYSIS_GET_PSEUDONYM_MAP,
+    async (_event, id: string): Promise<IPCResult<Record<string, string>>> => {
+      try {
+        const analysis = await analysisRepo.findById(id);
+        if (!analysis) {
+          return toIpcError(
+            new DomainError(ERROR_CODES.INTERNAL_ERROR, `Analysis "${id}" not found`),
+          );
+        }
+        const pseudonymMap = analysis.inputSnapshot?.pseudonymMap ?? {};
+        return toIpcResult(pseudonymMap);
+      } catch (cause) {
+        return toIpcError(
+          new DomainError(ERROR_CODES.DB_ERROR, 'Failed to get pseudonym map'),
+        );
+      }
+    },
+  );
+
+  ipcMain.handle(
     IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD,
     async (
       _event,

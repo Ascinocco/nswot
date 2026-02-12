@@ -3,6 +3,8 @@
 > **Two-agent execution model for Phase 3e: Platform Maturity & Multi-Provider.**
 > Continues from Phase 3d (Sprints 13-21, see `docs/16-parallel-sprint-plan.md`).
 > 13 features decomposed into 12 agent-sprints across 6 weeks. Auto-update (Sprint 31) deferred until code signing is configured.
+>
+> **All sprints complete. Phase 3e delivered with two-agent parallel execution.** Sprint 31 (Auto-Update) deferred until code signing.
 
 **Prerequisite**: Phase 3d complete (Sprint 21 E2E testing + docs merged).
 
@@ -10,14 +12,26 @@
 
 | Sprint | Agent | Week | Notes |
 |--------|-------|------|-------|
-| | | | |
+| Sprint 23 | B | 1 | LLM Provider Interface + Anthropic Provider. Gate 1 delivered. LLMProvider interface, OpenRouter refactored to implement it (with createChatCompletion + SSE streaming), AnthropicProvider (Messages API SSE, tool_use, system message extraction, stop_reason mapping), factory, Anthropic key in settings, 2 new error codes. 608 tests pass (42 new). |
+| Sprint 25 | B | 2 | Codebase Provider Abstraction + Profile Tags. CodebaseProviderInterface (name, checkPrerequisites, isAvailable, cloneOrPull, analyze). ClaudeCliCodebaseProvider refactored to implement interface. OpenCodeProvider (spawns opencode CLI, same subprocess pattern). Factory with claude_cli/opencode types. Service updated to depend on interface. Profile.tags: string[] added with migration v5. 633 tests pass (22 new). |
+| Sprint 22 | A | 1 | Structured Logging + App Menu + Keyboard Shortcuts. Logger singleton with file output (~/.nswot/logs/nswot-YYYY-MM-DD.log), daily rotation, level filtering, old log cleanup. Native macOS app menu with Edit/View/Window/Help, Cmd+comma→Settings via IPC. MenuHandler component in renderer. 11 new logger tests. |
+| Sprint 24 | A | 2 | Wire Multi-Provider LLM into Analysis + Chat. Refactored AnalysisService and ChatService to use LLMProvider interface (removed sendToOpenRouter/readSSEStream/streamCompletion). Provider factory wiring in index.ts. Added getActiveApiKey/getLlmProviderType to SettingsService, getSync to PreferencesRepository. Provider-switching IPC (llm:getProvider/llm:setProvider). Temperature 0 for analysis calls. 641 tests pass. |
+| Sprint 26 | A | 3 | Chat-Driven File Generation + Editor Context Backend. 3 file-write tools (write_markdown_file, write_csv_file, write_mermaid_file) in action-tools.ts. ActionExecutor routes file-write tools to FileService.writeFile (no CLI spawn). Chat system prompt gains FILE GENERATION and EDITOR CONTEXT sections. EditorContext transient state on ChatService with setEditorContext/getEditorContext. IPC channel chat:setEditorContext. Preload/env.d.ts updated. Renderer approval-card and action-status updated for file-write tool names. 665 tests pass (24 new). |
+| Sprint 27 | B | 3 | Visualization Infrastructure + Profile Tags UI. Installed d3/chart.js/react-chartjs-2/mermaid. Created 4 viz components: MermaidRenderer (dark theme, error boundary), ThemeDistributionChart (horizontal bar, Chart.js), SwotHeatmap (D3 confidence grid), SourceCoverageChart (horizontal bar, Chart.js). Integrated into swot-results.tsx as collapsible section. Profile form gets tags input (comma/Enter pills), profile card shows tag pills. env.d.ts updated. 641 tests pass (0 regressions). |
+| Sprint 29 | B | 4 | Onboarding Wizard + Settings Provider Picker. Created 4-step onboarding wizard (Welcome, API Key, Integrations Overview, Completion) with stepper UI. useOnboardingStatus/useCompleteOnboarding hooks check/set onboardingComplete preference. OnboardingRedirect in App.tsx auto-navigates to /onboarding on fresh launch. Sidebar hidden during onboarding. ProviderPicker component with OpenRouter/Anthropic radio, API key input, model picker. Settings page replaced with unified ProviderPicker. 665 tests pass (0 regressions). |
+| Sprint 33 | B | 5 | Visualization Polish + Codebase Provider UI + File Watcher UI. CoverageRadarChart (Chart.js radar for multi-source evidence %). ConfidenceTrend (stacked bar comparing confidence distributions). Comparison page gains collapsible viz section with confidence trend. QualityMetrics enhanced with per-source citation rate bars (count/total + percentage). CodebaseProviderPicker (Claude CLI vs OpenCode radio) added to codebase-setup. useFileWatcher hook listens for file:changed events and invalidates directory/file queries. Preload/env.d.ts updated with file.onChanged. 665 tests pass (0 regressions). |
+| Sprint 28 | A | 4 | De-anonymization Hover + File System Watching. PseudonymMap IPC (analysis:getPseudonymMap) reads from analysis.inputSnapshot.pseudonymMap. usePseudonymMap React Query hook. DeanonymizeTooltip component detects "Stakeholder X" patterns, shows real name on hover with "(local only)" note. Integrated into swot-results.tsx evidence sourceId and quotes. FileWatcher class (fs.watch recursive, 200ms debounce, ignores .git/node_modules/.nswot). Wired into index.ts via onWorkspaceOpen callback. file:changed IPC events forwarded to renderer. 679 tests pass (14 new). |
+| Sprint 32 | A | 6 | Mermaid in Workspace + Chat File Approval UI. FileApprovalCard component (format-colored icons, editable path/content, Mermaid live preview tab for .mmd files). ChatPanel routes file-write actions to FileApprovalCard. MermaidPreview component renders .mmd files visually with source toggle. EditorPane detects .mmd extension and renders MermaidPreview instead of Monaco. FileBrowser shows diamond icon for .mmd files. Integration tests: ChatService file-write approval flow for markdown/CSV/mermaid with real ActionExecutor+mock FileService, error propagation from path validation, status transitions (approved→executing→completed), rejection does not write. 691 tests pass (6 new). |
+| Sprint 30 | A | 5 | Editor Context UI + Evidence Coverage. EditorContextProvider React context with useEditorContext hook. EditorPane tracks filePath/contentPreview/selectedText and syncs to main process via IPC. Chat panel shows "Editor: filename" badge when context available. Workspace route wrapped with EditorContextProvider. SourceCoverageEntry type and computeSourceCoverage function in evidence-validator.ts. Coverage computed per-source-type (profile/jira/confluence/github/codebase) comparing cited vs available sourceIds. Wired into pipeline via SwotGenerationStep. 685 tests pass (6 new). |
+| Sprint 35 | B | 6 | Documentation + Final Polish. Updated docs/02 (infrastructure additions, visualization architecture), docs/04 (Phase 3e exit criteria marked delivered), docs/05 (Profile.tags, invariant), docs/08 (file-write tool instructions, editor context prompt extensions), docs/19 (completion log, header note), CLAUDE.md (current phase, multi-provider patterns, logging, new doc references). All Agent B sprints complete. |
+| Sprint 34 | A | 6 | Cross-Feature E2E Testing. 42 tests across 9 describe blocks: multi-provider LLM switch (6), multi-provider codebase (4), chat file generation (5), editor context in chat (5), de-anonymization pseudonym map (3), profile tags with DB (4), onboarding wizard preferences (6), evidence coverage + validation (5), Phase 3e exit criteria (4). All 733 tests pass (54 new). Phase 3e complete. |
 
 ### Gate Status
 
 | Gate | Status | Details |
 |------|--------|---------|
-| Gate 1: LLM Provider Interface Freeze | Pending | Agent B delivers `LLMProvider` interface, OpenRouter refactor, Anthropic provider, and factory. |
-| Gate 2: Multi-Provider Stable | Pending | Both LLM providers work in analysis + chat. Codebase providers work. Chat file generation works. All new features tested. |
+| Gate 1: LLM Provider Interface Freeze | **PASSED** | Agent B delivered `LLMProvider` interface, OpenRouter refactor with `createChatCompletion`, Anthropic provider, factory, settings Anthropic key. All tests pass. |
+| Gate 2: Multi-Provider Stable | **PASSED** | Both LLM providers work in analysis + chat. Codebase providers work. Chat file generation works. All Phase 3e features validated by Sprint 34 E2E tests (42 tests). 733 total tests pass. |
 
 ---
 
@@ -325,12 +339,12 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 **Owner**: Agent B (Sprint 23)
 
 **Required artifacts**:
-- [ ] `src/main/providers/llm/llm-provider.interface.ts` — `LLMProvider` interface with `listModels` and `createChatCompletion`
-- [ ] `src/main/providers/llm/openrouter.provider.ts` — Refactored to implement `LLMProvider`
-- [ ] `src/main/providers/llm/anthropic.provider.ts` — Working Anthropic provider
-- [ ] `src/main/providers/llm/llm-provider-factory.ts` — Factory with preference-based selection
-- [ ] All LLM provider tests pass
-- [ ] `pnpm typecheck && pnpm test` green
+- [x] `src/main/providers/llm/llm-provider.interface.ts` — `LLMProvider` interface with `listModels` and `createChatCompletion`
+- [x] `src/main/providers/llm/openrouter.provider.ts` — Refactored to implement `LLMProvider`
+- [x] `src/main/providers/llm/anthropic.provider.ts` — Working Anthropic provider
+- [x] `src/main/providers/llm/llm-provider-factory.ts` — Factory with preference-based selection
+- [x] All LLM provider tests pass
+- [x] `pnpm typecheck && pnpm test` green
 
 **Blocking**: Sprint 24 (Agent A Week 2) cannot start until Gate 1 passes.
 
@@ -383,24 +397,24 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 
 | Week | Sprint | Task | Status | Blocked By |
 |------|--------|------|--------|------------|
-| 1 | 22 | Structured logging + App menu + Keyboard shortcuts | Pending | — |
-| 2 | 24 | Wire multi-provider LLM into analysis + chat | Pending | Gate 1 |
-| 3 | 26 | Chat-driven file generation + Editor context backend | Pending | Sprint 24 |
-| 4 | 28 | De-anonymization hover + File system watching | Pending | — |
-| 5 | 30 | Editor context UI + Integration testing | Pending | Sprint 26, 28 |
-| 6 | 32 | Mermaid in workspace + Chat file approval UI | Pending | Gate 2 |
-| 6 | 34 | Cross-feature E2E testing | Pending | All prior |
+| 1 | 22 | Structured logging + App menu + Keyboard shortcuts | **Complete** | — |
+| 2 | 24 | Wire multi-provider LLM into analysis + chat | **Complete** | Gate 1 |
+| 3 | 26 | Chat-driven file generation + Editor context backend | **Complete** | Sprint 24 |
+| 4 | 28 | De-anonymization hover + File system watching | **Complete** | — |
+| 5 | 30 | Editor context UI + Integration testing | **Complete** | Sprint 26, 28 |
+| 6 | 32 | Mermaid in workspace + Chat file approval UI | **Complete** | Gate 2 |
+| 6 | 34 | Cross-feature E2E testing | **Complete** | All prior |
 
 ### Agent B Backlog
 
 | Week | Sprint | Task | Status | Blocked By |
 |------|--------|------|--------|------------|
-| 1 | 23 | LLM provider interface + Anthropic provider (Gate 1 owner) | Pending | — |
-| 2 | 25 | Codebase provider abstraction + Profile tags | Pending | — |
-| 3 | 27 | Visualization infrastructure + Profile tags UI | Pending | Sprint 25 |
-| 4 | 29 | Onboarding wizard + Settings provider picker | Pending | — |
-| 5 | 33 | Visualization polish + Codebase provider UI + File watcher UI | Pending | Sprint 28 |
-| 6 | 35 | Documentation + Final polish | Pending | All prior |
+| 1 | 23 | LLM provider interface + Anthropic provider (Gate 1 owner) | **Complete** | — |
+| 2 | 25 | Codebase provider abstraction + Profile tags | **Complete** | — |
+| 3 | 27 | Visualization infrastructure + Profile tags UI | **Complete** | Sprint 25 |
+| 4 | 29 | Onboarding wizard + Settings provider picker | **Complete** | — |
+| 5 | 33 | Visualization polish + Codebase provider UI + File watcher UI | **Complete** | Sprint 28 |
+| 6 | 35 | Documentation + Final polish | **Complete** | All prior |
 | — | ~~31~~ | ~~Auto-update infrastructure~~ | **DEFERRED** | Code signing |
 
 ### Shared Integration Tasks

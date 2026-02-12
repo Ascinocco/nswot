@@ -12,7 +12,10 @@ function toIpcError<T>(error: { code: string; message: string }): IPCResult<T> {
   return { success: false, error: { code: error.code, message: error.message } };
 }
 
-export function registerWorkspaceHandlers(workspaceService: WorkspaceService): void {
+export function registerWorkspaceHandlers(
+  workspaceService: WorkspaceService,
+  onWorkspaceOpen?: (path: string) => void,
+): void {
   ipcMain.handle(
     IPC_CHANNELS.WORKSPACE_OPEN,
     async (): Promise<IPCResult<Workspace | null>> => {
@@ -27,7 +30,10 @@ export function registerWorkspaceHandlers(workspaceService: WorkspaceService): v
       const selectedPath = dialogResult.filePaths[0]!;
       const result = await workspaceService.open(selectedPath);
       return match(result, {
-        ok: (data) => toIpcResult<Workspace | null>(data),
+        ok: (data) => {
+          if (data && onWorkspaceOpen) onWorkspaceOpen(data.path);
+          return toIpcResult<Workspace | null>(data);
+        },
         err: (error) => toIpcError(error),
       });
     },

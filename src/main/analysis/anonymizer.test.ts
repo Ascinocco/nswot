@@ -12,6 +12,7 @@ function makeProfile(overrides: Partial<Profile> & { name: string }): Profile {
     concerns: overrides.concerns ?? null,
     priorities: overrides.priorities ?? null,
     interviewQuotes: overrides.interviewQuotes ?? [],
+    tags: overrides.tags ?? [],
     notes: overrides.notes ?? null,
     sourceFile: null,
     createdAt: '2024-01-01T00:00:00.000Z',

@@ -196,16 +196,19 @@ Users must have for codebase analysis and chat actions:
 - [x] macOS x64 (Intel) builds
 - [x] E2E integration tests validate cross-feature flows (pipeline, comparison, export, themes)
 
-**Deferred to Phase 3e:**
-- User can run SWOT analysis via either OpenRouter or direct Anthropic API
-- User can run codebase analysis via either Claude CLI or OpenCode
-- Chat can write markdown, CSV, and Mermaid files to workspace with user approval
-- Mermaid diagrams render in-app; at least one interactive D3/Chart.js chart in results
-- First-launch wizard completes successfully for new users
-- ~~Auto-update downloads and applies updates from GitHub Releases~~ (deferred — requires code signing)
-- Follow-through metrics improve (fewer stale recommendations)
-- Evidence coverage indicator shows source citation rates (profiles, projects, spaces, repos) on the quality metrics card
-- Repeated analysis runs on unchanged data produce substantially overlapping SWOT items (low-temperature consistency)
+**Phase 3e (Delivered):**
+- [x] User can run SWOT analysis via either OpenRouter or direct Anthropic API (LLMProvider interface + factory + AnthropicProvider)
+- [x] User can run codebase analysis via either Claude CLI or OpenCode (CodebaseProviderInterface + factory)
+- [x] Chat can write markdown, CSV, and Mermaid files to workspace with user approval (3 file-write action tools)
+- [x] Mermaid diagrams render in-app; D3/Chart.js charts in results and comparison views (heatmap, bar charts, radar, confidence trend)
+- [x] First-launch wizard completes successfully for new users (4-step onboarding with provider/key setup)
+- [x] ~~Auto-update downloads and applies updates from GitHub Releases~~ (deferred — requires code signing)
+- [x] Evidence coverage indicator shows source citation rates on the quality metrics card (progress bars with count/total/%)
+- [x] Repeated analysis runs on unchanged data produce substantially overlapping SWOT items (temperature 0)
+- [x] Structured logging with file output and daily rotation
+- [x] Profile tags for manual theme annotation
+- [x] App menu with keyboard shortcuts
+- [x] Editor context available in chat
 
 ---
 

@@ -18,6 +18,7 @@ function makeProfile(id: string, name: string): Profile {
     concerns: 'Scaling',
     priorities: 'Reliability',
     interviewQuotes: ['Need better monitoring'],
+    tags: [],
     notes: null,
     sourceFile: null,
     createdAt: '2024-01-01T00:00:00.000Z',
@@ -79,6 +80,7 @@ describe('AnalysisService', () => {
 
     settingsService = {
       getApiKey: vi.fn().mockReturnValue('sk-test-key'),
+      getActiveApiKey: vi.fn().mockReturnValue('sk-test-key'),
     } as unknown as SettingsService;
 
     workspaceService = {
@@ -122,7 +124,7 @@ describe('AnalysisService', () => {
     });
 
     it('returns error when API key is not set', async () => {
-      vi.mocked(settingsService.getApiKey).mockReturnValue(null);
+      vi.mocked(settingsService.getActiveApiKey).mockReturnValue(null);
 
       const result = await service.runAnalysis(
         {

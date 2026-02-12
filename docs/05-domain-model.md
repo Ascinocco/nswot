@@ -67,6 +67,7 @@ interface Profile {
   concerns: string | null; // Freeform text
   priorities: string | null; // Freeform text
   interviewQuotes: string[]; // Array of direct quotes
+  tags: string[];          // Phase 3e — manual theme tags for pre-analysis annotation
   notes: string | null;    // Freeform text
   sourceFile: string | null; // Workspace-relative path if imported from markdown
   createdAt: string;       // ISO 8601
@@ -80,6 +81,7 @@ interface ProfileInput {
   concerns?: string;
   priorities?: string;
   interviewQuotes?: string[];
+  tags?: string[];
   notes?: string;
   sourceFile?: string;
 }
@@ -89,6 +91,7 @@ interface ProfileInput {
 - `name` is required and non-empty
 - Maximum **25 profiles per workspace** (enforced by `ProfileService`)
 - `interviewQuotes` is stored as JSON array in SQLite, deserialized to `string[]` by repository
+- `tags` is stored as JSON array in SQLite (migration v5), deserialized to `string[]` by repository
 - `sourceFile`, if present, must be a relative path within the workspace
 
 ---

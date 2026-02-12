@@ -15,6 +15,7 @@ export interface Profile {
   concerns: string | null;
   priorities: string | null;
   interviewQuotes: string[];
+  tags: string[];
   notes: string | null;
   sourceFile: string | null;
   createdAt: string;
@@ -28,6 +29,7 @@ export interface ProfileInput {
   concerns?: string;
   priorities?: string;
   interviewQuotes?: string[];
+  tags?: string[];
   notes?: string;
   sourceFile?: string;
 }
@@ -144,6 +146,12 @@ export interface AnonymizedPayload {
   pseudonymMap: Record<string, string>;
 }
 
+export interface SourceCoverageEntry {
+  sourceType: string;
+  cited: number;
+  total: number;
+}
+
 export interface EvidenceQualityMetrics {
   totalItems: number;
   multiSourceItems: number;
@@ -151,6 +159,7 @@ export interface EvidenceQualityMetrics {
   confidenceDistribution: { high: number; medium: number; low: number };
   averageEvidencePerItem: number;
   qualityScore: number;
+  sourceCoverage?: SourceCoverageEntry[];
 }
 
 export interface AnonymizedProfile {
@@ -190,7 +199,10 @@ export type ActionToolName =
   | 'add_jira_comment'
   | 'create_confluence_page'
   | 'create_github_issue'
-  | 'create_github_pr';
+  | 'create_github_pr'
+  | 'write_markdown_file'
+  | 'write_csv_file'
+  | 'write_mermaid_file';
 
 export interface ActionResult {
   success: boolean;

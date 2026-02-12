@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { CHAT_ACTION_TOOLS, TOOL_NAMES, getToolsByIntegration } from './action-tools';
+import { CHAT_ACTION_TOOLS, TOOL_NAMES, getToolsByIntegration, FILE_WRITE_TOOLS, FILE_WRITE_TOOL_NAMES, isFileWriteTool } from './action-tools';
 import type { ActionToolName } from '../../domain/types';
 
 describe('action-tools', () => {
@@ -110,6 +110,52 @@ describe('action-tools', () => {
       for (const name of TOOL_NAMES) {
         expect(validNames).toContain(name);
       }
+    });
+  });
+
+  describe('FILE_WRITE_TOOLS', () => {
+    it('defines exactly 3 file-write tools', () => {
+      expect(FILE_WRITE_TOOLS).toHaveLength(3);
+    });
+
+    it('all file-write tools have type "function"', () => {
+      for (const tool of FILE_WRITE_TOOLS) {
+        expect(tool.type).toBe('function');
+      }
+    });
+
+    it('contains write_markdown_file, write_csv_file, write_mermaid_file', () => {
+      const names = FILE_WRITE_TOOLS.map((t) => t.function.name);
+      expect(names).toEqual(['write_markdown_file', 'write_csv_file', 'write_mermaid_file']);
+    });
+
+    it('all file-write tools require path and content', () => {
+      for (const tool of FILE_WRITE_TOOLS) {
+        expect(tool.function.parameters.required).toEqual(['path', 'content']);
+      }
+    });
+  });
+
+  describe('FILE_WRITE_TOOL_NAMES', () => {
+    it('contains 3 file-write tool names', () => {
+      expect(FILE_WRITE_TOOL_NAMES).toHaveLength(3);
+      expect(FILE_WRITE_TOOL_NAMES).toContain('write_markdown_file');
+      expect(FILE_WRITE_TOOL_NAMES).toContain('write_csv_file');
+      expect(FILE_WRITE_TOOL_NAMES).toContain('write_mermaid_file');
+    });
+  });
+
+  describe('isFileWriteTool', () => {
+    it('returns true for file-write tool names', () => {
+      expect(isFileWriteTool('write_markdown_file')).toBe(true);
+      expect(isFileWriteTool('write_csv_file')).toBe(true);
+      expect(isFileWriteTool('write_mermaid_file')).toBe(true);
+    });
+
+    it('returns false for non-file-write tool names', () => {
+      expect(isFileWriteTool('create_jira_issue')).toBe(false);
+      expect(isFileWriteTool('create_github_pr')).toBe(false);
+      expect(isFileWriteTool('unknown_tool')).toBe(false);
     });
   });
 });

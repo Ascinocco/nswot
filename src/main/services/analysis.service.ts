@@ -32,9 +32,9 @@ import { SwotGenerationStep } from '../analysis/steps/swot-generation';
 import { ExtractionStep } from '../analysis/steps/extraction';
 import { SynthesisStep } from '../analysis/steps/synthesis';
 import type { LlmCaller, LlmResponse } from '../analysis/pipeline-step';
+import type { LLMProvider } from '../providers/llm/llm-provider.interface';
 
-const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const LLM_TEMPERATURE = 0.2;
+const LLM_TEMPERATURE = 0;
 const LLM_MAX_TOKENS = 16384;
 
 export type AnalysisStage =
@@ -76,6 +76,7 @@ export class AnalysisService {
     private readonly integrationCacheRepo: IntegrationCacheRepository,
     private readonly settingsService: SettingsService,
     private readonly workspaceService: WorkspaceService,
+    private readonly llmProvider?: LLMProvider,
   ) {}
 
   async runAnalysis(
@@ -87,7 +88,7 @@ export class AnalysisService {
       return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
     }
 
-    const apiKey = this.settingsService.getApiKey();
+    const apiKey = this.settingsService.getActiveApiKey();
     if (!apiKey) {
       return err(new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'API key is not configured'));
     }
@@ -169,8 +170,20 @@ export class AnalysisService {
       };
 
       const llmCaller: LlmCaller = {
-        call: (messages, modelId, onToken) =>
-          this.sendToOpenRouter(apiKey, modelId, messages, onToken),
+        call: async (messages, modelId, onToken) => {
+          if (this.llmProvider) {
+            const resp = await this.llmProvider.createChatCompletion({
+              apiKey,
+              modelId,
+              messages,
+              temperature: LLM_TEMPERATURE,
+              maxTokens: LLM_MAX_TOKENS,
+              onToken,
+            });
+            return { content: resp.content, finishReason: resp.finishReason };
+          }
+          throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'No LLM provider configured');
+        },
       };
 
       const steps = input.multiStep
@@ -385,134 +398,6 @@ export class AnalysisService {
     return formatCodebaseMarkdown(analyses);
   }
 
-  private async sendToOpenRouter(
-    apiKey: string,
-    modelId: string,
-    messages: Array<{ role: string; content: string }>,
-    onToken?: (tokenCount: number) => void,
-  ): Promise<LlmResponse> {
-    const response = await fetch(OPENROUTER_CHAT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://nswot.app',
-        'X-Title': 'nswot',
-      },
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        temperature: LLM_TEMPERATURE,
-        max_tokens: LLM_MAX_TOKENS,
-        stream: true,
-      }),
-    });
-
-    if (!response.ok) {
-      const status = response.status;
-      let detail = '';
-      try {
-        const errBody = (await response.json()) as { error?: { message?: string } };
-        detail = errBody.error?.message ?? '';
-      } catch {
-        // ignore parse failure on error body
-      }
-      if (status === 401 || status === 403) {
-        throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, detail || 'Invalid API key');
-      }
-      if (status === 429) {
-        throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, detail || 'Rate limited by OpenRouter');
-      }
-      throw new DomainError(
-        ERROR_CODES.LLM_REQUEST_FAILED,
-        detail || `OpenRouter returned status ${status}`,
-      );
-    }
-
-    return this.readSSEStream(response, onToken);
-  }
-
-  private async readSSEStream(
-    response: Response,
-    onToken?: (tokenCount: number) => void,
-  ): Promise<LlmResponse> {
-    const body = response.body;
-    if (!body) {
-      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'No response body from LLM');
-    }
-
-    const reader = body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    const chunks: string[] = [];
-    let tokenCount = 0;
-    let finishReason: string | null = null;
-    let lastProgressAt = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      // Keep the last potentially incomplete line in the buffer
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: Array<{
-              delta?: { content?: string };
-              finish_reason?: string | null;
-            }>;
-            error?: { message?: string };
-          };
-
-          if (parsed.error?.message) {
-            throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, parsed.error.message);
-          }
-
-          const choice = parsed.choices?.[0];
-          const content = choice?.delta?.content;
-          if (content) {
-            chunks.push(content);
-            tokenCount++;
-
-            // Throttle progress callbacks to every 50 tokens
-            if (onToken && tokenCount - lastProgressAt >= 50) {
-              lastProgressAt = tokenCount;
-              onToken(tokenCount);
-            }
-          }
-
-          if (choice?.finish_reason) {
-            finishReason = choice.finish_reason;
-          }
-        } catch (e) {
-          if (e instanceof DomainError) throw e;
-          // Skip malformed SSE chunks
-        }
-      }
-    }
-
-    // Final progress callback
-    if (onToken && tokenCount > lastProgressAt) {
-      onToken(tokenCount);
-    }
-
-    const fullContent = chunks.join('');
-    if (!fullContent) {
-      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'Empty response from LLM');
-    }
-
-    return { content: fullContent, finishReason };
-  }
 }
 
 function formatJiraMarkdown(

@@ -14,6 +14,10 @@ export class PreferencesRepository {
   constructor(private readonly db: Database.Database) {}
 
   async get(key: string): Promise<Preference | null> {
+    return this.getSync(key);
+  }
+
+  getSync(key: string): Preference | null {
     const row = this.db
       .prepare('SELECT key, value FROM preferences WHERE key = ?')
       .get(key) as PreferenceRow | undefined;

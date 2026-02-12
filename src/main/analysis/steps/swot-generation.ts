@@ -1,7 +1,7 @@
 import type { PipelineStep, PipelineContext, StepProgressFn } from '../pipeline-step';
 import { buildSystemPrompt, buildUserPrompt, buildCorrectivePrompt } from '../prompt-builder';
 import { parseAnalysisResponse } from '../response-parser';
-import { validateEvidence } from '../evidence-validator';
+import { validateEvidence, computeSourceCoverage } from '../evidence-validator';
 import { computeQualityMetrics } from '../quality-metrics';
 import { calculateTokenBudget } from '../token-budget';
 import type { ConnectedSource } from '../token-budget';
@@ -100,6 +100,7 @@ export class SwotGenerationStep implements PipelineStep {
 
     // Compute quality metrics
     const qualityMetrics = computeQualityMetrics(swotOutput);
+    qualityMetrics.sourceCoverage = computeSourceCoverage(swotOutput, context.inputSnapshot);
 
     return {
       ...context,

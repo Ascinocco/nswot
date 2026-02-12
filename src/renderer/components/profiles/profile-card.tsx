@@ -28,6 +28,18 @@ export default function ProfileCard({
           )}
         </div>
       </div>
+      {profile.tags && profile.tags.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {profile.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-blue-900/40 px-2 py-0.5 text-[10px] text-blue-300"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
       {profile.concerns && (
         <p className="mb-2 text-sm text-gray-400 line-clamp-2">{profile.concerns}</p>
       )}

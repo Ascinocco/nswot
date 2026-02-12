@@ -1,5 +1,11 @@
+import { useState, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import QualityMetrics from './quality-metrics';
+import DeanonymizeTooltip from './deanonymize-tooltip';
+import SwotHeatmap from '../visualizations/swot-heatmap';
+import SourceCoverageChart from '../visualizations/source-coverage-chart';
+import ThemeDistributionChart from '../visualizations/theme-distribution-chart';
+import { usePseudonymMap } from '../../hooks/use-pseudonym-map';
 
 interface SwotResultsProps {
   analysis: Analysis;
@@ -20,6 +26,7 @@ const QUADRANT_STYLES: Record<string, { border: string; bg: string; text: string
 
 export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.Element {
   const swot = analysis.swotOutput;
+  const { data: pseudonymMap } = usePseudonymMap(analysis.id);
   if (!swot) return <></>;
 
   const quadrants: [string, string, SwotItem[]][] = [
@@ -76,7 +83,7 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
               ) : (
                 <div className="space-y-4">
                   {items.map((item, i) => (
-                    <SwotItemCard key={i} item={item} />
+                    <SwotItemCard key={i} item={item} pseudonymMap={pseudonymMap} />
                   ))}
                 </div>
               )}
@@ -84,6 +91,72 @@ export default function SwotResults({ analysis }: SwotResultsProps): React.JSX.E
           );
         })}
       </div>
+
+      {/* Visualizations */}
+      <VisualizationsSection analysis={analysis} swotOutput={swot} />
+    </div>
+  );
+}
+
+function VisualizationsSection({ analysis, swotOutput }: { analysis: Analysis; swotOutput: SwotOutput }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const [themes, setThemes] = useState<Theme[]>([]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    window.nswot.themes
+      .list(analysis.id)
+      .then((result) => {
+        if (result.success && result.data) {
+          setThemes(result.data);
+        }
+      })
+      .catch(() => {});
+  }, [expanded, analysis.id]);
+
+  const hasMetrics = analysis.qualityMetrics != null;
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900/50">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between p-4 text-left"
+      >
+        <h4 className="text-sm font-medium text-gray-300">Visualizations</h4>
+        <span className="text-xs text-gray-500">{expanded ? '▲ Collapse' : '▼ Expand'}</span>
+      </button>
+      {expanded && (
+        <div className="space-y-6 border-t border-gray-800 p-4">
+          {/* Confidence Heatmap */}
+          <div>
+            <h5 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-400">
+              Confidence Heatmap
+            </h5>
+            <SwotHeatmap swotOutput={swotOutput} />
+          </div>
+
+          {/* Source Coverage */}
+          {hasMetrics && (
+            <div>
+              <h5 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-400">
+                Evidence by Source
+              </h5>
+              <SourceCoverageChart sourceTypeCoverage={analysis.qualityMetrics!.sourceTypeCoverage} />
+            </div>
+          )}
+
+          {/* Theme Distribution */}
+          {themes.length > 0 && (
+            <div>
+              <h5 className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-400">
+                Theme Distribution
+              </h5>
+              <ThemeDistributionChart themes={themes} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -99,7 +172,7 @@ function SummaryCard({ title, content }: { title: string; content: string }): Re
   );
 }
 
-function SwotItemCard({ item }: { item: SwotItem }): React.JSX.Element {
+function SwotItemCard({ item, pseudonymMap }: { item: SwotItem; pseudonymMap?: Record<string, string> }): React.JSX.Element {
   const confidenceStyle = CONFIDENCE_STYLES[item.confidence] ?? CONFIDENCE_STYLES['low'];
 
   return (
@@ -118,9 +191,19 @@ function SwotItemCard({ item }: { item: SwotItem }): React.JSX.Element {
         {item.evidence.map((e, i) => (
           <div key={i} className="flex gap-2 text-xs">
             <span className="shrink-0 rounded bg-gray-800 px-1.5 py-0.5 font-mono text-gray-400">
-              {e.sourceId}
+              {pseudonymMap ? (
+                <DeanonymizeTooltip text={e.sourceId} pseudonymMap={pseudonymMap} />
+              ) : (
+                e.sourceId
+              )}
             </span>
-            <span className="italic text-gray-500">"{e.quote}"</span>
+            <span className="italic text-gray-500">
+              "{pseudonymMap ? (
+                <DeanonymizeTooltip text={e.quote} pseudonymMap={pseudonymMap} />
+              ) : (
+                e.quote
+              )}"
+            </span>
           </div>
         ))}
       </div>

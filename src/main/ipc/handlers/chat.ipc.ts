@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../channels';
 import type { IPCResult, ChatMessage, ChatAction, ActionResult } from '../../domain/types';
 import type { ChatService } from '../../services/chat.service';
+import type { EditorContext } from '../../services/chat.service';
 
 function toIpcResult<T>(data: T): IPCResult<T> {
   return { success: true, data };
@@ -98,6 +99,14 @@ export function registerChatHandlers(chatService: ChatService): void {
       const result = await chatService.listActions(analysisId);
       if (result.ok) return toIpcResult(result.value);
       return toIpcError(result.error);
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.CHAT_SET_EDITOR_CONTEXT,
+    async (_event, context: EditorContext | null): Promise<IPCResult<void>> => {
+      chatService.setEditorContext(context);
+      return toIpcResult<void>(undefined);
     },
   );
 }

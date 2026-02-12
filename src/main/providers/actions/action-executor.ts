@@ -2,18 +2,26 @@ import { spawn } from 'child_process';
 import type { ActionResult, ActionToolName } from '../../domain/types';
 import type { ActionExecutorOptions } from './action.types';
 import { DEFAULT_ACTION_OPTIONS } from './action.types';
+import { isFileWriteTool } from './action-tools';
+import type { FileService } from '../../services/file.service';
 
 export class ActionExecutor {
   private readonly options: ActionExecutorOptions;
+  private readonly fileService?: FileService;
 
-  constructor(options?: Partial<ActionExecutorOptions>) {
+  constructor(options?: Partial<ActionExecutorOptions>, fileService?: FileService) {
     this.options = { ...DEFAULT_ACTION_OPTIONS, ...options };
+    this.fileService = fileService;
   }
 
   async execute(
     toolName: ActionToolName,
     toolInput: Record<string, unknown>,
   ): Promise<ActionResult> {
+    if (isFileWriteTool(toolName)) {
+      return this.executeFileWrite(toolInput);
+    }
+
     const prompt = this.buildPrompt(toolName, toolInput);
     const allowedTools = this.getAllowedTools(toolName);
 
@@ -59,6 +67,28 @@ export class ActionExecutor {
       }
       throw err;
     }
+  }
+
+  private async executeFileWrite(toolInput: Record<string, unknown>): Promise<ActionResult> {
+    if (!this.fileService) {
+      return { success: false, error: 'File service not available. No workspace is open.' };
+    }
+
+    const path = toolInput['path'] as string | undefined;
+    const content = toolInput['content'] as string | undefined;
+
+    if (!path || typeof path !== 'string') {
+      return { success: false, error: 'Missing required field: path' };
+    }
+    if (content === undefined || typeof content !== 'string') {
+      return { success: false, error: 'Missing required field: content' };
+    }
+
+    const result = await this.fileService.writeFile(path, content);
+    if (result.ok) {
+      return { success: true, id: path };
+    }
+    return { success: false, error: result.error.message };
   }
 
   buildPrompt(toolName: ActionToolName, toolInput: Record<string, unknown>): string {

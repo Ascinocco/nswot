@@ -5,6 +5,10 @@ import type { ChatActionRepository } from '../repositories/chat-action.repositor
 import type { AnalysisRepository } from '../repositories/analysis.repository';
 import type { SettingsService } from './settings.service';
 import type { ActionExecutor } from '../providers/actions/action-executor';
+import { ActionExecutor as ActionExecutorImpl } from '../providers/actions/action-executor';
+import type { FileService } from './file.service';
+import { ok, err } from '../domain/result';
+import { DomainError, ERROR_CODES } from '../domain/errors';
 import type { Analysis, ChatMessage, ChatAction } from '../domain/types';
 
 function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
@@ -81,6 +85,7 @@ describe('ChatService', () => {
 
     settingsService = {
       getApiKey: vi.fn().mockReturnValue('sk-test-key'),
+      getActiveApiKey: vi.fn().mockReturnValue('sk-test-key'),
     } as unknown as SettingsService;
 
     service = new ChatService(chatRepo, analysisRepo, settingsService);
@@ -143,7 +148,7 @@ describe('ChatService', () => {
     });
 
     it('returns error when API key is not configured', async () => {
-      vi.mocked(settingsService.getApiKey).mockReturnValue(null);
+      vi.mocked(settingsService.getActiveApiKey).mockReturnValue(null);
 
       const result = await service.sendMessage('analysis-1', 'Hello', vi.fn());
       expect(result.ok).toBe(false);
@@ -202,6 +207,7 @@ describe('buildChatSystemPrompt', () => {
     const analysis = makeCompletedAnalysis();
     const prompt = buildChatSystemPrompt(analysis);
     expect(prompt).toContain('Do not invent information');
+    // When no workspace and no integrations, the "cannot create files" rule is included
     expect(prompt).toContain('cannot create files');
   });
 
@@ -255,6 +261,60 @@ describe('buildChatSystemPrompt', () => {
     expect(prompt).toContain('Available Confluence spaces: ENG');
     expect(prompt).toContain('Available GitHub repos: org/repo');
   });
+
+  it('includes FILE GENERATION section when workspace is open', () => {
+    const analysis = makeCompletedAnalysis();
+    const prompt = buildChatSystemPrompt(analysis, undefined, true);
+    expect(prompt).toContain('FILE GENERATION:');
+    expect(prompt).toContain('write_markdown_file');
+    expect(prompt).toContain('write_csv_file');
+    expect(prompt).toContain('write_mermaid_file');
+    expect(prompt).toContain('user must approve');
+  });
+
+  it('excludes FILE GENERATION section when no workspace', () => {
+    const analysis = makeCompletedAnalysis();
+    const prompt = buildChatSystemPrompt(analysis, undefined, false);
+    expect(prompt).not.toContain('FILE GENERATION:');
+  });
+
+  it('omits "cannot create files" rule when workspace is open', () => {
+    const analysis = makeCompletedAnalysis();
+    const prompt = buildChatSystemPrompt(analysis, undefined, true);
+    expect(prompt).not.toContain('cannot create files');
+  });
+
+  it('includes EDITOR CONTEXT section when editor context has filePath', () => {
+    const analysis = makeCompletedAnalysis();
+    const editorContext = { filePath: 'src/app.ts', contentPreview: 'import React...', selectedText: null };
+    const prompt = buildChatSystemPrompt(analysis, undefined, true, editorContext);
+    expect(prompt).toContain('EDITOR CONTEXT:');
+    expect(prompt).toContain('File: src/app.ts');
+    expect(prompt).toContain('Content preview:');
+    expect(prompt).toContain('import React...');
+  });
+
+  it('includes selected text in editor context', () => {
+    const analysis = makeCompletedAnalysis();
+    const editorContext = { filePath: 'src/app.ts', contentPreview: null, selectedText: 'const x = 42;' };
+    const prompt = buildChatSystemPrompt(analysis, undefined, true, editorContext);
+    expect(prompt).toContain('EDITOR CONTEXT:');
+    expect(prompt).toContain('Selected text:');
+    expect(prompt).toContain('const x = 42;');
+  });
+
+  it('excludes EDITOR CONTEXT when no file is open', () => {
+    const analysis = makeCompletedAnalysis();
+    const editorContext = { filePath: null, contentPreview: null, selectedText: null };
+    const prompt = buildChatSystemPrompt(analysis, undefined, true, editorContext);
+    expect(prompt).not.toContain('EDITOR CONTEXT:');
+  });
+
+  it('excludes EDITOR CONTEXT when editor context is null', () => {
+    const analysis = makeCompletedAnalysis();
+    const prompt = buildChatSystemPrompt(analysis, undefined, true, null);
+    expect(prompt).not.toContain('EDITOR CONTEXT:');
+  });
 });
 
 describe('getConnectedIntegrations', () => {
@@ -275,6 +335,57 @@ describe('getConnectedIntegrations', () => {
       config: { profileIds: ['p1'], jiraProjectKeys: ['PROJ'], confluenceSpaceKeys: ['ENG'], githubRepos: ['org/repo'], codebaseRepos: [] },
     });
     expect(getConnectedIntegrations(analysis)).toEqual(['jira', 'confluence', 'github']);
+  });
+});
+
+describe('ChatService editor context', () => {
+  let chatRepo: ChatRepository;
+  let analysisRepo: AnalysisRepository;
+  let settingsService: SettingsService;
+  let service: ChatService;
+
+  beforeEach(() => {
+    chatRepo = {
+      findByAnalysis: vi.fn().mockResolvedValue([]),
+      insert: vi.fn().mockImplementation(async (analysisId: string, role: string, content: string) => ({
+        id: 'msg-1',
+        analysisId,
+        role,
+        content,
+        createdAt: '2024-01-01T00:00:00.000Z',
+      })),
+      deleteByAnalysis: vi.fn().mockResolvedValue(undefined),
+      countByAnalysis: vi.fn().mockResolvedValue(0),
+    } as unknown as ChatRepository;
+
+    analysisRepo = {
+      findById: vi.fn().mockResolvedValue(makeCompletedAnalysis()),
+    } as unknown as AnalysisRepository;
+
+    settingsService = {
+      getApiKey: vi.fn().mockReturnValue('sk-test-key'),
+      getActiveApiKey: vi.fn().mockReturnValue('sk-test-key'),
+    } as unknown as SettingsService;
+
+    service = new ChatService(chatRepo, analysisRepo, settingsService);
+  });
+
+  it('stores and retrieves editor context', () => {
+    const ctx = { filePath: 'src/index.ts', contentPreview: 'code', selectedText: null };
+    service.setEditorContext(ctx);
+    expect(service.getEditorContext()).toEqual(ctx);
+  });
+
+  it('clears editor context when set to null', () => {
+    service.setEditorContext({ filePath: 'test.ts', contentPreview: null, selectedText: null });
+    service.setEditorContext(null);
+    expect(service.getEditorContext()).toBeNull();
+  });
+
+  it('tracks workspace open state', () => {
+    service.setWorkspaceOpen(true);
+    // We can't directly assert the private field, but we verify it doesn't throw
+    service.setWorkspaceOpen(false);
   });
 });
 
@@ -343,6 +454,7 @@ describe('ChatService actions', () => {
 
     settingsService = {
       getApiKey: vi.fn().mockReturnValue('sk-test-key'),
+      getActiveApiKey: vi.fn().mockReturnValue('sk-test-key'),
     } as unknown as SettingsService;
 
     actionExecutor = {
@@ -536,5 +648,246 @@ describe('ChatService actions', () => {
         expect(result.error.code).toBe('ACTION_INVALID_STATUS');
       }
     });
+  });
+});
+
+describe('ChatService file-write integration', () => {
+  let chatRepo: ChatRepository;
+  let chatActionRepo: ChatActionRepository;
+  let analysisRepo: AnalysisRepository;
+  let settingsService: SettingsService;
+  let fileService: FileService;
+  let service: ChatService;
+
+  function makeFileWriteAction(
+    toolName: 'write_markdown_file' | 'write_csv_file' | 'write_mermaid_file',
+    path: string,
+    content: string,
+  ): ChatAction {
+    return {
+      id: 'file-action-1',
+      analysisId: 'analysis-1',
+      chatMessageId: 'msg-1',
+      toolName,
+      toolInput: { _toolCallId: 'call_file_1', path, content },
+      status: 'pending',
+      result: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      executedAt: null,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    chatRepo = {
+      findByAnalysis: vi.fn().mockResolvedValue([]),
+      insert: vi.fn().mockImplementation(async (analysisId: string, role: string, content: string) => ({
+        id: 'msg-1', analysisId, role, content, createdAt: '2024-01-01T00:00:00.000Z',
+      })),
+      deleteByAnalysis: vi.fn().mockResolvedValue(undefined),
+      countByAnalysis: vi.fn().mockResolvedValue(0),
+    } as unknown as ChatRepository;
+
+    analysisRepo = {
+      findById: vi.fn().mockResolvedValue(makeCompletedAnalysis()),
+    } as unknown as AnalysisRepository;
+
+    settingsService = {
+      getApiKey: vi.fn().mockReturnValue('sk-test-key'),
+      getActiveApiKey: vi.fn().mockReturnValue('sk-test-key'),
+    } as unknown as SettingsService;
+
+    fileService = {
+      writeFile: vi.fn().mockResolvedValue(ok(undefined)),
+      readFile: vi.fn().mockResolvedValue(ok('')),
+      listDirectory: vi.fn().mockResolvedValue(ok([])),
+    } as unknown as FileService;
+  });
+
+  it('approves markdown file-write and writes via FileService', async () => {
+    const action = makeFileWriteAction('write_markdown_file', 'reports/summary.md', '# Summary\n\nKey findings.');
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'completed' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    const result = await service.approveAction('file-action-1', vi.fn());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.success).toBe(true);
+      expect(result.value.id).toBe('reports/summary.md');
+    }
+
+    expect(fileService.writeFile).toHaveBeenCalledWith('reports/summary.md', '# Summary\n\nKey findings.');
+    expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('file-action-1', 'completed', {
+      success: true,
+      id: 'reports/summary.md',
+    });
+  });
+
+  it('approves mermaid file-write and writes .mmd content', async () => {
+    const mermaidContent = 'graph TD\n  A[Start] --> B[End]';
+    const action = makeFileWriteAction('write_mermaid_file', 'diagrams/arch.mmd', mermaidContent);
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'completed' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    const result = await service.approveAction('file-action-1', vi.fn());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.success).toBe(true);
+      expect(result.value.id).toBe('diagrams/arch.mmd');
+    }
+
+    expect(fileService.writeFile).toHaveBeenCalledWith('diagrams/arch.mmd', mermaidContent);
+  });
+
+  it('approves CSV file-write and writes .csv content', async () => {
+    const csvContent = 'name,score,team\nAlice,95,Platform\nBob,88,Quality';
+    const action = makeFileWriteAction('write_csv_file', 'exports/metrics.csv', csvContent);
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'completed' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    const result = await service.approveAction('file-action-1', vi.fn());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.success).toBe(true);
+      expect(result.value.id).toBe('exports/metrics.csv');
+    }
+
+    expect(fileService.writeFile).toHaveBeenCalledWith('exports/metrics.csv', csvContent);
+  });
+
+  it('propagates FileService error when file-write fails', async () => {
+    const action = makeFileWriteAction('write_markdown_file', '../../../etc/passwd', 'malicious');
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'failed' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    vi.mocked(fileService.writeFile).mockResolvedValue(
+      err(new DomainError(ERROR_CODES.WORKSPACE_PATH_INVALID, 'Path resolves outside workspace root')),
+    );
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    const result = await service.approveAction('file-action-1', vi.fn());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.success).toBe(false);
+      expect(result.value.error).toContain('Path resolves outside workspace root');
+    }
+
+    expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('file-action-1', 'failed', {
+      success: false,
+      error: 'Path resolves outside workspace root',
+    });
+  });
+
+  it('transitions file-write action through approved → executing → completed statuses', async () => {
+    const action = makeFileWriteAction('write_markdown_file', 'notes/plan.md', '# Plan');
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'completed' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    await service.approveAction('file-action-1', vi.fn());
+
+    const statusCalls = vi.mocked(chatActionRepo.updateStatus).mock.calls.map((c) => c[1]);
+    expect(statusCalls).toContain('approved');
+    expect(statusCalls).toContain('executing');
+    expect(statusCalls).toContain('completed');
+
+    const approvedIdx = statusCalls.indexOf('approved');
+    const executingIdx = statusCalls.indexOf('executing');
+    const completedIdx = statusCalls.indexOf('completed');
+    expect(approvedIdx).toBeLessThan(executingIdx);
+    expect(executingIdx).toBeLessThan(completedIdx);
+  });
+
+  it('does not write file when file-write action is rejected', async () => {
+    const action = makeFileWriteAction('write_markdown_file', 'reports/summary.md', '# Summary');
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'rejected' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    const result = await service.rejectAction('file-action-1', vi.fn());
+
+    expect(result.ok).toBe(true);
+    expect(fileService.writeFile).not.toHaveBeenCalled();
+    expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('file-action-1', 'rejected');
   });
 });

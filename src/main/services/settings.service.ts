@@ -3,23 +3,26 @@ import type { Result } from '../domain/result';
 import { DomainError, ERROR_CODES } from '../domain/errors';
 import type { PreferencesRepository } from '../repositories/preferences.repository';
 import type { SecureStorage } from '../infrastructure/safe-storage';
-import type { OpenRouterProvider } from '../providers/llm/openrouter.provider';
+import type { LLMProvider } from '../providers/llm/llm-provider.interface';
 import type { CircuitBreaker } from '../infrastructure/circuit-breaker';
 import { CircuitOpenError } from '../infrastructure/circuit-breaker';
 import { withRetry } from '../infrastructure/retry';
 import type { LlmModel } from '../providers/llm/llm.types';
+import type { LlmProviderType } from '../providers/llm/llm-provider-factory';
 
-const API_KEY_STORAGE_KEY = 'openrouter_api_key';
+const OPENROUTER_KEY_STORAGE = 'openrouter_api_key';
+const ANTHROPIC_KEY_STORAGE = 'anthropic_api_key';
 const MODEL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export class SettingsService {
   private modelCache: LlmModel[] | null = null;
   private modelCacheTime = 0;
+  private modelCacheProvider: string | null = null;
 
   constructor(
     private readonly preferencesRepo: PreferencesRepository,
     private readonly secureStorage: SecureStorage,
-    private readonly openRouterProvider: OpenRouterProvider,
+    private readonly openRouterProvider: LLMProvider,
     private readonly circuitBreaker: CircuitBreaker,
   ) {}
 
@@ -53,47 +56,117 @@ export class SettingsService {
   async setApiKey(apiKey: string): Promise<Result<void, DomainError>> {
     try {
       if (!apiKey) {
-        this.secureStorage.remove(API_KEY_STORAGE_KEY);
+        this.secureStorage.remove(OPENROUTER_KEY_STORAGE);
       } else {
-        this.secureStorage.store(API_KEY_STORAGE_KEY, apiKey);
+        this.secureStorage.store(OPENROUTER_KEY_STORAGE, apiKey);
       }
-      this.modelCache = null;
-      this.modelCacheTime = 0;
+      this.invalidateModelCache();
       return ok(undefined);
     } catch (cause) {
       return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to store API key', cause));
     }
   }
 
-  async listModels(): Promise<Result<LlmModel[], DomainError>> {
-    // Check cache
-    if (this.modelCache && Date.now() - this.modelCacheTime < MODEL_CACHE_TTL_MS) {
+  getApiKey(): string | null {
+    try {
+      return this.secureStorage.retrieve(OPENROUTER_KEY_STORAGE);
+    } catch {
+      return null;
+    }
+  }
+
+  async setAnthropicApiKey(apiKey: string): Promise<Result<void, DomainError>> {
+    try {
+      if (!apiKey) {
+        this.secureStorage.remove(ANTHROPIC_KEY_STORAGE);
+      } else {
+        this.secureStorage.store(ANTHROPIC_KEY_STORAGE, apiKey);
+      }
+      this.invalidateModelCache();
+      return ok(undefined);
+    } catch (cause) {
+      return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to store Anthropic API key', cause));
+    }
+  }
+
+  getAnthropicApiKey(): string | null {
+    try {
+      return this.secureStorage.retrieve(ANTHROPIC_KEY_STORAGE);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get the API key for the given provider type.
+   */
+  getApiKeyForProvider(type: LlmProviderType): string | null {
+    switch (type) {
+      case 'openrouter':
+        return this.getApiKey();
+      case 'anthropic':
+        return this.getAnthropicApiKey();
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Get the API key for the currently active LLM provider.
+   */
+  getActiveApiKey(): string | null {
+    const providerType = this.getLlmProviderType();
+    return this.getApiKeyForProvider(providerType);
+  }
+
+  getLlmProviderType(): LlmProviderType {
+    try {
+      const pref = this.preferencesRepo.getSync('llmProviderType');
+      if (pref?.value === 'anthropic') return 'anthropic';
+      return 'openrouter';
+    } catch {
+      return 'openrouter';
+    }
+  }
+
+  async listModels(provider?: LLMProvider): Promise<Result<LlmModel[], DomainError>> {
+    const activeProvider = provider ?? this.openRouterProvider;
+    const providerName = activeProvider.name;
+
+    // Check cache (invalidate if provider changed)
+    if (
+      this.modelCache &&
+      this.modelCacheProvider === providerName &&
+      Date.now() - this.modelCacheTime < MODEL_CACHE_TTL_MS
+    ) {
       return ok(this.modelCache);
     }
 
-    const apiKey = this.getApiKey();
+    const apiKey = providerName === 'anthropic'
+      ? this.getAnthropicApiKey()
+      : this.getApiKey();
+
     if (!apiKey) {
       return err(new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'API key is not configured'));
     }
 
     try {
       const models = await this.circuitBreaker.execute(() =>
-        withRetry(() => this.openRouterProvider.listModels(apiKey)),
+        withRetry(() => activeProvider.listModels(apiKey)),
       );
       this.modelCache = models;
       this.modelCacheTime = Date.now();
+      this.modelCacheProvider = providerName;
       return ok(models);
     } catch (cause) {
       return err(this.mapProviderError(cause));
     }
   }
 
-  getApiKey(): string | null {
-    try {
-      return this.secureStorage.retrieve(API_KEY_STORAGE_KEY);
-    } catch {
-      return null;
-    }
+  private invalidateModelCache(): void {
+    this.modelCache = null;
+    this.modelCacheTime = 0;
+    this.modelCacheProvider = null;
   }
 
   private mapProviderError(cause: unknown): DomainError {
@@ -106,7 +179,7 @@ export class SettingsService {
         return new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'Invalid API key', cause);
       }
       if (cause.status === 429) {
-        return new DomainError(ERROR_CODES.LLM_RATE_LIMITED, 'Rate limited by OpenRouter', cause);
+        return new DomainError(ERROR_CODES.LLM_RATE_LIMITED, 'Rate limited by provider', cause);
       }
     }
 

@@ -5,6 +5,9 @@ const TOOL_LABELS: Record<ActionToolName, string> = {
   create_confluence_page: 'Confluence Page',
   create_github_issue: 'GitHub Issue',
   create_github_pr: 'GitHub PR',
+  write_markdown_file: 'Markdown File',
+  write_csv_file: 'CSV File',
+  write_mermaid_file: 'Mermaid Diagram',
 };
 
 interface ActionStatusProps {

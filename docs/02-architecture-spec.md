@@ -263,6 +263,20 @@ class CodebaseProvider {
 
 Shared utilities that services and providers depend on. Circuit breaker, retry, database connection, file system access.
 
+**Phase 3e additions:**
+- **Structured logging** (`infrastructure/logger.ts`): Singleton logger with file output (`~/.nswot/logs/nswot-YYYY-MM-DD.log`), daily rotation, configurable log levels, and old log cleanup. All services and providers log through this centralized logger.
+- **File system watching** (`infrastructure/file-watcher.ts`): Monitors workspace directory for external file changes. Emits `file:changed` events via IPC to the renderer, which invalidates React Query directory/file caches for live sidebar updates.
+
+### 4.6 Visualization Components (Renderer)
+
+Phase 3e introduces a visualization layer in the renderer for interactive data display:
+
+- **Chart.js** (via `react-chartjs-2`): Horizontal bar charts (source coverage, theme distribution), radar charts (multi-source evidence coverage), stacked bar charts (confidence trend comparison)
+- **D3**: SVG-based confidence heatmap (SWOT categories x confidence levels)
+- **Mermaid**: Diagram rendering with dark theme support and error handling
+
+All visualization components live in `src/renderer/components/visualizations/` and are integrated into SWOT results (collapsible section) and comparison views.
+
 ---
 
 ## 5. IPC Surface (MVP)

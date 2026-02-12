@@ -20,6 +20,8 @@ export interface NswotAPI {
   };
   llm: {
     listModels(): Promise<IPCResult<LlmModel[]>>;
+    getProvider(): Promise<IPCResult<string>>;
+    setProvider(type: string): Promise<IPCResult<void>>;
   };
   workspace: {
     open(): Promise<IPCResult<Workspace | null>>;
@@ -29,6 +31,7 @@ export interface NswotAPI {
     readDir(relativePath: string): Promise<IPCResult<FileEntry[]>>;
     read(relativePath: string): Promise<IPCResult<string>>;
     write(relativePath: string, content: string): Promise<IPCResult<void>>;
+    onChanged?(callback: (data: { type: string; path: string }) => void): () => void;
   };
   profiles: {
     list(): Promise<IPCResult<Profile[]>>;
@@ -82,6 +85,7 @@ export interface NswotAPI {
     list(): Promise<IPCResult<Analysis[]>>;
     get(id: string): Promise<IPCResult<Analysis>>;
     delete(id: string): Promise<IPCResult<void>>;
+    getPseudonymMap(id: string): Promise<IPCResult<Record<string, string>>>;
     run(input: {
       profileIds: string[];
       jiraProjectKeys: string[];
@@ -108,6 +112,7 @@ export interface NswotAPI {
     send(analysisId: string, content: string): Promise<IPCResult<ChatMessage>>;
     delete(analysisId: string): Promise<IPCResult<void>>;
     onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
+    setEditorContext(context: { filePath: string | null; contentPreview: string | null; selectedText: string | null } | null): Promise<IPCResult<void>>;
     actions: {
       approve(actionId: string): Promise<IPCResult<ActionResult>>;
       reject(actionId: string): Promise<IPCResult<void>>;
@@ -130,5 +135,8 @@ export interface NswotAPI {
     markdown(analysisId: string): Promise<IPCResult<string>>;
     csv(analysisId: string): Promise<IPCResult<string>>;
     pdf(analysisId: string): Promise<IPCResult<string>>;
+  };
+  menu: {
+    onNavigate: (callback: (path: string) => void) => () => void;
   };
 }

@@ -7,13 +7,19 @@ import type { ChatActionRepository } from '../repositories/chat-action.repositor
 import type { AnalysisRepository } from '../repositories/analysis.repository';
 import type { SettingsService } from './settings.service';
 import type { ActionExecutor } from '../providers/actions/action-executor';
-import { getToolsByIntegration } from '../providers/actions/action-tools';
+import { getToolsByIntegration, FILE_WRITE_TOOLS } from '../providers/actions/action-tools';
 import type { ActionToolDefinition } from '../providers/actions/action-tools';
 import { estimateTokens, trimToTokenBudget } from '../analysis/token-budget';
+import type { LLMProvider } from '../providers/llm/llm-provider.interface';
 
 const CHAT_TEMPERATURE = 0.3;
 const CHAT_MAX_TOKENS = 2048;
-const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+export interface EditorContext {
+  filePath: string | null;
+  contentPreview: string | null;
+  selectedText: string | null;
+}
 
 interface ParsedToolCall {
   id: string;
@@ -55,6 +61,8 @@ export function getConnectedIntegrations(analysis: Analysis): string[] {
 export function buildChatSystemPrompt(
   analysis: Analysis,
   connectedIntegrations?: string[],
+  hasWorkspace?: boolean,
+  editorContext?: EditorContext | null,
 ): string {
   const role = analysis.role === 'staff_engineer' ? 'Staff Engineer' : 'Senior Engineering Manager';
   const swot = analysis.swotOutput;
@@ -70,11 +78,22 @@ RULES:
 2. Do not invent information about the organization. Only reference data from the analysis.
 3. When suggesting actions, tailor them to the ${role} role.
 4. You may reason about implications of the data, but clearly distinguish between "the data shows X" and "this suggests Y".
-5. Keep responses focused and actionable. Avoid generic advice.
-6. You cannot create files, execute code, or access external data. You can only discuss the analysis.`;
+5. Keep responses focused and actionable. Avoid generic advice.`;
+
+  if (!hasWorkspace && !(connectedIntegrations && connectedIntegrations.length > 0)) {
+    prompt += '\n6. You cannot create files, execute code, or access external data. You can only discuss the analysis.';
+  }
 
   if (connectedIntegrations && connectedIntegrations.length > 0) {
     prompt += buildActionsSection(analysis, connectedIntegrations);
+  }
+
+  if (hasWorkspace) {
+    prompt += buildFileWriteSection();
+  }
+
+  if (editorContext && (editorContext.filePath || editorContext.selectedText)) {
+    prompt += buildEditorContextSection(editorContext);
   }
 
   prompt += '\n\nANALYSIS DATA:';
@@ -120,6 +139,39 @@ function buildActionsSection(analysis: Analysis, connectedIntegrations: string[]
   return lines.join('\n');
 }
 
+function buildFileWriteSection(): string {
+  return [
+    '\n\nFILE GENERATION:',
+    'You can write files to the user\'s workspace. Use write_markdown_file, write_csv_file, or write_mermaid_file tools.',
+    'The user must approve before any file is written.',
+    'When generating files:',
+    '1. Use descriptive file paths (e.g., "reports/swot-summary.md", "diagrams/architecture.mmd").',
+    '2. Base file content on the SWOT analysis data.',
+    '3. For markdown files, use proper formatting with headers, lists, and tables.',
+    '4. For CSV files, include a header row and use comma separation.',
+    '5. For Mermaid files, use valid Mermaid diagram syntax.',
+  ].join('\n');
+}
+
+function buildEditorContextSection(context: EditorContext): string {
+  const lines: string[] = ['\n\nEDITOR CONTEXT:'];
+  lines.push('The user currently has the following file open in their editor:');
+
+  if (context.filePath) {
+    lines.push(`File: ${context.filePath}`);
+  }
+
+  if (context.selectedText) {
+    lines.push(`\nSelected text:\n\`\`\`\n${context.selectedText}\n\`\`\``);
+  } else if (context.contentPreview) {
+    lines.push(`\nContent preview:\n\`\`\`\n${context.contentPreview}\n\`\`\``);
+  }
+
+  lines.push('\nYou may reference this file context when relevant to the user\'s questions.');
+
+  return lines.join('\n');
+}
+
 function formatSwotForChat(swot: SwotOutput): string {
   const sections: string[] = ['## SWOT Results'];
 
@@ -150,13 +202,29 @@ function formatSwotForChat(swot: SwotOutput): string {
 }
 
 export class ChatService {
+  private editorContext: EditorContext | null = null;
+  private hasWorkspace = false;
+
   constructor(
     private readonly chatRepo: ChatRepository,
     private readonly analysisRepo: AnalysisRepository,
     private readonly settingsService: SettingsService,
     private readonly chatActionRepo?: ChatActionRepository,
     private readonly actionExecutor?: ActionExecutor,
+    private readonly llmProvider?: LLMProvider,
   ) {}
+
+  setEditorContext(context: EditorContext | null): void {
+    this.editorContext = context;
+  }
+
+  getEditorContext(): EditorContext | null {
+    return this.editorContext;
+  }
+
+  setWorkspaceOpen(open: boolean): void {
+    this.hasWorkspace = open;
+  }
 
   async getMessages(analysisId: string): Promise<Result<ChatMessage[], DomainError>> {
     try {
@@ -187,7 +255,7 @@ export class ChatService {
       );
     }
 
-    const apiKey = this.settingsService.getApiKey();
+    const apiKey = this.settingsService.getActiveApiKey();
     if (!apiKey) {
       return err(new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'API key is not configured'));
     }
@@ -196,14 +264,22 @@ export class ChatService {
       // Store user message
       const userMessage = await this.chatRepo.insert(analysisId, 'user', userContent);
 
-      // Determine available tools based on connected integrations
+      // Determine available tools based on connected integrations + file-write tools
       const connectedIntegrations = getConnectedIntegrations(analysis);
-      const tools = connectedIntegrations.length > 0
+      const integrationTools = connectedIntegrations.length > 0
         ? getToolsByIntegration(connectedIntegrations)
-        : undefined;
+        : [];
+      const fileTools = this.hasWorkspace ? FILE_WRITE_TOOLS : [];
+      const allTools = [...integrationTools, ...fileTools];
+      const tools = allTools.length > 0 ? allTools : undefined;
 
       // Build messages array
-      const systemPrompt = buildChatSystemPrompt(analysis, connectedIntegrations.length > 0 ? connectedIntegrations : undefined);
+      const systemPrompt = buildChatSystemPrompt(
+        analysis,
+        connectedIntegrations.length > 0 ? connectedIntegrations : undefined,
+        this.hasWorkspace,
+        this.editorContext,
+      );
       const history = await this.chatRepo.findByAnalysis(analysisId);
 
       // Token budgeting: trim history if needed
@@ -217,7 +293,7 @@ export class ChatService {
 
       const messages = buildChatMessages(trimmedSystemPrompt, history, budget.chatHistory);
 
-      // Call OpenRouter (with tools if available)
+      // Call LLM provider (with tools if available)
       const streamResult = await this.streamCompletion(
         apiKey,
         analysis.modelId,
@@ -403,7 +479,7 @@ export class ChatService {
   ): Promise<void> {
     if (!this.chatActionRepo) return;
 
-    const apiKey = this.settingsService.getApiKey();
+    const apiKey = this.settingsService.getActiveApiKey();
     if (!apiKey) return;
 
     const analysis = await this.analysisRepo.findById(analysisId);
@@ -414,7 +490,12 @@ export class ChatService {
     const resolvedActions = allActions.filter((a) => a.chatMessageId === chatMessageId);
 
     const connectedIntegrations = getConnectedIntegrations(analysis);
-    const systemPrompt = buildChatSystemPrompt(analysis, connectedIntegrations.length > 0 ? connectedIntegrations : undefined);
+    const systemPrompt = buildChatSystemPrompt(
+      analysis,
+      connectedIntegrations.length > 0 ? connectedIntegrations : undefined,
+      this.hasWorkspace,
+      this.editorContext,
+    );
     const history = await this.chatRepo.findByAnalysis(analysisId);
 
     const contextWindow = 128_000;
@@ -435,10 +516,13 @@ export class ChatService {
       budget.chatHistory,
     );
 
-    // Stream continuation from OpenRouter
-    const tools = connectedIntegrations.length > 0
+    // Stream continuation
+    const integrationTools = connectedIntegrations.length > 0
       ? getToolsByIntegration(connectedIntegrations)
-      : undefined;
+      : [];
+    const fileTools = this.hasWorkspace ? FILE_WRITE_TOOLS : [];
+    const allTools = [...integrationTools, ...fileTools];
+    const tools = allTools.length > 0 ? allTools : undefined;
 
     const continuation = await this.streamCompletion(apiKey, analysis.modelId, messages, onChunk, tools);
 
@@ -455,122 +539,26 @@ export class ChatService {
     onChunk: (chunk: string) => void,
     tools?: ActionToolDefinition[],
   ): Promise<StreamResult> {
-    const body: Record<string, unknown> = {
-      model: modelId,
-      messages,
-      temperature: CHAT_TEMPERATURE,
-      max_tokens: CHAT_MAX_TOKENS,
-      stream: true,
-    };
-    if (tools && tools.length > 0) {
-      body['tools'] = tools;
+    if (!this.llmProvider) {
+      throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'No LLM provider configured');
     }
 
-    const response = await fetch(OPENROUTER_CHAT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': 'https://nswot.app',
-        'X-Title': 'nswot',
-      },
-      body: JSON.stringify(body),
+    const response = await this.llmProvider.createChatCompletion({
+      apiKey,
+      modelId,
+      messages,
+      tools: tools as unknown[],
+      temperature: CHAT_TEMPERATURE,
+      maxTokens: CHAT_MAX_TOKENS,
+      onChunk,
     });
 
-    if (!response.ok) {
-      const status = response.status;
-      if (status === 401 || status === 403) {
-        throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'Invalid API key');
-      }
-      if (status === 429) {
-        throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, 'Rate limited by OpenRouter');
-      }
-      throw new DomainError(
-        ERROR_CODES.LLM_REQUEST_FAILED,
-        `OpenRouter returned status ${status}`,
-      );
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'No response body');
-    }
-
-    const decoder = new TextDecoder();
-    let fullContent = '';
-    let buffer = '';
-    const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: Array<{
-              delta?: {
-                content?: string;
-                tool_calls?: Array<{
-                  index: number;
-                  id?: string;
-                  function?: { name?: string; arguments?: string };
-                }>;
-              };
-              finish_reason?: string | null;
-            }>;
-          };
-          const choice = parsed.choices?.[0];
-          if (!choice) continue;
-
-          // Accumulate text content
-          const content = choice.delta?.content;
-          if (content) {
-            fullContent += content;
-            onChunk(content);
-          }
-
-          // Accumulate tool calls (streamed incrementally)
-          const deltaToolCalls = choice.delta?.tool_calls;
-          if (deltaToolCalls) {
-            for (const dtc of deltaToolCalls) {
-              const existing = toolCallAccumulator.get(dtc.index);
-              if (existing) {
-                // Append incremental arguments
-                if (dtc.function?.arguments) {
-                  existing.arguments += dtc.function.arguments;
-                }
-              } else {
-                // First chunk for this tool call — has id and name
-                toolCallAccumulator.set(dtc.index, {
-                  id: dtc.id ?? `call_${dtc.index}`,
-                  name: dtc.function?.name ?? '',
-                  arguments: dtc.function?.arguments ?? '',
-                });
-              }
-            }
-          }
-        } catch {
-          // Skip malformed SSE chunks
-        }
-      }
-    }
-
     const toolCalls: ParsedToolCall[] | null =
-      toolCallAccumulator.size > 0
-        ? Array.from(toolCallAccumulator.values())
+      response.toolCalls && response.toolCalls.length > 0
+        ? response.toolCalls.map((tc) => ({ id: tc.id, name: tc.name, arguments: tc.arguments }))
         : null;
 
-    return { content: fullContent, toolCalls };
+    return { content: response.content, toolCalls };
   }
 }
 

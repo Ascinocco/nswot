@@ -21,6 +21,8 @@ export default function ProfileForm({
   const [priorities, setPriorities] = useState(initialData?.priorities ?? '');
   const [notes, setNotes] = useState(initialData?.notes ?? '');
   const [quotes, setQuotes] = useState<string[]>(initialData?.interviewQuotes ?? ['']);
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState<string[]>(initialData?.tags ?? []);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   function handleAddQuote(): void {
@@ -37,9 +39,33 @@ export default function ProfileForm({
     setQuotes(updated);
   }
 
+  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const value = tagInput.trim().replace(/,/g, '');
+      if (value && !tags.includes(value)) {
+        setTags([...tags, value]);
+      }
+      setTagInput('');
+    }
+    if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
+      setTags(tags.slice(0, -1));
+    }
+  }
+
+  function handleRemoveTag(tag: string): void {
+    setTags(tags.filter((t) => t !== tag));
+  }
+
   function handleSubmit(e: React.FormEvent): void {
     e.preventDefault();
     const filteredQuotes = quotes.filter((q) => q.trim() !== '');
+    // Flush any pending tag input
+    const finalTags = [...tags];
+    const pendingTag = tagInput.trim().replace(/,/g, '');
+    if (pendingTag && !finalTags.includes(pendingTag)) {
+      finalTags.push(pendingTag);
+    }
     const data = {
       name,
       role: role || undefined,
@@ -47,6 +73,7 @@ export default function ProfileForm({
       concerns: concerns || undefined,
       priorities: priorities || undefined,
       interviewQuotes: filteredQuotes.length > 0 ? filteredQuotes : undefined,
+      tags: finalTags.length > 0 ? finalTags : undefined,
       notes: notes || undefined,
     };
 
@@ -95,6 +122,35 @@ export default function ProfileForm({
             onChange={(e) => setTeam(e.target.value)}
             className="w-full rounded border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
             placeholder="e.g., Platform"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-300">Tags</label>
+        <div className="flex flex-wrap items-center gap-1.5 rounded border border-gray-700 bg-gray-800 px-2 py-1.5">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 rounded-full bg-blue-900/50 px-2 py-0.5 text-xs text-blue-300"
+            >
+              {tag}
+              <button
+                type="button"
+                onClick={() => handleRemoveTag(tag)}
+                className="text-blue-400 hover:text-blue-200"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            className="min-w-[120px] flex-1 border-none bg-transparent px-1 py-0.5 text-sm text-white placeholder-gray-500 outline-none"
+            placeholder={tags.length === 0 ? 'Type and press Enter to add tags...' : 'Add tag...'}
           />
         </div>
       </div>

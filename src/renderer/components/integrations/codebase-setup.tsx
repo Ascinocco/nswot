@@ -9,6 +9,7 @@ import {
   useCodebaseListCached,
   useCodebaseStorageSize,
 } from '../../hooks/use-integrations';
+import { usePreferences, useSetPreference } from '../../hooks/use-settings';
 
 interface RepoProgress {
   stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed';
@@ -30,6 +31,8 @@ export default function CodebaseSetup(): React.JSX.Element {
       <p className="text-sm text-gray-400">
         Analyze repositories using Claude CLI to surface architecture, code quality, technical debt, and risks as SWOT evidence.
       </p>
+
+      <CodebaseProviderPicker />
 
       <PrerequisitesCard prereqs={prereqs ?? null} isLoading={prereqsLoading} />
 
@@ -426,6 +429,53 @@ function ProgressBadge({
       <span>{stage}</span>
       {elapsedLabel && <span className="tabular-nums text-[10px] opacity-70">{elapsedLabel}</span>}
     </span>
+  );
+}
+
+function CodebaseProviderPicker(): React.JSX.Element {
+  const { data: preferences, isLoading } = usePreferences();
+  const setPreference = useSetPreference();
+
+  const currentProvider = preferences?.['codebaseProviderType'] ?? 'claude_cli';
+
+  const handleChange = (provider: string): void => {
+    setPreference.mutate({ key: 'codebaseProviderType', value: provider });
+  };
+
+  if (isLoading) {
+    return <p className="text-sm text-gray-500">Loading...</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium text-gray-300">Analysis Provider</h4>
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={() => handleChange('claude_cli')}
+          className={`flex-1 rounded-lg border p-3 text-left transition-colors ${
+            currentProvider === 'claude_cli'
+              ? 'border-amber-500 bg-amber-900/20'
+              : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+          }`}
+        >
+          <div className="text-sm font-medium text-white">Claude CLI</div>
+          <div className="text-xs text-gray-400">Recommended &mdash; deep code analysis via Claude</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => handleChange('opencode')}
+          className={`flex-1 rounded-lg border p-3 text-left transition-colors ${
+            currentProvider === 'opencode'
+              ? 'border-amber-500 bg-amber-900/20'
+              : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+          }`}
+        >
+          <div className="text-sm font-medium text-white">OpenCode</div>
+          <div className="text-xs text-gray-400">Experimental &mdash; alternative CLI tool</div>
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCurrentWorkspace, useOpenWorkspace } from '../hooks/use-workspace';
+import { EditorContextProvider } from '../lib/editor-context';
 import FileBrowser from '../components/workspace/file-browser';
 import EditorPane from '../components/workspace/editor-pane';
 
@@ -39,28 +40,30 @@ export default function WorkspacePage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-gray-800 pb-3">
-        <div>
-          <h2 className="text-lg font-bold text-white">{workspace.name}</h2>
-          <p className="text-sm text-gray-500">{workspace.path}</p>
+    <EditorContextProvider>
+      <div className="flex h-full flex-col">
+        <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+          <div>
+            <h2 className="text-lg font-bold text-white">{workspace.name}</h2>
+            <p className="text-sm text-gray-500">{workspace.path}</p>
+          </div>
+          <button
+            onClick={() => openWorkspace.mutate()}
+            disabled={openWorkspace.isPending}
+            className="rounded border border-gray-700 px-3 py-1.5 text-sm text-gray-400 transition-colors hover:border-gray-600 hover:text-white"
+          >
+            Switch Workspace
+          </button>
         </div>
-        <button
-          onClick={() => openWorkspace.mutate()}
-          disabled={openWorkspace.isPending}
-          className="rounded border border-gray-700 px-3 py-1.5 text-sm text-gray-400 transition-colors hover:border-gray-600 hover:text-white"
-        >
-          Switch Workspace
-        </button>
+        <div className="mt-3 flex flex-1 overflow-hidden rounded-lg border border-gray-800">
+          <div className="w-64 shrink-0">
+            <FileBrowser onFileSelect={setSelectedFile} selectedFile={selectedFile} />
+          </div>
+          <div className="flex-1">
+            <EditorPane filePath={selectedFile} />
+          </div>
+        </div>
       </div>
-      <div className="mt-3 flex flex-1 overflow-hidden rounded-lg border border-gray-800">
-        <div className="w-64 shrink-0">
-          <FileBrowser onFileSelect={setSelectedFile} selectedFile={selectedFile} />
-        </div>
-        <div className="flex-1">
-          <EditorPane filePath={selectedFile} />
-        </div>
-      </div>
-    </div>
+    </EditorContextProvider>
   );
 }

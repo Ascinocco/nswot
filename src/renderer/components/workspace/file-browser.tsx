@@ -58,7 +58,7 @@ function DirectoryNode({
               style={{ paddingLeft: `${(depth + 1) * 16}px` }}
             >
               <span className="w-4" />
-              <span className="text-gray-500">📄</span>
+              <span className="text-gray-500">{entry.name.endsWith('.mmd') ? '◇' : '📄'}</span>
               <span className="truncate">{entry.name}</span>
             </button>
           ),

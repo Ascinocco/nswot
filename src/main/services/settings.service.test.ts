@@ -3,7 +3,7 @@ import { SettingsService } from './settings.service';
 import { CircuitBreaker, CircuitOpenError } from '../infrastructure/circuit-breaker';
 import type { PreferencesRepository } from '../repositories/preferences.repository';
 import type { SecureStorage } from '../infrastructure/safe-storage';
-import type { OpenRouterProvider } from '../providers/llm/openrouter.provider';
+import type { LLMProvider } from '../providers/llm/llm-provider.interface';
 import type { LlmModel } from '../providers/llm/llm.types';
 
 // Mock retry to execute without delays
@@ -45,8 +45,9 @@ function createMockSecureStorage(): SecureStorage & {
   };
 }
 
-function createMockProvider(): OpenRouterProvider {
+function createMockProvider(name = 'openrouter'): LLMProvider {
   return {
+    name,
     listModels: vi.fn(async (): Promise<LlmModel[]> => [
       {
         id: 'openai/gpt-4',
@@ -61,14 +62,15 @@ function createMockProvider(): OpenRouterProvider {
         pricing: { prompt: 0.015, completion: 0.075 },
       },
     ]),
-  } as unknown as OpenRouterProvider;
+    createChatCompletion: vi.fn(),
+  };
 }
 
 describe('SettingsService', () => {
   let service: SettingsService;
   let prefsRepo: PreferencesRepository;
   let secureStorage: ReturnType<typeof createMockSecureStorage>;
-  let provider: OpenRouterProvider;
+  let provider: LLMProvider;
   let circuitBreaker: CircuitBreaker;
 
   beforeEach(() => {
@@ -96,7 +98,7 @@ describe('SettingsService', () => {
     });
   });
 
-  describe('API key management', () => {
+  describe('OpenRouter API key management', () => {
     it('reports API key as not set initially', async () => {
       const result = await service.getApiKeyStatus();
       expect(result.ok).toBe(true);
@@ -139,6 +141,42 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('Anthropic API key management', () => {
+    it('stores and retrieves Anthropic API key', async () => {
+      await service.setAnthropicApiKey('sk-ant-test-key');
+      expect(secureStorage.store).toHaveBeenCalledWith('anthropic_api_key', 'sk-ant-test-key');
+      expect(service.getAnthropicApiKey()).toBe('sk-ant-test-key');
+    });
+
+    it('clears Anthropic API key when empty', async () => {
+      await service.setAnthropicApiKey('sk-ant-test');
+      await service.setAnthropicApiKey('');
+      expect(secureStorage.remove).toHaveBeenCalledWith('anthropic_api_key');
+      expect(service.getAnthropicApiKey()).toBeNull();
+    });
+
+    it('returns null when Anthropic key not set', () => {
+      expect(service.getAnthropicApiKey()).toBeNull();
+    });
+  });
+
+  describe('getApiKeyForProvider', () => {
+    it('returns OpenRouter key for openrouter', async () => {
+      await service.setApiKey('sk-or-key');
+      expect(service.getApiKeyForProvider('openrouter')).toBe('sk-or-key');
+    });
+
+    it('returns Anthropic key for anthropic', async () => {
+      await service.setAnthropicApiKey('sk-ant-key');
+      expect(service.getApiKeyForProvider('anthropic')).toBe('sk-ant-key');
+    });
+
+    it('returns null for unconfigured provider', () => {
+      expect(service.getApiKeyForProvider('openrouter')).toBeNull();
+      expect(service.getApiKeyForProvider('anthropic')).toBeNull();
+    });
+  });
+
   describe('listModels', () => {
     it('returns error when API key is not set', async () => {
       const result = await service.listModels();
@@ -171,6 +209,33 @@ describe('SettingsService', () => {
       await service.setApiKey('sk-new');
       await service.listModels();
       expect(provider.listModels).toHaveBeenCalledTimes(2);
+    });
+
+    it('fetches models from a different provider', async () => {
+      await service.setAnthropicApiKey('sk-ant-test');
+      const anthropicProvider = createMockProvider('anthropic');
+      vi.mocked(anthropicProvider.listModels).mockResolvedValueOnce([
+        { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', contextLength: 200000, pricing: { prompt: 0.003, completion: 0.015 } },
+      ]);
+
+      const result = await service.listModels(anthropicProvider);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value).toHaveLength(1);
+        expect(result.value[0]!.id).toBe('claude-sonnet-4-5-20250929');
+      }
+    });
+
+    it('invalidates cache when switching providers', async () => {
+      await service.setApiKey('sk-or');
+      await service.listModels();
+      expect(provider.listModels).toHaveBeenCalledTimes(1);
+
+      // Switch to anthropic provider
+      await service.setAnthropicApiKey('sk-ant');
+      const anthropicProvider = createMockProvider('anthropic');
+      await service.listModels(anthropicProvider);
+      expect(anthropicProvider.listModels).toHaveBeenCalledTimes(1);
     });
 
     it('maps 401 error to LLM_AUTH_FAILED', async () => {

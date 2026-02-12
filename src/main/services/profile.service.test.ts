@@ -30,6 +30,7 @@ function createMockProfileRepo(): ProfileRepository {
         concerns: input.concerns ?? null,
         priorities: input.priorities ?? null,
         interviewQuotes: input.interviewQuotes ?? [],
+        tags: input.tags ?? [],
         notes: input.notes ?? null,
         sourceFile: input.sourceFile ?? null,
         createdAt: new Date().toISOString(),

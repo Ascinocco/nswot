@@ -291,6 +291,50 @@ Available GitHub repos: {repo_names}
 
 The tool definitions are passed via the `tools` parameter in the OpenRouter API request. See `docs/12-chat-actions-plan.md` for the full tool schema definitions.
 
+### Chat File Generation System Prompt Extension (Phase 3e)
+
+When a workspace is open, the chat system prompt gains a `FILE GENERATION` section enabling the assistant to write files to the workspace:
+
+```
+FILE GENERATION:
+You can write files to the user's workspace. Available tools:
+- write_markdown_file: Create/overwrite a .md file in the workspace
+- write_csv_file: Create/overwrite a .csv file in the workspace
+- write_mermaid_file: Create/overwrite a .mmd file in the workspace
+
+Rules:
+1. All file paths are relative to the workspace root. Do not use absolute paths.
+2. Base file content on the SWOT analysis data — reference specific findings and evidence.
+3. For Mermaid files, use valid Mermaid syntax (flowchart, sequenceDiagram, classDiagram, etc.).
+4. The user will review and approve before each file is written.
+5. Suggest meaningful file names that reflect the content (e.g., "tech-debt-summary.md", "team-dependencies.mmd").
+```
+
+### Editor Context System Prompt Extension (Phase 3e)
+
+When the user has a file open in the workspace editor, the chat system prompt gains an `EDITOR CONTEXT` section:
+
+```
+EDITOR CONTEXT:
+The user currently has a file open in the workspace editor. You may reference this file in your responses.
+
+File: {filePath}
+{if selectedText}
+Selected text:
+```
+{selectedText}
+```
+{end}
+{if content}
+Full content:
+```
+{content}
+```
+{end}
+```
+
+This allows the assistant to give context-aware responses about the file the user is working on, without the user needing to paste content into the chat.
+
 ### Chat User Message Assembly
 
 Each user message is sent with this structure:

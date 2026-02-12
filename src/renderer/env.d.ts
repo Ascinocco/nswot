@@ -32,6 +32,7 @@ declare global {
     concerns: string | null;
     priorities: string | null;
     interviewQuotes: string[];
+    tags: string[];
     notes: string | null;
     sourceFile: string | null;
     createdAt: string;
@@ -45,6 +46,7 @@ declare global {
     concerns?: string;
     priorities?: string;
     interviewQuotes?: string[];
+    tags?: string[];
     notes?: string;
     sourceFile?: string;
   }
@@ -102,6 +104,12 @@ declare global {
     codebase: string | null;
   }
 
+  interface SourceCoverageEntry {
+    sourceType: string;
+    cited: number;
+    total: number;
+  }
+
   interface EvidenceQualityMetrics {
     totalItems: number;
     multiSourceItems: number;
@@ -109,6 +117,7 @@ declare global {
     confidenceDistribution: { high: number; medium: number; low: number };
     averageEvidencePerItem: number;
     qualityScore: number;
+    sourceCoverage?: SourceCoverageEntry[];
   }
 
   interface Analysis {
@@ -267,7 +276,10 @@ declare global {
     | 'add_jira_comment'
     | 'create_confluence_page'
     | 'create_github_issue'
-    | 'create_github_pr';
+    | 'create_github_pr'
+    | 'write_markdown_file'
+    | 'write_csv_file'
+    | 'write_mermaid_file';
 
   interface ActionResult {
     success: boolean;
@@ -359,6 +371,8 @@ declare global {
     };
     llm: {
       listModels(): Promise<IPCResult<LlmModel[]>>;
+      getProvider(): Promise<IPCResult<string>>;
+      setProvider(type: string): Promise<IPCResult<void>>;
     };
     workspace: {
       open(): Promise<IPCResult<Workspace | null>>;
@@ -368,6 +382,7 @@ declare global {
       readDir(relativePath: string): Promise<IPCResult<FileEntry[]>>;
       read(relativePath: string): Promise<IPCResult<string>>;
       write(relativePath: string, content: string): Promise<IPCResult<void>>;
+      onChanged?(callback: (data: { type: string; path: string }) => void): () => void;
     };
     profiles: {
       list(): Promise<IPCResult<Profile[]>>;
@@ -416,6 +431,7 @@ declare global {
       list(): Promise<IPCResult<Analysis[]>>;
       get(id: string): Promise<IPCResult<Analysis>>;
       delete(id: string): Promise<IPCResult<void>>;
+      getPseudonymMap(id: string): Promise<IPCResult<Record<string, string>>>;
       run(input: {
         profileIds: string[];
         jiraProjectKeys: string[];
@@ -442,6 +458,7 @@ declare global {
       send(analysisId: string, content: string): Promise<IPCResult<ChatMessage>>;
       delete(analysisId: string): Promise<IPCResult<void>>;
       onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
+      setEditorContext(context: { filePath: string | null; contentPreview: string | null; selectedText: string | null } | null): Promise<IPCResult<void>>;
       actions: {
         approve(actionId: string): Promise<IPCResult<ActionResult>>;
         reject(actionId: string): Promise<IPCResult<void>>;
@@ -464,6 +481,9 @@ declare global {
       markdown(analysisId: string): Promise<IPCResult<string>>;
       csv(analysisId: string): Promise<IPCResult<string>>;
       pdf(analysisId: string): Promise<IPCResult<string>>;
+    };
+    menu: {
+      onNavigate(callback: (path: string) => void): () => void;
     };
   }
 

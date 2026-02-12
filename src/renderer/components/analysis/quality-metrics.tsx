@@ -72,19 +72,32 @@ export default function QualityMetrics({ metrics }: QualityMetricsProps): React.
         </div>
       </div>
 
-      {/* Source coverage */}
+      {/* Source coverage with citation rates */}
       {Object.keys(metrics.sourceTypeCoverage).length > 0 && (
         <div className="mt-3 border-t border-gray-800 pt-3">
-          <span className="text-xs text-gray-500">Source coverage (items citing each)</span>
-          <div className="mt-1 flex flex-wrap gap-2">
-            {Object.entries(metrics.sourceTypeCoverage).map(([source, count]) => (
-              <span
-                key={source}
-                className="rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-xs text-gray-400"
-              >
-                {SOURCE_LABELS[source] ?? source}: {count}
-              </span>
-            ))}
+          <span className="text-xs text-gray-500">Evidence coverage by source</span>
+          <div className="mt-2 space-y-1.5">
+            {Object.entries(metrics.sourceTypeCoverage).map(([source, count]) => {
+              const pct = metrics.totalItems > 0 ? Math.round((count / metrics.totalItems) * 100) : 0;
+              return (
+                <div key={source} className="flex items-center gap-2">
+                  <span className="w-20 text-xs text-gray-400">
+                    {SOURCE_LABELS[source] ?? source}
+                  </span>
+                  <div className="flex-1">
+                    <div className="h-2 rounded-full bg-gray-800">
+                      <div
+                        className="h-2 rounded-full bg-blue-600/70"
+                        style={{ width: `${Math.min(pct, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="w-24 text-right text-xs text-gray-500">
+                    {count}/{metrics.totalItems} ({pct}%)
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

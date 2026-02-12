@@ -324,6 +324,38 @@ describe('Multi-step pipeline integration', () => {
     expect(result.synthesisOutput).toBeUndefined();
   });
 
+  it('computes sourceCoverage as part of quality metrics', async () => {
+    const llmCaller: LlmCaller = {
+      call: vi.fn()
+        .mockResolvedValueOnce({ content: VALID_EXTRACTION_RESPONSE, finishReason: 'stop' })
+        .mockResolvedValueOnce({ content: VALID_SYNTHESIS_RESPONSE, finishReason: 'stop' })
+        .mockResolvedValueOnce({ content: VALID_SWOT_RESPONSE, finishReason: 'stop' }),
+    };
+
+    const orchestrator = new AnalysisOrchestrator([
+      new ExtractionStep(),
+      new SynthesisStep(),
+      new SwotGenerationStep(),
+    ]);
+
+    const result = await orchestrator.run(makeContext({ llmCaller }), vi.fn());
+
+    expect(result.qualityMetrics).toBeDefined();
+    expect(result.qualityMetrics!.sourceCoverage).toBeDefined();
+    expect(result.qualityMetrics!.sourceCoverage!.length).toBeGreaterThan(0);
+
+    // Profile coverage: 2 profiles available, at least 1 cited
+    const profileCov = result.qualityMetrics!.sourceCoverage!.find((c) => c.sourceType === 'profile');
+    expect(profileCov).toBeDefined();
+    expect(profileCov!.total).toBe(2);
+    expect(profileCov!.cited).toBeGreaterThanOrEqual(1);
+
+    // Jira coverage: PROJ-101 available, 1 cited
+    const jiraCov = result.qualityMetrics!.sourceCoverage!.find((c) => c.sourceType === 'jira');
+    expect(jiraCov).toBeDefined();
+    expect(jiraCov!.cited).toBeGreaterThanOrEqual(1);
+  });
+
   it('handles corrective retry during extraction step', async () => {
     const llmCaller: LlmCaller = {
       call: vi.fn()

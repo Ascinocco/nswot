@@ -3,7 +3,7 @@ import { CodebaseService } from './codebase.service';
 import type { IntegrationRepository } from '../repositories/integration.repository';
 import type { IntegrationCacheRepository } from '../repositories/integration-cache.repository';
 import type { WorkspaceService } from './workspace.service';
-import type { CodebaseProvider } from '../providers/codebase/codebase.provider';
+import type { CodebaseProviderInterface } from '../providers/codebase/codebase-provider.interface';
 import type { SecureStorage } from '../infrastructure/safe-storage';
 import type { Integration, CodebaseConfig } from '../domain/types';
 import type { CodebaseAnalysis, CodebasePrerequisites } from '../providers/codebase/codebase.types';
@@ -97,13 +97,13 @@ function createMockCacheRepo(): IntegrationCacheRepository {
   } as unknown as IntegrationCacheRepository;
 }
 
-function createMockCodebaseProvider(): CodebaseProvider {
+function createMockCodebaseProviderInterface(): CodebaseProviderInterface {
   return {
     checkPrerequisites: vi.fn(async () => ({ ...ALL_PREREQS })),
     cloneOrPull: vi.fn(async () => undefined),
     analyze: vi.fn(async () => ({ ...VALID_ANALYSIS })),
     parseOutput: vi.fn(),
-  } as unknown as CodebaseProvider;
+  } as unknown as CodebaseProviderInterface;
 }
 
 function createMockSecureStorage(): SecureStorage {
@@ -122,7 +122,7 @@ describe('CodebaseService', () => {
   let integrationRepo: ReturnType<typeof createMockIntegrationRepo>;
   let cacheRepo: ReturnType<typeof createMockCacheRepo>;
   let workspaceService: ReturnType<typeof createMockWorkspaceService>;
-  let codebaseProvider: ReturnType<typeof createMockCodebaseProvider>;
+  let codebaseProvider: ReturnType<typeof createMockCodebaseProviderInterface>;
   let secureStorage: ReturnType<typeof createMockSecureStorage>;
 
   beforeEach(() => {
@@ -130,7 +130,7 @@ describe('CodebaseService', () => {
     integrationRepo = createMockIntegrationRepo();
     cacheRepo = createMockCacheRepo();
     workspaceService = createMockWorkspaceService();
-    codebaseProvider = createMockCodebaseProvider();
+    codebaseProvider = createMockCodebaseProviderInterface();
     secureStorage = createMockSecureStorage();
 
     service = new CodebaseService(

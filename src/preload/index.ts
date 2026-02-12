@@ -15,6 +15,8 @@ const api: NswotAPI = {
   },
   llm: {
     listModels: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_LIST_MODELS),
+    getProvider: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_GET_PROVIDER),
+    setProvider: (type) => ipcRenderer.invoke(IPC_CHANNELS.LLM_SET_PROVIDER, type),
   },
   workspace: {
     open: () => ipcRenderer.invoke(IPC_CHANNELS.WORKSPACE_OPEN),
@@ -25,6 +27,11 @@ const api: NswotAPI = {
     read: (relativePath) => ipcRenderer.invoke(IPC_CHANNELS.FILE_READ, relativePath),
     write: (relativePath, content) =>
       ipcRenderer.invoke(IPC_CHANNELS.FILE_WRITE, relativePath, content),
+    onChanged: (callback: (data: { type: string; path: string }) => void) => {
+      const handler = (_event: unknown, data: { type: string; path: string }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.FILE_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.FILE_CHANGED, handler);
+    },
   },
   profiles: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.PROFILE_LIST),
@@ -84,6 +91,7 @@ const api: NswotAPI = {
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET, id),
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_DELETE, id),
     run: (input) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_RUN, input),
+    getPseudonymMap: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET_PSEUDONYM_MAP, id),
     previewPayload: (profileIds, jiraProjectKeys, confluenceSpaceKeys, githubRepos, codebaseRepos, role, contextWindow) =>
       ipcRenderer.invoke(
         IPC_CHANNELS.ANALYSIS_PREVIEW_PAYLOAD,
@@ -112,6 +120,8 @@ const api: NswotAPI = {
       ipcRenderer.on('chat:chunk', handler);
       return () => ipcRenderer.removeListener('chat:chunk', handler);
     },
+    setEditorContext: (context: { filePath: string | null; contentPreview: string | null; selectedText: string | null } | null) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CHAT_SET_EDITOR_CONTEXT, context),
     actions: {
       approve: (actionId: string) =>
         ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_APPROVE, actionId),
@@ -144,6 +154,13 @@ const api: NswotAPI = {
     markdown: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_MARKDOWN, analysisId),
     csv: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_CSV, analysisId),
     pdf: (analysisId) => ipcRenderer.invoke(IPC_CHANNELS.EXPORT_PDF, analysisId),
+  },
+  menu: {
+    onNavigate: (callback: (path: string) => void) => {
+      const handler = (_event: unknown, path: string) => callback(path);
+      ipcRenderer.on(IPC_CHANNELS.MENU_NAVIGATE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.MENU_NAVIGATE, handler);
+    },
   },
 };
 

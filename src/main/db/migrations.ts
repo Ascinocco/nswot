@@ -142,4 +142,11 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_themes_analysis_id ON themes(analysis_id);
     `,
   },
+  {
+    version: 5,
+    description: 'Add tags column to profiles for categorization',
+    sql: `
+      ALTER TABLE profiles ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];

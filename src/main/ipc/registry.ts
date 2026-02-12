@@ -44,6 +44,7 @@ export interface IpcContext {
   codebaseService?: CodebaseService;
   comparisonService: ComparisonService;
   themeRepo?: ThemeRepository;
+  onWorkspaceOpen?: (path: string) => void;
 }
 
 export function registerIpcHandlers(context: IpcContext): void {
@@ -52,7 +53,7 @@ export function registerIpcHandlers(context: IpcContext): void {
   });
 
   registerSettingsHandlers(context.settingsService);
-  registerWorkspaceHandlers(context.workspaceService);
+  registerWorkspaceHandlers(context.workspaceService, context.onWorkspaceOpen);
   registerFileHandlers(context.fileService);
   registerProfileHandlers(context.profileService);
   registerAnalysisHandlers(context.analysisRepo, context.analysisService, context.workspaceService);
