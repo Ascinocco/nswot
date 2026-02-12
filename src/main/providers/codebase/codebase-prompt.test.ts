@@ -62,4 +62,18 @@ describe('buildCodebaseAnalysisPrompt', () => {
     const prompt = buildCodebaseAnalysisPrompt('org/repo', true, []);
     expect(prompt).toContain('Projects to search: any');
   });
+
+  it('uses aggressive time budget for standard depth', () => {
+    const prompt = buildCodebaseAnalysisPrompt('org/repo', false, [], false, 'standard');
+    expect(prompt).toContain('HARD LIMIT of 20 minutes');
+    expect(prompt).toContain('BREADTH over depth');
+    expect(prompt).not.toContain('60 minutes');
+  });
+
+  it('uses relaxed time budget for deep depth', () => {
+    const prompt = buildCodebaseAnalysisPrompt('org/repo', false, [], false, 'deep');
+    expect(prompt).toContain('60 minutes');
+    expect(prompt).toContain('Go deep on each section');
+    expect(prompt).not.toContain('HARD LIMIT');
+  });
 });

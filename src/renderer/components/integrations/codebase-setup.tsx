@@ -119,6 +119,7 @@ function RepoAnalysisCard({
   const [progressMap, setProgressMap] = useState<Record<string, RepoProgress>>({});
   const [selectedRepos, setSelectedRepos] = useState<string[]>(repos);
   const [fullClone, setFullClone] = useState(false);
+  const [depth, setDepth] = useState<'standard' | 'deep'>('standard');
 
   const handleProgress = useCallback((data: CodebaseProgress) => {
     setProgressMap((prev) => {
@@ -163,7 +164,7 @@ function RepoAnalysisCard({
     setProgressMap({});
     analyzeCodebase.mutate({
       repos: reposToAnalyze,
-      options: { shallow: !fullClone },
+      options: { shallow: !fullClone, depth },
     });
   };
 
@@ -171,7 +172,7 @@ function RepoAnalysisCard({
     setProgressMap({});
     analyzeCodebase.mutate({
       repos: [repo],
-      options: { shallow: !fullClone },
+      options: { shallow: !fullClone, depth },
     });
   };
 
@@ -253,21 +254,43 @@ function RepoAnalysisCard({
       </div>
 
       {/* Analysis options */}
-      <div className="flex items-center gap-4">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
-          <input
-            type="checkbox"
-            checked={fullClone}
-            onChange={(e) => setFullClone(e.target.checked)}
-            className="rounded border-gray-600"
-          />
-          Full clone (includes git history for churn analysis)
-        </label>
-        {!jiraMcpAvailable && (
+      <div className="space-y-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm text-gray-300">
+            <span className="text-gray-400">Depth:</span>
+            <button
+              onClick={() => setDepth('standard')}
+              className={`rounded px-2.5 py-1 text-xs font-medium ${depth === 'standard' ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+            >
+              Standard
+            </button>
+            <button
+              onClick={() => setDepth('deep')}
+              className={`rounded px-2.5 py-1 text-xs font-medium ${depth === 'deep' ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}
+            >
+              Deep
+            </button>
+          </div>
           <span className="text-xs text-gray-500">
-            Jira MCP not configured — cross-reference will be skipped
+            {depth === 'standard' ? 'Breadth-first, ~20 min (20 turns, 30 min timeout)' : 'Thorough analysis, ~60 min (50 turns, 90 min timeout)'}
           </span>
-        )}
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-300">
+            <input
+              type="checkbox"
+              checked={fullClone}
+              onChange={(e) => setFullClone(e.target.checked)}
+              className="rounded border-gray-600"
+            />
+            Full clone (includes git history for churn analysis)
+          </label>
+          {!jiraMcpAvailable && (
+            <span className="text-xs text-gray-500">
+              Jira MCP not configured — cross-reference will be skipped
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-2">
@@ -383,9 +406,13 @@ function ProgressBadge({
   }
 
   if (stage === 'done') {
+    const isPartial = message.includes('Partial') || message.includes('partial');
     return (
-      <span className="rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400" title={message}>
-        done
+      <span
+        className={`rounded px-2 py-0.5 text-xs ${isPartial ? 'bg-yellow-900/50 text-yellow-400' : 'bg-green-900/50 text-green-400'}`}
+        title={message}
+      >
+        {isPartial ? 'partial' : 'done'}
       </span>
     );
   }

@@ -1,8 +1,11 @@
+import type { AnalysisDepth } from './codebase.types';
+
 export function buildCodebaseAnalysisPrompt(
   repoFullName: string,
   jiraAvailable: boolean,
   jiraProjectHints: string[],
   fullClone: boolean = false,
+  depth: AnalysisDepth = 'standard',
 ): string {
   const jiraSection = jiraAvailable
     ? `
@@ -35,6 +38,26 @@ Full commit history is available. Use git commands to perform deep analysis:
 Focus on: files with high change frequency but low test coverage, single-maintainer modules, and recent architectural changes.`
     : '';
 
+  const timeBudget = depth === 'deep'
+    ? `
+## Time Budget
+
+You have approximately 60 minutes to complete this analysis. Plan your time accordingly:
+- Spend up to 40 minutes on thorough exploration (steps 1-5 above)
+- Reserve at least 10 minutes to compile and write your structured JSON output
+- Go deep on each section — follow interesting leads, trace dependency chains, read key files in full
+- If you are still exploring after 45 minutes, stop and write output with the evidence you have so far`
+    : `
+## Time Budget — CRITICAL
+
+You have a HARD LIMIT of 20 minutes. You MUST output your JSON before then.
+- Spend no more than 12 minutes on exploration (steps 1-5 above)
+- At 12 minutes, STOP exploring and START writing your JSON output immediately
+- Prioritize BREADTH over depth — get basic findings for ALL sections rather than going deep on one area
+- One pass through each section is enough. Do not revisit or re-read files.
+- If a section has no obvious findings after 2 minutes, write an empty array and move on
+- YOUR OUTPUT IS MORE VALUABLE THAN MORE EXPLORATION. Write what you have.`;
+
   return `You are analyzing the codebase at the current working directory for the repository: ${repoFullName}
 
 Your task is to produce a structured analysis of this codebase for an organizational SWOT analysis. A staff engineer will use these findings as evidence for strengths, weaknesses, opportunities, and threats. Use the Read, Glob, Grep, and Bash tools to explore the code thoroughly.
@@ -48,14 +71,7 @@ Your task is to produce a structured analysis of this codebase for an organizati
 5. **Evaluate delivery risks**: Use git log to find churn hotspots. Cross-reference high-churn files with test coverage. Check CI/CD config health.
 ${gitHistorySection}
 ${jiraSection}
-
-## Time Budget
-
-You have approximately 25 minutes to complete this analysis. Plan your time accordingly:
-- Spend no more than 15 minutes on exploration (steps 1-5 above)
-- Reserve at least 5 minutes to compile and write your structured JSON output
-- Prioritize breadth over depth — cover all sections rather than going deep on one area
-- If you are still exploring after 15 minutes, stop and write output with the evidence you have so far
+${timeBudget}
 
 ## Evidence Rules
 

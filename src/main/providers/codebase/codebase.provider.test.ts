@@ -296,9 +296,10 @@ describe('CodebaseProvider', () => {
   describe('analyze', () => {
     const options: CodebaseAnalysisOptions = {
       shallow: true,
+      depth: 'standard',
       model: 'sonnet',
       maxTurns: 30,
-      timeoutMs: 300_000,
+      timeoutMs: 2_400_000,
     };
 
     const validAnalysis = {
@@ -311,18 +312,20 @@ describe('CodebaseProvider', () => {
       jiraCrossReference: null,
     };
 
+    // stream-json format: result event with the analysis text
+    function makeResultEvent(analysis: object): string {
+      return JSON.stringify({
+        type: 'result',
+        result: '```json\n' + JSON.stringify(analysis) + '\n```',
+      }) + '\n';
+    }
+
     it('returns parsed analysis on success', async () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      // stream-json format: one JSON event per line
-      const resultEvent = JSON.stringify({
-        type: 'result',
-        result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
-      });
-
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') handler(Buffer.from(resultEvent + '\n'));
+        if (event === 'data') handler(Buffer.from(makeResultEvent(validAnalysis)));
       });
       child.stderr.on.mockImplementation(() => {});
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
@@ -334,8 +337,11 @@ describe('CodebaseProvider', () => {
       expect(result.repo).toBe('owner/repo');
       expect(spawn).toHaveBeenCalledWith(
         'claude',
-        expect.arrayContaining(['--print', '--output-format', 'stream-json']),
-        expect.objectContaining({ cwd: '/tmp/repo' }),
+        expect.arrayContaining(['--print', '--verbose', '--output-format', 'stream-json']),
+        expect.objectContaining({
+          cwd: '/tmp/repo',
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }),
       );
     });
 
@@ -343,13 +349,8 @@ describe('CodebaseProvider', () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      const resultEvent = JSON.stringify({
-        type: 'result',
-        result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
-      });
-
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') handler(Buffer.from(resultEvent + '\n'));
+        if (event === 'data') handler(Buffer.from(makeResultEvent(validAnalysis)));
       });
       child.stderr.on.mockImplementation(() => {});
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
@@ -370,13 +371,8 @@ describe('CodebaseProvider', () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      const resultEvent = JSON.stringify({
-        type: 'result',
-        result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
-      });
-
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') handler(Buffer.from(resultEvent + '\n'));
+        if (event === 'data') handler(Buffer.from(makeResultEvent(validAnalysis)));
       });
       child.stderr.on.mockImplementation(() => {});
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
@@ -417,46 +413,76 @@ describe('CodebaseProvider', () => {
 
       child.stdout.on.mockImplementation(() => {});
       child.stderr.on.mockImplementation(() => {});
-      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
-        if (event === 'error') {
-          // Simulate AbortError
-          const abortError = new Error('The operation was aborted');
-          abortError.name = 'AbortError';
-          handler(abortError);
-        }
-        return child;
-      });
+      // Register on handlers but never fire them — let the real setTimeout expire
+      child.on.mockImplementation(() => child);
 
-      const shortTimeoutOptions = { ...options, timeoutMs: 1 };
+      const shortTimeoutOptions = { ...options, timeoutMs: 10 };
       await expect(
         provider.analyze('/tmp/repo', 'analyze this', shortTimeoutOptions),
       ).rejects.toThrow('timed out');
     });
 
-    it('invokes onProgress with tool call summaries from stream events', async () => {
+    it('salvages partial output on timeout when stdout contains valid stream-json result', async () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      const toolEvent = JSON.stringify({
-        type: 'assistant',
-        message: {
-          content: [
-            { type: 'tool_use', name: 'Read', input: { file_path: 'src/index.ts' } },
-            { type: 'tool_use', name: 'Grep', input: { pattern: 'TODO' } },
-          ],
-        },
-      });
-      const resultEvent = JSON.stringify({
-        type: 'result',
-        result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
-      });
-
+      // Produce a valid stream-json result event on stdout before timeout
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') {
-          handler(Buffer.from(toolEvent + '\n' + resultEvent + '\n'));
-        }
+        if (event === 'data') handler(Buffer.from(makeResultEvent(validAnalysis)));
       });
       child.stderr.on.mockImplementation(() => {});
+      // Never fire close — let timeout expire
+      child.on.mockImplementation(() => child);
+
+      const shortTimeoutOptions = { ...options, timeoutMs: 10 };
+      const result = await provider.analyze('/tmp/repo', 'analyze this', shortTimeoutOptions);
+      expect(result.repo).toBe('owner/repo');
+      expect(result.partial).toBe(true);
+    });
+
+    it('salvages partial output from raw JSON on stdout (non-event format)', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      // Raw JSON (not wrapped in stream-json event) — fallback parsing
+      child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') handler(Buffer.from(JSON.stringify(validAnalysis)));
+      });
+      child.stderr.on.mockImplementation(() => {});
+      child.on.mockImplementation(() => child);
+
+      const shortTimeoutOptions = { ...options, timeoutMs: 10 };
+      const result = await provider.analyze('/tmp/repo', 'analyze this', shortTimeoutOptions);
+      expect(result.repo).toBe('owner/repo');
+      expect(result.partial).toBe(true);
+    });
+
+    it('throws parseError when no output is produced', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      child.stdout.on.mockImplementation(() => {});
+      child.stderr.on.mockImplementation(() => {});
+      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
+        if (event === 'close') handler(0);
+        return child;
+      });
+
+      await expect(
+        provider.analyze('/tmp/repo', 'analyze this', options),
+      ).rejects.toThrow('no output');
+    });
+
+    it('forwards stderr lines to onProgress', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') handler(Buffer.from(makeResultEvent(validAnalysis)));
+      });
+      child.stderr.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') handler(Buffer.from('Initializing...\nLoading tools...\n'));
+      });
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
         if (event === 'close') handler(0);
         return child;
@@ -467,11 +493,8 @@ describe('CodebaseProvider', () => {
         progressCalls.push(msg);
       });
 
-      expect(progressCalls).toHaveLength(2);
-      expect(progressCalls[0]).toContain('Reading');
-      expect(progressCalls[0]).toContain('src/index.ts');
-      expect(progressCalls[1]).toContain('Grepping');
-      expect(progressCalls[1]).toContain('TODO');
+      expect(progressCalls.some((m) => m.includes('Initializing'))).toBe(true);
+      expect(progressCalls.some((m) => m.includes('Loading tools'))).toBe(true);
     });
   });
 

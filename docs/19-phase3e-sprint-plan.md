@@ -2,7 +2,7 @@
 
 > **Two-agent execution model for Phase 3e: Platform Maturity & Multi-Provider.**
 > Continues from Phase 3d (Sprints 13-21, see `docs/16-parallel-sprint-plan.md`).
-> 11 features decomposed into 12 agent-sprints across 6 weeks. Auto-update (Sprint 31) deferred until code signing is configured.
+> 13 features decomposed into 12 agent-sprints across 6 weeks. Auto-update (Sprint 31) deferred until code signing is configured.
 
 **Prerequisite**: Phase 3d complete (Sprint 21 E2E testing + docs merged).
 
@@ -23,7 +23,7 @@
 
 ## Overview
 
-Phase 3e adds platform maturity features: multi-provider LLM/codebase support, visualization, chat-driven file generation, de-anonymization, onboarding, app menu, structured logging, file watching, and auto-update.
+Phase 3e adds platform maturity features: multi-provider LLM/codebase support, visualization, chat-driven file generation, de-anonymization, onboarding, app menu, structured logging, file watching, analysis consistency (evidence coverage indicator + low-temperature LLM calls), and auto-update.
 
 Single-developer baseline: ~12 sprints.
 Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) deferred until code signing is in place.
@@ -56,6 +56,13 @@ Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) 
 | U3 | First-launch onboarding wizard | 29 | NEW `routes/onboarding.tsx`, `components/onboarding/*` |
 | U4 | App menu and keyboard shortcuts | 22 | `index.ts` (Electron Menu) |
 | U5 | Profile tags/themes manual field | 25, 27 | `domain/types.ts`, `profile.repository.ts`, migration v5 |
+
+### Analysis Consistency
+
+| # | Feature | Sprint(s) | Key Files |
+|---|---------|-----------|-----------|
+| C1 | Evidence coverage indicator (backend compute + frontend display) | 30, 33 | `evidence-validator.ts`, `domain/types.ts`, quality-metrics component |
+| C2 | Low-temperature LLM calls for run-to-run consistency | 24 | `analysis.service.ts` (provider options) |
 
 ### Infrastructure
 
@@ -106,7 +113,8 @@ Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) 
 | 24.3 | Update `index.ts` — Instantiate `LlmProviderFactory`, pass active provider to services | Hard dep on 24.1 | `index.ts` |
 | 24.4 | Update `settings.service.ts` — `listModels` delegates to active provider | Hard dep on Gate 1 | `settings.service.ts` |
 | 24.5 | Add provider-switching IPC + preference — `settings:setLlmProvider` channel | Soft dep on 24.3 | `channels.ts`, `preload/*` |
-| 24.6 | Tests: both providers through analysis and chat services (mocked HTTP) | Hard dep on 24.1-24.2 | test files |
+| 24.6 | Set temperature 0 (or near-0) on analysis LLM calls for run-to-run consistency — parameter on `createChatCompletion` options | Soft dep on 24.1 | `analysis.service.ts` |
+| 24.7 | Tests: both providers through analysis and chat services (mocked HTTP) | Hard dep on 24.1-24.2 | test files |
 
 ---
 
@@ -195,7 +203,9 @@ Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) 
 | 30.3 | Update `chat-panel.tsx` — When sending, include editor context if available. Show "Editor context attached" indicator | Soft dep on 30.1 | `chat-panel.tsx` |
 | 30.4 | Update `workspace.tsx` — Wrap with EditorContextProvider | Soft dep on 30.1 | `workspace.tsx` |
 | 30.5 | Update `preload/*` — Add `chat.sendWithContext` bridge method | Soft dep on Sprint 26.4 | `preload/api.ts`, `preload/index.ts` |
-| 30.6 | Integration tests: multi-provider LLM E2E (mock Anthropic), file write from chat, editor context | Hard dep on all prior | test files |
+| 30.6 | Evidence coverage computation — after validation, compare cited `sourceId`s in SWOT output against input snapshot. Produce per-source-type coverage rates (profiles, Jira projects, Confluence spaces, GitHub repos, codebase repos). Store as part of `EvidenceQualityMetrics` | Independent | `evidence-validator.ts`, `domain/types.ts` |
+| 30.7 | Add evidence coverage IPC — return coverage data alongside quality metrics | Soft dep on 30.6 | `analysis.ipc.ts`, `preload/*` |
+| 30.8 | Integration tests: multi-provider LLM E2E (mock Anthropic), file write from chat, editor context, evidence coverage | Hard dep on all prior | test files |
 
 ---
 
@@ -227,6 +237,7 @@ Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) 
 | 33.1 | Create `coverage-radar-chart.tsx` — Radar chart for multi-source evidence coverage | Independent | NEW file |
 | 33.2 | Create `confidence-trend.tsx` — Bar chart comparing confidence distributions across analyses | Independent | NEW file |
 | 33.3 | Integrate charts into `comparison.tsx` — Add visualization tab | Soft dep on 33.1-33.2 | `comparison.tsx` |
+| 33.3a | Evidence coverage indicator on quality metrics card — display per-source-type citation rates (e.g., "9/14 profiles cited, 3/5 Jira projects cited"). Uses coverage data from Sprint 30.6 | Hard dep on Sprint 30.6 | `quality-metrics` component |
 | 33.4 | Add codebase provider selection to integrations page — Claude CLI vs OpenCode picker | Hard dep on Sprint 25 | codebase setup component |
 | 33.5 | Update `preload/*` — Add codebase provider selection bridge, file watcher event listener | Hard dep on Sprint 28 | `preload/api.ts`, `preload/index.ts` |
 | 33.6 | Update `use-file-browser.ts` — Subscribe to `file:changed` events, invalidate directory queries | Hard dep on Sprint 28.8 | `use-file-browser.ts` |
@@ -244,7 +255,8 @@ Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) 
 | 34.4 | E2E: De-anonymization hover — run analysis, hover shows real names | Hard dep on all | test files |
 | 34.5 | E2E: Profile tags — create with tags, verify in analysis data | Hard dep on all | test files |
 | 34.6 | E2E: Onboarding wizard — fresh launch, complete steps, redirect | Hard dep on all | test files |
-| 34.7 | Validate Phase 3e exit criteria from `docs/04-phases-roadmap.md` | Hard dep on all | — |
+| 34.7 | E2E: Evidence coverage — run analysis, verify coverage rates on metrics card, verify consistency across repeated runs (low temperature) | Hard dep on all | test files |
+| 34.8 | Validate Phase 3e exit criteria from `docs/04-phases-roadmap.md` | Hard dep on all | — |
 
 ---
 

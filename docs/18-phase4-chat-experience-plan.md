@@ -203,6 +203,7 @@ The agent system prompt expands from the current `buildChatSystemPrompt()` in `c
 - **Context injection**: full analysis data (as today) + conversation history + data fetched via read tools
 - **Re-run instructions**: how to interpret user requests for re-analysis (trigger new pipeline run)
 - **Approval context**: which tools require approval, how to handle rejection gracefully
+- **Evidence gap analysis ("Go deeper")**: when the user asks for more findings, the agent examines evidence sources not cited in the current SWOT (using the evidence coverage data from Phase 3e). It performs a targeted search for additional patterns — not a re-roll — and either surfaces new evidence-backed items or confirms the current analysis covers the available data. The agent has the current SWOT as context, so it won't repeat existing findings.
 
 ### 2.4 Storage Changes
 
@@ -377,7 +378,8 @@ Sprint | Agent A (Backend)                        | Agent B (Frontend/Types)    
 | `run_codebase_analysis`: queries CodebaseProvider | read-executor.ts | |
 | `search_profiles`: queries ProfileRepository | read-executor.ts | |
 | Multi-turn execution loop: after read tool results, continue conversation | `src/main/services/agent.service.ts` (MODIFY) | Loop handles mixed render + read + text |
-| Tests for read tools and multi-turn | `src/main/providers/agent-tools/read-executor.test.ts` (NEW) | |
+| "Go deeper" system prompt guidance: when user asks for more findings, agent examines uncited evidence (using Phase 3e coverage data) and surfaces additional items or confirms coverage is complete | `src/main/services/agent.service.ts` (MODIFY) | System prompt addition |
+| Tests for read tools, multi-turn, and evidence gap analysis | `src/main/providers/agent-tools/read-executor.test.ts` (NEW) | |
 
 **Agent B — Frontend: Multi-Turn Streaming UX**
 

@@ -148,6 +148,10 @@ _UX Enhancements:_
 - App menu and keyboard shortcuts: native macOS menu with standard shortcuts
 - Profile tags/themes manual field: manually assign theme tags to profiles before analysis
 
+_Analysis Consistency:_
+- Evidence coverage indicator: after each analysis, display which sources were cited vs. available (e.g., "9 of 14 profiles cited, 3 of 5 Jira projects cited") on the quality metrics card. Backend computes coverage from SWOT output citations vs. input snapshot; frontend renders on metrics card. Independent of other features — parallelizable across agents (backend + frontend).
+- Low-temperature LLM calls: use temperature 0 (or near-0) for analysis runs to produce consistent results across repeated runs on the same data. Backend-only change (LLM provider parameter). No frontend work.
+
 _Infrastructure:_
 - Structured logging: centralized logger with log levels and optional file output
 - File system watching: live sidebar updates when workspace files change externally
@@ -200,6 +204,8 @@ Users must have for codebase analysis and chat actions:
 - First-launch wizard completes successfully for new users
 - ~~Auto-update downloads and applies updates from GitHub Releases~~ (deferred — requires code signing)
 - Follow-through metrics improve (fewer stale recommendations)
+- Evidence coverage indicator shows source citation rates (profiles, projects, spaces, repos) on the quality metrics card
+- Repeated analysis runs on unchanged data produce substantially overlapping SWOT items (low-temperature consistency)
 
 ---
 
@@ -239,6 +245,12 @@ Users must have for codebase analysis and chat actions:
 - Multiple pinned summaries in one conversation thread
 - New `conversation_id` and `parent_analysis_id` columns on `analyses` table
 
+**Evidence Gap Analysis ("Go Deeper"):**
+- After initial analysis, user can ask the agent to find patterns in evidence that weren't surfaced
+- Agent examines uncited evidence sources (using coverage data from Phase 3e) and surfaces additional findings backed by specific evidence
+- Targeted gap search — not a re-roll of the analysis, but a directed look at what was missed
+- Agent either finds additional evidence-backed items or confirms the current analysis covers the data
+
 **Observability:**
 - Token count and cost estimate visible in status bar throughout conversation
 - Agent state indicator (Analyzing / Thinking / Fetching data / Ready)
@@ -269,6 +281,7 @@ Users must have for codebase analysis and chat actions:
 - Token count and cost estimate update in real-time in the status bar
 - Stop button interrupts in-flight agent turns and preserves partial responses
 - Existing Phase 3 chat actions (Jira/Confluence/GitHub creates) work through the new agent harness
+- "Go deeper" follow-up surfaces additional evidence-backed findings from uncited sources, or confirms coverage is complete
 
 ---
 

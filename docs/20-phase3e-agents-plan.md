@@ -214,7 +214,8 @@ SCOPE:
 4. Update `settings.service.ts`:
    - `listModels()` should call active provider's `listModels` with the correct API key
 5. Add IPC: `settings:setLlmProvider` and `settings:getLlmProvider` channels
-6. Tests: verify both providers work through analysis and chat (mocked HTTP)
+6. Set temperature 0 (or near-0) on analysis LLM calls for run-to-run consistency — add `temperature` to the `createChatCompletion` options. Analysis calls use 0; chat calls can keep moderate temperature for more natural conversation.
+7. Tests: verify both providers work through analysis and chat (mocked HTTP), verify analysis calls use low temperature
 
 FILES YOU OWN:
 
@@ -234,6 +235,7 @@ COMPLETION CRITERIA:
 - Analysis runs successfully with Anthropic provider (new capability)
 - Chat streaming works with both providers including tool-use
 - Provider switching via preference works
+- Analysis LLM calls use temperature 0 for consistency; chat calls use moderate temperature
 - All existing analysis and chat tests pass
 - `pnpm typecheck && pnpm test` passes with no regressions
 
@@ -578,10 +580,17 @@ SCOPE:
    - Include in send payload
 4. Update `workspace.tsx` — Wrap with EditorContextProvider
 5. Update preload bridge — `chat.sendWithContext(analysisId, content, editorContext)` if not already done
-6. Integration tests:
+6. Evidence coverage computation:
+   - After validation in the analysis pipeline, compare cited `sourceId`s in SWOT output against full input snapshot
+   - Compute per-source-type coverage: profiles (N/M cited), Jira projects, Confluence spaces, GitHub repos, codebase repos
+   - Add coverage data to `EvidenceQualityMetrics` type in `domain/types.ts`
+   - Implement in `evidence-validator.ts` (post-validation step)
+7. Evidence coverage IPC — return coverage data alongside quality metrics via existing analysis channels
+8. Integration tests:
    - Multi-provider LLM: run analysis with mock Anthropic, verify SWOT output
    - File write from chat: mock action approval, verify file written to workspace
    - Editor context: verify context appears in chat system prompt
+   - Evidence coverage: verify coverage rates computed correctly from mock analysis output
 
 FILES YOU OWN:
 
@@ -589,17 +598,22 @@ FILES YOU OWN:
 - src/renderer/components/workspace/editor-pane.tsx
 - src/renderer/components/analysis/chat-panel.tsx
 - src/renderer/routes/workspace.tsx
+- src/main/analysis/evidence-validator.ts (evidence coverage computation)
+- src/main/domain/types.ts (EvidenceQualityMetrics extension)
+- src/main/ipc/handlers/analysis.ipc.ts (coverage IPC)
 - src/preload/api.ts (append)
 - src/preload/index.ts (append)
 - Test files
 
-FILES TO AVOID: Do NOT modify `src/renderer/routes/comparison.tsx`, codebase setup components, or `src/preload/*` — Agent B owns those this week (Sprint 33).
+FILES TO AVOID: Do NOT modify `src/renderer/routes/comparison.tsx`, codebase setup components, or visualization components — Agent B owns those this week (Sprint 33).
 
 COMPLETION CRITERIA:
 
 - Editor context shows in chat panel when file is open
 - Context includes file path, content preview, and selected text
-- Integration tests pass for multi-provider, file write, and editor context
+- Evidence coverage rates computed after analysis and stored in quality metrics
+- Evidence coverage IPC returns data to renderer
+- Integration tests pass for multi-provider, file write, editor context, and evidence coverage
 - `pnpm typecheck && pnpm test` passes with no regressions
 
 ---
@@ -626,29 +640,32 @@ SCOPE:
 1. Create `coverage-radar-chart.tsx` — Radar chart for multi-source evidence coverage
 2. Create `confidence-trend.tsx` — Confidence distribution comparison across analyses
 3. Integrate into `comparison.tsx` — Add visualization section to comparison view
-4. Add codebase provider picker to integrations page codebase section:
+4. Evidence coverage indicator on quality metrics card — display per-source-type citation rates (e.g., "9/14 profiles cited, 3/5 Jira projects cited"). Consumes coverage data from Sprint 30.6 (Agent A). This is the user-facing display for the evidence coverage computation.
+5. Add codebase provider picker to integrations page codebase section:
    - Radio: "Claude CLI (Recommended)" vs "OpenCode (Experimental)"
    - Saves `codebaseProviderType` preference
-5. Update preload bridge — codebase provider selection, file watcher event listener
-6. Update `use-file-browser.ts` — listen for `file:changed` events, invalidate directory queries
-7. Tests for viz components and provider selection
+6. Update preload bridge — codebase provider selection, file watcher event listener
+7. Update `use-file-browser.ts` — listen for `file:changed` events, invalidate directory queries
+8. Tests for viz components, evidence coverage display, and provider selection
 
 FILES YOU OWN:
 
 - src/renderer/components/visualizations/* (new components)
 - src/renderer/routes/comparison.tsx (add viz section)
+- Quality metrics card component (evidence coverage display)
 - Integrations page codebase setup section
 - src/preload/api.ts (append)
 - src/preload/index.ts (append)
 - src/renderer/hooks/use-file-browser.ts
 - Test files
 
-FILES TO AVOID: Do NOT modify `src/renderer/components/workspace/*`, `src/renderer/components/analysis/chat-panel.tsx`, or `src/preload/api.ts` — Agent A owns those this week (Sprint 30).
+FILES TO AVOID: Do NOT modify `src/renderer/components/workspace/*`, `src/renderer/components/analysis/chat-panel.tsx`, `src/main/analysis/evidence-validator.ts`, or `src/main/domain/types.ts` — Agent A owns those this week (Sprint 30).
 
 COMPLETION CRITERIA:
 
 - Radar and confidence trend charts render with data
 - Charts appear in comparison view
+- Evidence coverage indicator displays citation rates on quality metrics card
 - Codebase provider picker works
 - File browser auto-refreshes when external file changes detected
 - `pnpm typecheck && pnpm test` passes with no regressions

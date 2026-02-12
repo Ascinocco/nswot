@@ -459,6 +459,8 @@ One structured prompt containing:
 
 Sent via OpenRouter provider, wrapped in circuit breaker. Codebase analysis data is pre-computed by Claude CLI (Tier 1) running against locally cloned repos, and fed to the SWOT synthesis (Tier 2) as condensed markdown — see `docs/11-codebase-analysis-plan.md`.
 
+**Temperature (Phase 3e)**: Analysis LLM calls use temperature 0 (or near-0) to ensure consistent results across repeated runs on the same data. This is a provider-level parameter on the LLM request, not a pipeline change.
+
 ### 7.4 Parse and Validate
 
 Parse LLM response into:
@@ -475,6 +477,8 @@ Validation rules:
 - malformed payload retries once with corrective prompt
 
 On second parse failure, analysis is stored as `failed` with diagnostic message.
+
+**Evidence coverage (Phase 3e)**: After validation, compute which input sources were actually cited in the SWOT output. Compare cited `sourceId`s against the full input snapshot to produce per-source-type coverage rates (e.g., 9/14 profiles, 3/5 Jira projects, 2/2 Confluence spaces, 1/3 GitHub repos). Stored as part of `EvidenceQualityMetrics` and displayed on the quality metrics card. This data also feeds the Phase 4 "Go deeper" capability — the agent uses coverage gaps to target its search for additional findings.
 
 ### 7.5 Multi-Step Pipeline (Phase 3d)
 

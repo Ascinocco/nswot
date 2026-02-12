@@ -1,6 +1,7 @@
 export interface CodebaseAnalysis {
   repo: string;
   analyzedAt: string;
+  partial?: boolean;
   architecture: {
     summary: string;
     modules: string[];
@@ -39,8 +40,11 @@ export interface CodebasePrerequisites {
   jiraMcp: boolean;
 }
 
+export type AnalysisDepth = 'standard' | 'deep';
+
 export interface CodebaseAnalysisOptions {
   shallow: boolean;
+  depth: AnalysisDepth;
   model: string;
   maxTurns: number;
   timeoutMs: number;
@@ -50,9 +54,15 @@ export const CODEBASE_RESOURCE_TYPES = {
   ANALYSIS: 'codebase_analysis',
 } as const;
 
+export const ANALYSIS_DEPTH_CONFIGS: Record<AnalysisDepth, Pick<CodebaseAnalysisOptions, 'maxTurns' | 'timeoutMs'>> = {
+  standard: { maxTurns: 30, timeoutMs: 2_400_000 },   // 30 turns, 40 min timeout
+  deep:     { maxTurns: 60, timeoutMs: 5_400_000 },   // 60 turns, 90 min timeout
+};
+
 export const DEFAULT_ANALYSIS_OPTIONS: CodebaseAnalysisOptions = {
   shallow: true,
+  depth: 'standard',
   model: 'sonnet',
   maxTurns: 30,
-  timeoutMs: 1_800_000,
+  timeoutMs: 2_400_000,
 };

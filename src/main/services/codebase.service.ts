@@ -11,10 +11,12 @@ import type {
   CodebaseAnalysis,
   CodebaseAnalysisOptions,
   CodebasePrerequisites,
+  AnalysisDepth,
 } from '../providers/codebase/codebase.types';
 import {
   CODEBASE_RESOURCE_TYPES,
   DEFAULT_ANALYSIS_OPTIONS,
+  ANALYSIS_DEPTH_CONFIGS,
 } from '../providers/codebase/codebase.types';
 import { buildCodebaseAnalysisPrompt } from '../providers/codebase/codebase-prompt';
 import { validateWorkspacePath } from '../infrastructure/file-system';
@@ -128,8 +130,11 @@ export class CodebaseService {
       );
     }
 
+    const depth: AnalysisDepth = options.depth ?? DEFAULT_ANALYSIS_OPTIONS.depth;
+    const depthConfig = ANALYSIS_DEPTH_CONFIGS[depth];
     const mergedOptions: CodebaseAnalysisOptions = {
       ...DEFAULT_ANALYSIS_OPTIONS,
+      ...depthConfig,
       ...options,
     };
 
@@ -156,6 +161,7 @@ export class CodebaseService {
           prereqs.jiraMcp,
           jiraProjectKeys,
           !mergedOptions.shallow,
+          mergedOptions.depth,
         );
 
         // Analyze
@@ -190,7 +196,10 @@ export class CodebaseService {
         );
 
         results.push(analysis);
-        onProgress({ repo, stage: 'done', message: `Analysis complete for ${repo}` });
+        const doneMsg = analysis.partial
+          ? `Partial analysis saved for ${repo} (timed out but salvaged results)`
+          : `Analysis complete for ${repo}`;
+        onProgress({ repo, stage: 'done', message: doneMsg });
       } catch (cause) {
         const errorMessage = this.extractErrorMessage(cause, repo);
         failures.push({ repo, error: errorMessage });
@@ -420,7 +429,12 @@ export class CodebaseService {
 
   private extractErrorMessage(cause: unknown, repo: string): string {
     if (this.isTimeoutError(cause)) {
-      return `Analysis of ${repo} timed out after 30 minutes. The repository may be too large — try re-analyzing with fewer selected repos.`;
+      const detail = cause instanceof Error ? cause.message : '';
+      const noOutput = detail.includes('no output');
+      const hint = noOutput
+        ? 'Claude CLI may not be responding. Check that `claude --version` works in your terminal.'
+        : 'Try using Deep Analysis mode for large repos, or re-analyze with fewer selected repos.';
+      return `Analysis of ${repo} timed out. ${hint}`;
     }
     if (this.isParseError(cause)) {
       return `Could not parse analysis output for ${repo} after retry.`;

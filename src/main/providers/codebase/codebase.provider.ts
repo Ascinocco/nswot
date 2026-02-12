@@ -4,17 +4,11 @@ import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import type { CodebaseAnalysis, CodebasePrerequisites, CodebaseAnalysisOptions } from './codebase.types';
 
-interface StreamJsonContentBlock {
-  type: string;
-  name?: string;
-  input?: Record<string, unknown>;
-  text?: string;
-}
-
-interface StreamJsonEvent {
-  type: string;
-  message?: { content: StreamJsonContentBlock[] };
-  result?: string;
+interface SpawnResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  timedOut: boolean;
 }
 
 export class CodebaseProvider {
@@ -75,6 +69,7 @@ export class CodebaseProvider {
 
     const args = [
       '--print',
+      '--verbose',
       '--output-format',
       'stream-json',
       '--allowedTools',
@@ -87,66 +82,126 @@ export class CodebaseProvider {
       prompt,
     ];
 
+    // Heartbeat: emit elapsed time every 30s so UI shows the analysis is alive
+    const startTime = Date.now();
+    const heartbeat = onProgress
+      ? setInterval(() => {
+          const elapsed = Math.round((Date.now() - startTime) / 60_000);
+          onProgress(`Still analyzing... ${elapsed}m elapsed`);
+        }, 30_000)
+      : null;
+
+    try {
+      const onStderr = onProgress
+        ? (line: string) => { onProgress(`[claude] ${line}`); }
+        : undefined;
+
+      const result = await this.spawnWithCapture(
+        'claude', args, repoPath, options.timeoutMs, onStderr,
+      );
+
+      // Try to extract result from stream-json events
+      const { text: textContent, maxTurnsExceeded } = this.extractResultFromStreamJson(result.stdout);
+
+      if (result.timedOut) {
+        // Try to salvage partial output from whatever Claude produced before timeout
+        if (textContent) {
+          try {
+            const analysis = this.parseOutput(textContent);
+            analysis.partial = true;
+            return analysis;
+          } catch {
+            // Partial content not parseable as valid analysis JSON
+          }
+        }
+        const elapsed = Math.round((Date.now() - startTime) / 60_000);
+        const hasOutput = result.stdout.trim().length > 0;
+        const msg = hasOutput
+          ? `Analysis timed out after ${elapsed}m (output was not parseable as JSON)`
+          : `Analysis timed out after ${elapsed}m with no output — Claude CLI may not be responding`;
+        const error = new Error(msg);
+        (error as Error & { timeout: true }).timeout = true;
+        throw error;
+      }
+
+      if (result.exitCode !== 0) {
+        const errorMsg = result.stderr.trim() || `Claude CLI exited with code ${result.exitCode}`;
+        const error = new Error(errorMsg);
+        (error as Error & { exitCode: number }).exitCode = result.exitCode;
+        throw error;
+      }
+
+      // Claude ran out of turns before producing output — not a parse error, don't retry
+      if (maxTurnsExceeded && !textContent) {
+        throw new Error(
+          `Claude used all available turns exploring the codebase and did not produce analysis output. Try Deep Analysis mode for more turns.`,
+        );
+      }
+
+      if (!textContent) {
+        const error = new Error('Claude CLI produced no output');
+        (error as Error & { parseError: true }).parseError = true;
+        throw error;
+      }
+
+      return this.parseOutput(textContent);
+    } finally {
+      if (heartbeat) clearInterval(heartbeat);
+    }
+  }
+
+  /**
+   * Extract the final text result from stream-json output.
+   * Stream-json emits one JSON event per line. The final result is in a
+   * `{type: "result", result: "..."}` event, or in `assistant` message text blocks.
+   */
+  /**
+   * Extract the final text result from stream-json output.
+   * Stream-json emits one JSON event per line. The final result is in a
+   * `{type: "result", result: "..."}` event, or in `assistant` message text blocks.
+   * Returns `{ text, maxTurnsExceeded }`.
+   */
+  private extractResultFromStreamJson(stdout: string): { text: string; maxTurnsExceeded: boolean } {
     let lastTextContent = '';
-    const { exitCode, stderr } = await this.spawnStreamJson(
-      'claude',
-      args,
-      repoPath,
-      options.timeoutMs,
-      (event) => {
-        // Parse streaming events for progress and collect final text
-        if (event.type === 'assistant' && event.message?.content) {
-          for (const block of event.message.content) {
-            if (block.type === 'tool_use' && onProgress) {
-              const toolName = block.name ?? 'unknown';
-              const input = block.input ?? {};
-              const detail = this.summarizeToolCall(toolName, input);
-              onProgress(detail);
-            }
-            if (block.type === 'text' && block.text) {
-              lastTextContent = block.text;
+    let maxTurnsExceeded = false;
+    const lines = stdout.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        // Stream-json result event — the final output
+        if (parsed.type === 'result') {
+          if (parsed.subtype === 'error_max_turns') {
+            maxTurnsExceeded = true;
+          }
+          if (typeof parsed.result === 'string') {
+            return { text: parsed.result, maxTurnsExceeded };
+          }
+        }
+        // Stream-json assistant event — extract text blocks
+        if (parsed.type === 'assistant' && parsed.message) {
+          const msg = parsed.message as { content: Array<{ type: string; text?: string }> };
+          if (msg.content) {
+            for (const block of msg.content) {
+              if (block.type === 'text' && block.text) {
+                lastTextContent = block.text;
+              }
             }
           }
         }
-        // Also handle result event which has the final text
-        if (event.type === 'result' && event.result) {
-          lastTextContent = event.result;
+        // Direct analysis JSON (not wrapped in event) — return as raw string
+        if ('repo' in parsed && 'architecture' in parsed) {
+          return { text: trimmed, maxTurnsExceeded };
         }
-      },
-    );
-
-    if (exitCode !== 0) {
-      const errorMsg = stderr.trim() || `Claude CLI exited with code ${exitCode}`;
-      const error = new Error(errorMsg);
-      (error as Error & { exitCode: number }).exitCode = exitCode;
-      throw error;
-    }
-
-    if (!lastTextContent) {
-      const error = new Error('Claude CLI produced no output');
-      (error as Error & { parseError: true }).parseError = true;
-      throw error;
-    }
-
-    return this.parseOutput(lastTextContent);
-  }
-
-  private summarizeToolCall(toolName: string, input: Record<string, unknown>): string {
-    switch (toolName) {
-      case 'Read':
-        return `Reading ${String(input.file_path ?? input.path ?? 'file')}`;
-      case 'Glob':
-        return `Searching for ${String(input.pattern ?? 'files')}`;
-      case 'Grep':
-        return `Grepping for "${String(input.pattern ?? '...')}"`;
-      case 'Bash':
-        return `Running: ${String(input.command ?? 'command').slice(0, 80)}`;
-      default:
-        if (toolName.startsWith('mcp__')) {
-          return `Querying ${toolName.replace('mcp__', '')}`;
+      } catch {
+        // Not a JSON line — might be raw text output, use as fallback
+        if (trimmed.length > lastTextContent.length) {
+          lastTextContent = trimmed;
         }
-        return `Using ${toolName}`;
+      }
     }
+    return { text: lastTextContent, maxTurnsExceeded };
   }
 
   parseOutput(rawOutput: string): CodebaseAnalysis {
@@ -272,68 +327,77 @@ export class CodebaseProvider {
     }
   }
 
-  private spawnStreamJson(
+  /**
+   * Spawn a process and capture its output. Unlike spawnWithTimeout, this method
+   * ALWAYS resolves (never rejects) — on timeout it kills the process and returns
+   * whatever stdout was accumulated, allowing callers to salvage partial results.
+   *
+   * IMPORTANT: Uses 'ignore' for stdin to prevent the child process from blocking
+   * on stdin reads. Claude CLI with --print -p reads the prompt from the -p arg,
+   * but an open stdin pipe can cause it to hang waiting for EOF.
+   */
+  private spawnWithCapture(
     command: string,
     args: string[],
     cwd: string | undefined,
     timeoutMs: number,
-    onEvent: (event: StreamJsonEvent) => void,
-  ): Promise<{ stderr: string; exitCode: number }> {
-    return new Promise((resolve, reject) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
+    onStderr?: (line: string) => void,
+  ): Promise<SpawnResult> {
+    return new Promise((resolve) => {
       const child = spawn(command, args, {
         cwd,
-        signal: controller.signal,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
 
+      let stdout = '';
       let stderr = '';
-      let stdoutBuffer = '';
+      let stderrLineBuffer = '';
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          child.kill('SIGTERM');
+          // Give it a moment to flush stdout, then force kill
+          setTimeout(() => {
+            try { child.kill('SIGKILL'); } catch { /* already dead */ }
+          }, 5_000);
+          resolve({ stdout, stderr, exitCode: -1, timedOut: true });
+        }
+      }, timeoutMs);
 
       child.stdout.on('data', (chunk: Buffer) => {
-        stdoutBuffer += chunk.toString();
-        const lines = stdoutBuffer.split('\n');
-        stdoutBuffer = lines.pop() ?? '';
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const event = JSON.parse(trimmed) as StreamJsonEvent;
-            onEvent(event);
-          } catch {
-            // Non-JSON line, skip
-          }
-        }
+        stdout += chunk.toString();
       });
 
       child.stderr.on('data', (chunk: Buffer) => {
-        stderr += chunk.toString();
+        const text = chunk.toString();
+        stderr += text;
+        if (onStderr) {
+          stderrLineBuffer += text;
+          const lines = stderrLineBuffer.split('\n');
+          stderrLineBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed) onStderr(trimmed);
+          }
+        }
       });
 
       child.on('close', (code) => {
-        clearTimeout(timeout);
-        // Process remaining buffer
-        if (stdoutBuffer.trim()) {
-          try {
-            const event = JSON.parse(stdoutBuffer.trim()) as StreamJsonEvent;
-            onEvent(event);
-          } catch {
-            // ignore
-          }
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve({ stdout, stderr, exitCode: code ?? 1, timedOut: false });
         }
-        resolve({ stderr, exitCode: code ?? 1 });
       });
 
       child.on('error', (err) => {
-        clearTimeout(timeout);
-        if (err.name === 'AbortError') {
-          const timeoutError = new Error(`Command timed out after ${timeoutMs}ms`);
-          (timeoutError as Error & { timeout: true }).timeout = true;
-          reject(timeoutError);
-        } else {
-          reject(err);
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          // Treat spawn errors (e.g., ENOENT for missing command) as immediate failures
+          resolve({ stdout, stderr: err.message, exitCode: -1, timedOut: false });
         }
       });
     });
