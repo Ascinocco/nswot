@@ -2,7 +2,7 @@
 
 > **Two-agent execution model for Phase 3e: Platform Maturity & Multi-Provider.**
 > Continues from Phase 3d (Sprints 13-21, see `docs/16-parallel-sprint-plan.md`).
-> 12 features decomposed into 14 agent-sprints across 7 weeks.
+> 11 features decomposed into 12 agent-sprints across 6 weeks. Auto-update (Sprint 31) deferred until code signing is configured.
 
 **Prerequisite**: Phase 3d complete (Sprint 21 E2E testing + docs merged).
 
@@ -25,8 +25,8 @@
 
 Phase 3e adds platform maturity features: multi-provider LLM/codebase support, visualization, chat-driven file generation, de-anonymization, onboarding, app menu, structured logging, file watching, and auto-update.
 
-Single-developer baseline: ~14 sprints.
-Two-agent parallel plan: **7 weeks** (50% compression).
+Single-developer baseline: ~12 sprints.
+Two-agent parallel plan: **6 weeks** (50% compression). Sprint 31 (auto-update) deferred until code signing is in place.
 
 ---
 
@@ -63,7 +63,7 @@ Two-agent parallel plan: **7 weeks** (50% compression).
 |---|---------|-----------|-----------|
 | I1 | Structured logging | 22 | NEW `infrastructure/logger.ts` |
 | I2 | File system watching | 28 | NEW `infrastructure/file-watcher.ts` |
-| I3 | Auto-update infrastructure | 31 | NEW `infrastructure/auto-updater.ts`, `electron-builder.yml` |
+| I3 | Auto-update infrastructure | ~~31~~ DEFERRED | Blocked on code signing (macOS notarization + Windows Authenticode). See `docs/13-ci-cd-and-release.md` § 8. |
 
 ---
 
@@ -199,22 +199,11 @@ Two-agent parallel plan: **7 weeks** (50% compression).
 
 ---
 
-### Sprint 31 — Auto-Update Infrastructure (Agent B, Week 5)
+### Sprint 31 — Auto-Update Infrastructure — DEFERRED
 
-| # | Task | Dep Type | Conflict-Risk Files |
-|---|------|----------|---------------------|
-| 31.1 | Install `electron-updater` dependency | Independent | `package.json` |
-| 31.2 | Update `electron-builder.yml` — Add `publish` config for GitHub Releases | Soft dep on 31.1 | `electron-builder.yml` |
-| 31.3 | Create `src/main/infrastructure/auto-updater.ts` — Wraps `electron-updater.autoUpdater`. Checks on app start + periodically. Emits IPC events: `update:available`, `update:downloaded`, `update:error` | Hard dep on 31.1 | NEW file |
-| 31.4 | Wire auto-updater into `index.ts` — Initialize on app ready | Soft dep on 31.3 | `index.ts` |
-| 31.5 | Add update IPC channels — `update:check`, `update:install`, `update:available` (event), `update:downloaded` (event) | Independent | `channels.ts` (append) |
-| 31.6 | Create `src/renderer/components/common/update-notification.tsx` — Banner showing "Update available" with Install button and download progress | Soft dep on 31.5 | NEW file |
-| 31.7 | Create `src/renderer/hooks/use-auto-update.ts` — Hook for update IPC events | Soft dep on 31.5 | NEW file |
-| 31.8 | Integrate update notification into `App.tsx` — Show banner at top | Soft dep on 31.6 | `App.tsx` |
-| 31.9 | Update CI workflow for GitHub Releases publishing | Independent | CI workflow file |
-| 31.10 | Tests for auto-updater (mocked electron-updater) | Independent | test files |
+> **Deferred** until code signing is configured (macOS notarization + Windows Authenticode). `electron-updater` requires signed apps for auto-install on macOS/Windows. See `docs/13-ci-cd-and-release.md` § 8 for unsigned distribution policy and future signing migration path. The CI pipeline also needs `--publish always` (currently `--publish never`) to generate the `latest-mac.yml` / `latest.yml` manifest files that `electron-updater` uses for version discovery.
 
-**Gate 2 artifacts**: Both LLM providers work in analysis + chat. Codebase providers work. Chat file generation works. Editor context injected. De-anonymization hover works. Onboarding completes. File watching emits events. Auto-updater checks for updates. All tests pass.
+**Gate 2 artifacts**: Both LLM providers work in analysis + chat. Codebase providers work. Chat file generation works. Editor context injected. De-anonymization hover works. Onboarding completes. File watching emits events. All tests pass.
 
 ---
 
@@ -231,7 +220,7 @@ Two-agent parallel plan: **7 weeks** (50% compression).
 
 ---
 
-### Sprint 33 — Visualization Polish + Codebase Provider UI + File Watcher UI (Agent B, Week 6)
+### Sprint 33 — Visualization Polish + Codebase Provider UI + File Watcher UI (Agent B, Week 5)
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
@@ -245,7 +234,7 @@ Two-agent parallel plan: **7 weeks** (50% compression).
 
 ---
 
-### Sprint 34 — Cross-Feature E2E Testing (Agent A, Week 7)
+### Sprint 34 — Cross-Feature E2E Testing (Agent A, Week 6)
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
@@ -259,7 +248,7 @@ Two-agent parallel plan: **7 weeks** (50% compression).
 
 ---
 
-### Sprint 35 — Documentation + Final Polish (Agent B, Week 7)
+### Sprint 35 — Documentation + Final Polish (Agent B, Week 6)
 
 | # | Task | Dep Type | Conflict-Risk Files |
 |---|------|----------|---------------------|
@@ -297,20 +286,21 @@ Week  | Agent A                              | Agent B                          
       | [NEW file-watcher, analysis.ipc,     | [NEW onboarding/*, App.tsx,          |
       | swot-results, index.ts]              | settings.tsx, env.d.ts]              |
 ------+--------------------------------------+--------------------------------------+------
-  5   | Sprint 30: Editor Context UI +       | Sprint 31: Auto-Update Infra         | G2
-      | Integration Testing                  |                                      | (end)
-      | [editor-pane, chat-panel,            | [NEW auto-updater, electron-builder, |
-      | workspace.tsx, preload/*]            | App.tsx, channels, CI workflow]      |
+  5   | Sprint 30: Editor Context UI +       | Sprint 33: Viz Polish + Codebase     | G2
+      | Integration Testing                  | Provider UI + File Watcher UI        | (end)
+      | [editor-pane, chat-panel,            | [NEW viz components, comparison.tsx, |
+      | workspace.tsx, preload/*]            | codebase-setup, preload/*, hooks]    |
 ------+--------------------------------------+--------------------------------------+------
-  6   | Sprint 32: Mermaid in Workspace +    | Sprint 33: Viz Polish + Codebase     |
-      | Chat File Approval UI                | Provider UI + File Watcher UI        |
-      | [chat-panel, editor-pane,            | [NEW viz components, comparison.tsx, |
-      | file-browser, NEW components]        | codebase-setup, preload/*, hooks]    |
-------+--------------------------------------+--------------------------------------+------
-  7   | Sprint 34: Cross-Feature E2E Tests   | Sprint 35: Documentation + Polish    |
-      | [test files only]                    | [docs/* only]                        |
+  6   | Sprint 32: Mermaid in Workspace +    | Sprint 35: Documentation + Polish    |
+      | Chat File Approval UI                |                                      |
+      | [chat-panel, editor-pane,            | [docs/* only]                        |
+      | file-browser, NEW components]        |                                      |
+      +--------------------------------------+--------------------------------------+
+      | Sprint 34: Cross-Feature E2E Tests   |                                      |
+      | [test files only]                    |                                      |
 ------+--------------------------------------+--------------------------------------+------
 
+Sprint 31 (Auto-Update) DEFERRED — blocked on code signing.
 CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat file gen) -> Week 5 (Gate 2)
 ```
 
@@ -345,18 +335,19 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 - [ ] De-anonymization hover works in SWOT results
 - [ ] Onboarding wizard completes successfully
 - [ ] File system watching emits events
-- [ ] Auto-updater checks for updates
+- [ ] Visualization charts render in results and comparison views
+- [ ] Codebase provider selection UI works
 - [ ] All tests pass
 
-**Blocking**: Sprints 32-33 (Week 6) and Sprints 34-35 (Week 7) depend on Gate 2.
+**Blocking**: Sprint 32 + Sprint 34 (Week 6) and Sprint 35 (Week 6) depend on Gate 2.
 
 ---
 
 ## File Ownership Table
 
-| File / Module | Week 1-2 Owner | Week 3-4 Owner | Week 5-7 Owner |
+| File / Module | Week 1-2 Owner | Week 3-4 Owner | Week 5-6 Owner |
 |---|---|---|---|
-| `src/main/index.ts` | Agent A (W1: menu+logger, W2: provider wiring) | Agent A (W4: file watcher) | Agent B (W5: auto-updater) |
+| `src/main/index.ts` | Agent A (W1: menu+logger, W2: provider wiring) | Agent A (W4: file watcher) | Stable |
 | `src/main/services/analysis.service.ts` | Agent A (W2) | Stable | Stable |
 | `src/main/services/chat.service.ts` | Agent A (W2-W3) | Stable | Stable |
 | `src/main/services/settings.service.ts` | Agent B (W1), Agent A (W2) | Stable | Stable |
@@ -364,14 +355,13 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 | `src/main/providers/codebase/*` | Agent B (W2) | Stable | Stable |
 | `src/main/providers/actions/*` | Stable | Agent A (W3) | Stable |
 | `src/main/domain/types.ts` | Agent B (W2: tags) | Stable | Stable |
-| `src/main/ipc/channels.ts` | Both (append-only) | Agent A (W3-4) | Agent B (W5) |
-| `src/preload/*` | Agent A (W2) | Agent A (W4) | Agent A (W5), Agent B (W6) |
-| `src/renderer/App.tsx` | Stable | Agent B (W4) | Agent B (W5) |
+| `src/main/ipc/channels.ts` | Both (append-only) | Agent A (W3-4) | Stable |
+| `src/preload/*` | Agent A (W2) | Agent A (W4) | Agent A (W5), Agent B (W5) |
+| `src/renderer/App.tsx` | Stable | Agent B (W4) | Stable |
 | `src/renderer/routes/settings.tsx` | Stable | Agent B (W4) | Stable |
 | `swot-results.tsx` | Stable | Agent B (W3: viz), Agent A (W4: hover) | Stable |
 | `chat-panel.tsx` | Stable | Agent A (W3) | Agent A (W5-6) |
-| `package.json` | Stable | Agent B (W3: viz deps) | Agent B (W5: electron-updater) |
-| `electron-builder.yml` | Stable | Stable | Agent B (W5) |
+| `package.json` | Stable | Agent B (W3: viz deps) | Stable |
 
 ---
 
@@ -387,7 +377,7 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 | 4 | 28 | De-anonymization hover + File system watching | Pending | — |
 | 5 | 30 | Editor context UI + Integration testing | Pending | Sprint 26, 28 |
 | 6 | 32 | Mermaid in workspace + Chat file approval UI | Pending | Gate 2 |
-| 7 | 34 | Cross-feature E2E testing | Pending | All prior |
+| 6 | 34 | Cross-feature E2E testing | Pending | All prior |
 
 ### Agent B Backlog
 
@@ -397,17 +387,17 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 | 2 | 25 | Codebase provider abstraction + Profile tags | Pending | — |
 | 3 | 27 | Visualization infrastructure + Profile tags UI | Pending | Sprint 25 |
 | 4 | 29 | Onboarding wizard + Settings provider picker | Pending | — |
-| 5 | 31 | Auto-update infrastructure | Pending | — |
-| 6 | 33 | Visualization polish + Codebase provider UI + File watcher UI | Pending | Sprint 28 |
-| 7 | 35 | Documentation + Final polish | Pending | All prior |
+| 5 | 33 | Visualization polish + Codebase provider UI + File watcher UI | Pending | Sprint 28 |
+| 6 | 35 | Documentation + Final polish | Pending | All prior |
+| — | ~~31~~ | ~~Auto-update infrastructure~~ | **DEFERRED** | Code signing |
 
 ### Shared Integration Tasks
 
 | When | Task | Owners | Status |
 |------|------|--------|--------|
 | End of Week 1 | Gate 1: validate LLMProvider interface + both providers | B delivers, A validates | Pending |
-| End of Week 5 | Gate 2: all Phase 3e features work E2E | Both | Pending |
-| End of Week 7 | Phase 3e exit criteria validation | Both | Pending |
+| End of Week 5 | Gate 2: all Phase 3e features work E2E (except auto-update) | Both | Pending |
+| End of Week 6 | Phase 3e exit criteria validation | Both | Pending |
 
 ---
 
@@ -416,12 +406,12 @@ CRITICAL PATH: Week 1B (Gate 1) -> Week 2A (provider wiring) -> Week 3A (chat fi
 | # | Risk | Prob | Impact | Mitigation | Contingency |
 |---|------|------|--------|------------|-------------|
 | R1 | Anthropic Messages API SSE format differs from OpenRouter, breaking shared streaming | Med | High | Each provider handles its own SSE parsing internally. Interface returns domain types | Descope to non-streaming for Anthropic. OpenRouter remains default |
-| R2 | `index.ts` merge conflicts when both agents modify it (W5) | Med | Med | Changes are in different sections (file watcher vs auto-updater). Merge A first, B rebases | Trivially resolvable — both are additive init calls |
+| R2 | ~~`index.ts` merge conflicts when both agents modify it (W5)~~ | — | — | **RESOLVED**: Sprint 31 deferred. Only Agent A modifies `index.ts` (W1, W4) | — |
 | R3 | Mermaid library is heavy, causes renderer performance issues | Low | Med | Lazy-load via `React.lazy`. Only import when `.mmd` files opened or viz shown | Defer Mermaid to Phase 4, show as raw text |
 | R4 | OpenCode CLI unavailable or incompatible output format | Med | Low | Factory defaults to Claude CLI. OpenCode marked "experimental" in settings | Stub provider returning "not yet supported" |
 | R5 | `fs.watch` recursive unreliable on some platforms | Low | Med | Node.js 19+ (Electron 33) supports recursive `fs.watch`. Test on macOS first | Fallback to polling (check every 3s) |
-| R6 | electron-updater requires code signing for macOS auto-install | Med | Med | Initial implementation: update check + manual download link. Full auto-install when signing configured | Degrade to "Update available, click to download" |
-| R7 | 14 features across 7 weeks too ambitious | Med | Med | Priority order: multi-provider LLM > chat file gen > de-anonymization. Viz and auto-update are polish | Cut W6 viz polish (Sprint 33), roll into Phase 4 |
+| R6 | ~~electron-updater requires code signing~~ | — | — | **RESOLVED**: Sprint 31 deferred until code signing is configured | — |
+| R7 | 12 features across 6 weeks too ambitious | Med | Med | Priority order: multi-provider LLM > chat file gen > de-anonymization. Viz is polish | Cut W5 viz polish (Sprint 33), roll into Phase 4 |
 
 ---
 

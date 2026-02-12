@@ -153,7 +153,9 @@ _Infrastructure:_
 - File system watching: live sidebar updates when workspace files change externally
 - Auto-update infrastructure: Electron auto-updater integrated with CI/CD release pipeline
 
-> Sprint decomposition for Phase 3e is pending.
+> Sprint plan: `docs/19-phase3e-sprint-plan.md`
+> Agent instructions: `docs/20-phase3e-agents-plan.md`
+> Sprints 22–35, 7 weeks, two-agent parallel execution (continues from Phase 3d Sprints 13–21).
 
 ### Prerequisites (New)
 
@@ -196,7 +198,7 @@ Users must have for codebase analysis and chat actions:
 - Chat can write markdown, CSV, and Mermaid files to workspace with user approval
 - Mermaid diagrams render in-app; at least one interactive D3/Chart.js chart in results
 - First-launch wizard completes successfully for new users
-- Auto-update downloads and applies updates from GitHub Releases
+- ~~Auto-update downloads and applies updates from GitHub Releases~~ (deferred — requires code signing)
 - Follow-through metrics improve (fewer stale recommendations)
 
 ---
@@ -301,7 +303,7 @@ When choosing between features, prioritize in this order:
 - **Phase 3a**: +2 weeks (codebase analysis via Claude CLI — see `docs/11-codebase-analysis-plan.md`)
 - **Phase 3c**: +2 weeks (chat actions via tool-use bridge — see `docs/12-chat-actions-plan.md`)
 - **Phase 3b-3d**: +7 weeks with two-agent parallel execution (see `docs/16-parallel-sprint-plan.md`)
-- **Phase 3e**: TBD (platform maturity, multi-provider, visualizations, UX polish — sprint plan pending)
+- **Phase 3e**: +6 weeks with two-agent parallel execution (see `docs/19-phase3e-sprint-plan.md` and `docs/20-phase3e-agents-plan.md`)
 - **Phase 4**: +6 weeks with two-agent parallel execution (see `docs/18-phase4-chat-experience-plan.md`)
 
 > Phase 3b through 3d are planned for two concurrent agents. Sprint 13 (Phase 3b) and Sprint 14 (Phase 3c) run simultaneously. Phase 3d is decomposed into Sprints 16-21 with comparison, multi-step pipeline, themes, export, VP role, and x64 builds. See `docs/16-parallel-sprint-plan.md` for the full two-agent execution model, dependency gates, and merge plan.

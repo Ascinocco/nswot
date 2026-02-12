@@ -13,6 +13,7 @@ import {
 interface RepoProgress {
   stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed';
   message: string;
+  recentMessages: string[];
 }
 
 export default function CodebaseSetup(): React.JSX.Element {
@@ -120,10 +121,18 @@ function RepoAnalysisCard({
   const [fullClone, setFullClone] = useState(false);
 
   const handleProgress = useCallback((data: CodebaseProgress) => {
-    setProgressMap((prev) => ({
-      ...prev,
-      [data.repo]: { stage: data.stage, message: data.message },
-    }));
+    setProgressMap((prev) => {
+      const existing = prev[data.repo];
+      const recentMessages = existing?.recentMessages ?? [];
+      // Keep last 8 messages for the activity log
+      const updated = data.message
+        ? [...recentMessages, data.message].slice(-8)
+        : recentMessages;
+      return {
+        ...prev,
+        [data.repo]: { stage: data.stage, message: data.message, recentMessages: updated },
+      };
+    });
   }, []);
 
   useCodebaseProgress(handleProgress);
@@ -228,8 +237,14 @@ function RepoAnalysisCard({
                     {progress && <ProgressBadge stage={progress.stage} message={progress.message} />}
                   </div>
                 </div>
-                {progress && progress.stage === 'analyzing' && progress.message && (
-                  <p className="ml-6 mt-0.5 truncate text-xs text-gray-500">{progress.message}</p>
+                {progress && progress.stage === 'analyzing' && progress.recentMessages.length > 0 && (
+                  <div className="ml-6 mt-1 max-h-28 space-y-0.5 overflow-y-auto rounded bg-gray-900/50 px-2 py-1">
+                    {progress.recentMessages.map((msg, i) => (
+                      <p key={i} className={`truncate text-xs ${i === progress.recentMessages.length - 1 ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {msg}
+                      </p>
+                    ))}
+                  </div>
                 )}
               </div>
             );

@@ -315,12 +315,14 @@ describe('CodebaseProvider', () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      const envelope = JSON.stringify({
+      // stream-json format: one JSON event per line
+      const resultEvent = JSON.stringify({
+        type: 'result',
         result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
       });
 
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') handler(Buffer.from(envelope));
+        if (event === 'data') handler(Buffer.from(resultEvent + '\n'));
       });
       child.stderr.on.mockImplementation(() => {});
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
@@ -332,7 +334,7 @@ describe('CodebaseProvider', () => {
       expect(result.repo).toBe('owner/repo');
       expect(spawn).toHaveBeenCalledWith(
         'claude',
-        expect.arrayContaining(['--print', '--output-format', 'json']),
+        expect.arrayContaining(['--print', '--output-format', 'stream-json']),
         expect.objectContaining({ cwd: '/tmp/repo' }),
       );
     });
@@ -341,12 +343,13 @@ describe('CodebaseProvider', () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      const envelope = JSON.stringify({
+      const resultEvent = JSON.stringify({
+        type: 'result',
         result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
       });
 
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') handler(Buffer.from(envelope));
+        if (event === 'data') handler(Buffer.from(resultEvent + '\n'));
       });
       child.stderr.on.mockImplementation(() => {});
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
@@ -367,12 +370,13 @@ describe('CodebaseProvider', () => {
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
-      const envelope = JSON.stringify({
+      const resultEvent = JSON.stringify({
+        type: 'result',
         result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
       });
 
       child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
-        if (event === 'data') handler(Buffer.from(envelope));
+        if (event === 'data') handler(Buffer.from(resultEvent + '\n'));
       });
       child.stderr.on.mockImplementation(() => {});
       child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
@@ -413,7 +417,7 @@ describe('CodebaseProvider', () => {
 
       child.stdout.on.mockImplementation(() => {});
       child.stderr.on.mockImplementation(() => {});
-      child.on.mockImplementation((event: string, handler: (err: unknown) => void) => {
+      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
         if (event === 'error') {
           // Simulate AbortError
           const abortError = new Error('The operation was aborted');
@@ -427,6 +431,47 @@ describe('CodebaseProvider', () => {
       await expect(
         provider.analyze('/tmp/repo', 'analyze this', shortTimeoutOptions),
       ).rejects.toThrow('timed out');
+    });
+
+    it('invokes onProgress with tool call summaries from stream events', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      const toolEvent = JSON.stringify({
+        type: 'assistant',
+        message: {
+          content: [
+            { type: 'tool_use', name: 'Read', input: { file_path: 'src/index.ts' } },
+            { type: 'tool_use', name: 'Grep', input: { pattern: 'TODO' } },
+          ],
+        },
+      });
+      const resultEvent = JSON.stringify({
+        type: 'result',
+        result: '```json\n' + JSON.stringify(validAnalysis) + '\n```',
+      });
+
+      child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') {
+          handler(Buffer.from(toolEvent + '\n' + resultEvent + '\n'));
+        }
+      });
+      child.stderr.on.mockImplementation(() => {});
+      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
+        if (event === 'close') handler(0);
+        return child;
+      });
+
+      const progressCalls: string[] = [];
+      await provider.analyze('/tmp/repo', 'analyze this', options, false, (msg) => {
+        progressCalls.push(msg);
+      });
+
+      expect(progressCalls).toHaveLength(2);
+      expect(progressCalls[0]).toContain('Reading');
+      expect(progressCalls[0]).toContain('src/index.ts');
+      expect(progressCalls[1]).toContain('Grepping');
+      expect(progressCalls[1]).toContain('TODO');
     });
   });
 

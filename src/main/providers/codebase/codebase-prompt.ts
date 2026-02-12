@@ -49,6 +49,14 @@ Your task is to produce a structured analysis of this codebase for an organizati
 ${gitHistorySection}
 ${jiraSection}
 
+## Time Budget
+
+You have approximately 25 minutes to complete this analysis. Plan your time accordingly:
+- Spend no more than 15 minutes on exploration (steps 1-5 above)
+- Reserve at least 5 minutes to compile and write your structured JSON output
+- Prioritize breadth over depth — cover all sections rather than going deep on one area
+- If you are still exploring after 15 minutes, stop and write output with the evidence you have so far
+
 ## Evidence Rules
 
 - Every finding MUST cite a specific file path, line range, git log output, or grep result.

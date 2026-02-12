@@ -16,9 +16,10 @@
 | 2 | Sprint 24: Multi-Provider Wiring — PENDING | Sprint 25: Codebase Provider + Tags — PENDING |
 | 3 | Sprint 26: Chat File Gen — PENDING | Sprint 27: Visualizations + Tags UI — PENDING |
 | 4 | Sprint 28: De-anon Hover + Watcher — PENDING | Sprint 29: Onboarding Wizard — PENDING |
-| 5 | Sprint 30: Editor Context UI — PENDING | Sprint 31: Auto-Update — PENDING |
-| 6 | Sprint 32: Mermaid + File Approval — PENDING | Sprint 33: Viz Polish + Provider UI — PENDING |
-| 7 | Sprint 34: E2E Tests — PENDING | Sprint 35: Documentation — PENDING |
+| 5 | Sprint 30: Editor Context UI — PENDING | Sprint 33: Viz Polish + Provider UI — PENDING |
+| 6 | Sprint 32: Mermaid + File Approval — PENDING | Sprint 35: Documentation — PENDING |
+|   | Sprint 34: E2E Tests — PENDING | |
+| — | — | ~~Sprint 31: Auto-Update — DEFERRED (code signing)~~ |
 
 ---
 
@@ -592,7 +593,7 @@ FILES YOU OWN:
 - src/preload/index.ts (append)
 - Test files
 
-FILES TO AVOID: Do NOT modify `src/main/index.ts`, `electron-builder.yml`, `src/renderer/App.tsx`, or CI workflows — Agent B owns those this week.
+FILES TO AVOID: Do NOT modify `src/renderer/routes/comparison.tsx`, codebase setup components, or `src/preload/*` — Agent B owns those this week (Sprint 33).
 
 COMPLETION CRITERIA:
 
@@ -603,68 +604,53 @@ COMPLETION CRITERIA:
 
 ---
 
-## Agent B — Sprint 31: Auto-Update Infrastructure
+## Agent B — Sprint 31: Auto-Update Infrastructure — DEFERRED
 
-> **Status: PENDING.**
+> **Status: DEFERRED.** Blocked on code signing infrastructure. `electron-updater` requires signed apps for macOS/Windows auto-install, and the CI pipeline needs `--publish always` to generate update manifest files. Revisit after macOS notarization + Windows Authenticode are configured. See `docs/13-ci-cd-and-release.md` § 8.
+
+---
+
+## Agent B — Sprint 33: Visualization Polish + Codebase Provider UI + File Watcher UI
+
+> **Status: PENDING.** Depends on Sprint 28 (file watcher) and Sprint 25 (codebase provider). Moved from Week 6 to Week 5 after Sprint 31 deferral.
 
 READ FIRST:
 
 - docs/19-phase3e-sprint-plan.md (you are Agent B, Week 5)
-- docs/13-ci-cd-and-release.md (existing CI/CD setup)
-- docs/14-release-operations-runbook.md (release operations)
-- electron-builder.yml (current build config)
-- src/main/index.ts (app lifecycle)
-- src/renderer/App.tsx (where to show update banner)
+- src/renderer/routes/comparison.tsx (add viz tab)
+- src/renderer/hooks/use-file-browser.ts (add file watcher events)
+- Integrations page codebase setup section
 
 SCOPE:
 
-1. Install `electron-updater` dependency
-2. Update `electron-builder.yml`:
-   - Add `publish` section for GitHub Releases
-   - Configure auto-update channel
-3. Create `src/main/infrastructure/auto-updater.ts`:
-   - Wraps `electron-updater` autoUpdater
-   - Check for updates on app start (with 10s delay) and every 4 hours
-   - Emit IPC events: `update:available` (version info), `update:downloaded` (ready to install), `update:error` (error message), `update:progress` (download %)
-   - `checkForUpdates()` and `installUpdate()` methods
-   - Graceful handling when no publish config (dev mode)
-4. Wire into `index.ts` — initialize after app ready, subscribe to events
-5. Add IPC channels: `update:check` (manual trigger), `update:install` (quit and install)
-6. Create `src/renderer/components/common/update-notification.tsx`:
-   - Banner at top of app: "Update v{version} available" → "Downloading..." → "Ready to install"
-   - "Install and Restart" button when downloaded
-   - "Dismiss" button to hide banner
-7. Create `src/renderer/hooks/use-auto-update.ts`:
-   - Listen for update IPC events
-   - Expose: `updateAvailable`, `updateVersion`, `downloadProgress`, `readyToInstall`, `checkForUpdate()`, `installUpdate()`
-8. Integrate into `App.tsx` — Render UpdateNotification component at top
-9. Update CI workflow — ensure release artifacts published to GitHub Releases
-10. Tests for auto-updater (mocked electron-updater)
+1. Create `coverage-radar-chart.tsx` — Radar chart for multi-source evidence coverage
+2. Create `confidence-trend.tsx` — Confidence distribution comparison across analyses
+3. Integrate into `comparison.tsx` — Add visualization section to comparison view
+4. Add codebase provider picker to integrations page codebase section:
+   - Radio: "Claude CLI (Recommended)" vs "OpenCode (Experimental)"
+   - Saves `codebaseProviderType` preference
+5. Update preload bridge — codebase provider selection, file watcher event listener
+6. Update `use-file-browser.ts` — listen for `file:changed` events, invalidate directory queries
+7. Tests for viz components and provider selection
 
 FILES YOU OWN:
 
-- src/main/infrastructure/auto-updater.ts (NEW)
-- src/main/infrastructure/auto-updater.test.ts (NEW)
-- src/renderer/components/common/update-notification.tsx (NEW)
-- src/renderer/hooks/use-auto-update.ts (NEW)
-- src/main/index.ts (auto-updater init)
-- src/renderer/App.tsx (update banner)
-- src/main/ipc/channels.ts (append update channels)
-- src/preload/index.ts (append update bridge)
-- electron-builder.yml
-- package.json (electron-updater dep)
-- CI workflow files
+- src/renderer/components/visualizations/* (new components)
+- src/renderer/routes/comparison.tsx (add viz section)
+- Integrations page codebase setup section
+- src/preload/api.ts (append)
+- src/preload/index.ts (append)
+- src/renderer/hooks/use-file-browser.ts
+- Test files
 
-FILES TO AVOID: Do NOT modify `src/renderer/components/workspace/*`, `src/renderer/components/analysis/chat-panel.tsx`, or `src/preload/api.ts` — Agent A owns those this week.
+FILES TO AVOID: Do NOT modify `src/renderer/components/workspace/*`, `src/renderer/components/analysis/chat-panel.tsx`, or `src/preload/api.ts` — Agent A owns those this week (Sprint 30).
 
 COMPLETION CRITERIA:
 
-- Auto-updater initializes on app start
-- Update check runs on schedule and manual trigger
-- IPC events flow to renderer correctly
-- Update notification banner renders with correct states
-- Install button triggers quit-and-install
-- Graceful degradation in dev mode (no crash)
+- Radar and confidence trend charts render with data
+- Charts appear in comparison view
+- Codebase provider picker works
+- File browser auto-refreshes when external file changes detected
 - `pnpm typecheck && pnpm test` passes with no regressions
 
 ---
@@ -708,7 +694,7 @@ FILES YOU OWN:
 - File browser component
 - Test files
 
-FILES TO AVOID: Do NOT modify `src/renderer/routes/comparison.tsx`, codebase setup components, or `src/preload/*` — Agent B owns those this week.
+FILES TO AVOID: Do NOT modify docs files or `CLAUDE.md` — Agent B owns those this week.
 
 COMPLETION CRITERIA:
 
@@ -720,62 +706,15 @@ COMPLETION CRITERIA:
 
 ---
 
-## Agent B — Sprint 33: Visualization Polish + Codebase Provider UI + File Watcher UI
-
-> **Status: PENDING.** Depends on Sprint 28 (file watcher) and Sprint 25 (codebase provider).
-
-READ FIRST:
-
-- docs/19-phase3e-sprint-plan.md (you are Agent B, Week 6)
-- src/renderer/routes/comparison.tsx (add viz tab)
-- src/renderer/hooks/use-file-browser.ts (add file watcher events)
-- Integrations page codebase setup section
-
-SCOPE:
-
-1. Create `coverage-radar-chart.tsx` — Radar chart for multi-source evidence coverage
-2. Create `confidence-trend.tsx` — Confidence distribution comparison across analyses
-3. Integrate into `comparison.tsx` — Add visualization section to comparison view
-4. Add codebase provider picker to integrations page codebase section:
-   - Radio: "Claude CLI (Recommended)" vs "OpenCode (Experimental)"
-   - Saves `codebaseProviderType` preference
-5. Update preload bridge — codebase provider selection, file watcher event listener
-6. Update `use-file-browser.ts` — listen for `file:changed` events, invalidate directory queries
-7. Tests for viz components and provider selection
-
-FILES YOU OWN:
-
-- src/renderer/components/visualizations/* (new components)
-- src/renderer/routes/comparison.tsx (add viz section)
-- Integrations page codebase setup section
-- src/preload/api.ts (append)
-- src/preload/index.ts (append)
-- src/renderer/hooks/use-file-browser.ts
-- Test files
-
-FILES TO AVOID: Do NOT modify `src/renderer/components/analysis/chat-panel.tsx`, `src/renderer/components/workspace/*`, or file browser components — Agent A owns those this week.
-
-COMPLETION CRITERIA:
-
-- Radar and confidence trend charts render with data
-- Charts appear in comparison view
-- Codebase provider picker works
-- File browser auto-refreshes when external file changes detected
-- `pnpm typecheck && pnpm test` passes with no regressions
-
----
-
-## Week 7
-
 ## Agent A — Sprint 34: Cross-Feature E2E Testing
 
-> **Status: PENDING.** Depends on all prior sprints.
+> **Status: PENDING.** Depends on all prior sprints. Run sequentially after Sprint 32 in Week 6.
 
 PREREQUISITE: All prior sprints complete.
 
 READ FIRST:
 
-- docs/19-phase3e-sprint-plan.md (you are Agent A, Week 7)
+- docs/19-phase3e-sprint-plan.md (you are Agent A, Week 6)
 - docs/04-phases-roadmap.md § Phase 3e exit criteria
 
 SCOPE:
@@ -806,7 +745,7 @@ PREREQUISITE: All prior sprints complete.
 
 READ FIRST:
 
-- docs/19-phase3e-sprint-plan.md (you are Agent B, Week 7)
+- docs/19-phase3e-sprint-plan.md (you are Agent B, Week 6)
 - All existing docs (02, 04, 05, 08) for current state
 
 SCOPE:
@@ -816,7 +755,6 @@ SCOPE:
    - Multi-provider codebase (CodebaseProviderInterface, OpenCode)
    - Structured logging
    - File system watching
-   - Auto-update infrastructure
    - Visualization component architecture
 2. Update `docs/04-phases-roadmap.md` — Mark Phase 3e completed with actual scope
 3. Update `docs/05-domain-model.md` — Profile tags, LLMProvider, CodebaseProviderInterface
@@ -834,4 +772,4 @@ COMPLETION CRITERIA:
 - CLAUDE.md updated with new patterns
 - `pnpm typecheck && pnpm test` passes with no regressions
 
-WHEN DONE: Update the top of docs/19 with: "All sprints complete. Phase 3e delivered in 7 weeks with two-agent parallel execution."
+WHEN DONE: Update the top of docs/19 with: "All sprints complete. Phase 3e delivered in 6 weeks with two-agent parallel execution."

@@ -4,6 +4,19 @@ import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import type { CodebaseAnalysis, CodebasePrerequisites, CodebaseAnalysisOptions } from './codebase.types';
 
+interface StreamJsonContentBlock {
+  type: string;
+  name?: string;
+  input?: Record<string, unknown>;
+  text?: string;
+}
+
+interface StreamJsonEvent {
+  type: string;
+  message?: { content: StreamJsonContentBlock[] };
+  result?: string;
+}
+
 export class CodebaseProvider {
   async checkPrerequisites(): Promise<CodebasePrerequisites> {
     const [cli, git] = await Promise.all([
@@ -41,7 +54,7 @@ export class CodebaseProvider {
     prompt: string,
     options: CodebaseAnalysisOptions,
     jiraMcpAvailable: boolean = false,
-    onStderr?: (line: string) => void,
+    onProgress?: (message: string) => void,
   ): Promise<CodebaseAnalysis> {
     const tools = [
       'Read',
@@ -63,7 +76,7 @@ export class CodebaseProvider {
     const args = [
       '--print',
       '--output-format',
-      'json',
+      'stream-json',
       '--allowedTools',
       allowedTools,
       '--model',
@@ -74,12 +87,32 @@ export class CodebaseProvider {
       prompt,
     ];
 
-    const { stdout, stderr, exitCode } = await this.spawnWithTimeout(
+    let lastTextContent = '';
+    const { exitCode, stderr } = await this.spawnStreamJson(
       'claude',
       args,
       repoPath,
       options.timeoutMs,
-      onStderr,
+      (event) => {
+        // Parse streaming events for progress and collect final text
+        if (event.type === 'assistant' && event.message?.content) {
+          for (const block of event.message.content) {
+            if (block.type === 'tool_use' && onProgress) {
+              const toolName = block.name ?? 'unknown';
+              const input = block.input ?? {};
+              const detail = this.summarizeToolCall(toolName, input);
+              onProgress(detail);
+            }
+            if (block.type === 'text' && block.text) {
+              lastTextContent = block.text;
+            }
+          }
+        }
+        // Also handle result event which has the final text
+        if (event.type === 'result' && event.result) {
+          lastTextContent = event.result;
+        }
+      },
     );
 
     if (exitCode !== 0) {
@@ -89,25 +122,54 @@ export class CodebaseProvider {
       throw error;
     }
 
-    return this.parseOutput(stdout);
+    if (!lastTextContent) {
+      const error = new Error('Claude CLI produced no output');
+      (error as Error & { parseError: true }).parseError = true;
+      throw error;
+    }
+
+    return this.parseOutput(lastTextContent);
+  }
+
+  private summarizeToolCall(toolName: string, input: Record<string, unknown>): string {
+    switch (toolName) {
+      case 'Read':
+        return `Reading ${String(input.file_path ?? input.path ?? 'file')}`;
+      case 'Glob':
+        return `Searching for ${String(input.pattern ?? 'files')}`;
+      case 'Grep':
+        return `Grepping for "${String(input.pattern ?? '...')}"`;
+      case 'Bash':
+        return `Running: ${String(input.command ?? 'command').slice(0, 80)}`;
+      default:
+        if (toolName.startsWith('mcp__')) {
+          return `Querying ${toolName.replace('mcp__', '')}`;
+        }
+        return `Using ${toolName}`;
+    }
   }
 
   parseOutput(rawOutput: string): CodebaseAnalysis {
-    // Claude CLI --output-format json wraps output in a JSON envelope
-    // with a "result" field containing the text response
-    let textContent: string;
+    let jsonStr = rawOutput.trim();
 
-    try {
-      const envelope = JSON.parse(rawOutput) as { result?: string; content?: string };
-      textContent = envelope.result ?? envelope.content ?? rawOutput;
-    } catch {
-      // If outer parse fails, treat the entire output as the text
-      textContent = rawOutput;
+    // Try envelope unwrapping first (handles JSON-serialized envelopes with escaped content)
+    if (jsonStr.startsWith('{') && !jsonStr.includes('"repo"')) {
+      try {
+        const envelope = JSON.parse(jsonStr) as { result?: string; content?: string };
+        const inner = envelope.result ?? envelope.content;
+        if (inner) {
+          jsonStr = inner.trim();
+        }
+      } catch {
+        // Not an envelope, continue with original
+      }
     }
 
     // Extract JSON from code fence if present
-    const fenceMatch = textContent.match(/```json\s*([\s\S]*?)```/);
-    const jsonStr = fenceMatch ? fenceMatch[1]!.trim() : textContent.trim();
+    const fenceMatch = jsonStr.match(/```json\s*([\s\S]*?)```/);
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1]!.trim();
+    }
 
     try {
       const analysis = JSON.parse(jsonStr) as CodebaseAnalysis;
@@ -208,6 +270,73 @@ export class CodebaseProvider {
       // Pull failure is non-fatal — stale clone still usable
       console.warn(`git pull failed for ${repoDir}: ${stderr.trim()}`);
     }
+  }
+
+  private spawnStreamJson(
+    command: string,
+    args: string[],
+    cwd: string | undefined,
+    timeoutMs: number,
+    onEvent: (event: StreamJsonEvent) => void,
+  ): Promise<{ stderr: string; exitCode: number }> {
+    return new Promise((resolve, reject) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+      const child = spawn(command, args, {
+        cwd,
+        signal: controller.signal,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stderr = '';
+      let stdoutBuffer = '';
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        stdoutBuffer += chunk.toString();
+        const lines = stdoutBuffer.split('\n');
+        stdoutBuffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const event = JSON.parse(trimmed) as StreamJsonEvent;
+            onEvent(event);
+          } catch {
+            // Non-JSON line, skip
+          }
+        }
+      });
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timeout);
+        // Process remaining buffer
+        if (stdoutBuffer.trim()) {
+          try {
+            const event = JSON.parse(stdoutBuffer.trim()) as StreamJsonEvent;
+            onEvent(event);
+          } catch {
+            // ignore
+          }
+        }
+        resolve({ stderr, exitCode: code ?? 1 });
+      });
+
+      child.on('error', (err) => {
+        clearTimeout(timeout);
+        if (err.name === 'AbortError') {
+          const timeoutError = new Error(`Command timed out after ${timeoutMs}ms`);
+          (timeoutError as Error & { timeout: true }).timeout = true;
+          reject(timeoutError);
+        } else {
+          reject(err);
+        }
+      });
+    });
   }
 
   private spawnWithTimeout(

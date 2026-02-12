@@ -584,3 +584,12 @@ main (stable)
 - Phase 3d is decomposed into 6 sprints (16-21) based on the feature list in `docs/04-phases-roadmap.md`. No official sprint doc existed for Phase 3d prior to this plan; the decomposition above is the first detailed breakdown.
 - "Themes layer" means: extraction as a pipeline step + a basic editor UI. Full theme editor with drag-and-drop or rich editing is Phase 4.
 - PDF export uses a lightweight library (e.g., `pdfkit` or `jspdf`). No complex layout engine.
+
+---
+
+## Phase 3e Continuation
+
+Phase 3e (Platform Maturity & Multi-Provider) continues the two-agent parallel model in Sprints 22–35 across 7 additional weeks. See:
+
+- **Sprint plan**: `docs/19-phase3e-sprint-plan.md`
+- **Agent instructions**: `docs/20-phase3e-agents-plan.md`

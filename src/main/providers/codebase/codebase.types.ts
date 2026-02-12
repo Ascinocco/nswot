@@ -54,5 +54,5 @@ export const DEFAULT_ANALYSIS_OPTIONS: CodebaseAnalysisOptions = {
   shallow: true,
   model: 'sonnet',
   maxTurns: 30,
-  timeoutMs: 1_500_000,
+  timeoutMs: 1_800_000,
 };

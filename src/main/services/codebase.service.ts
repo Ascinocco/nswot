@@ -160,12 +160,12 @@ export class CodebaseService {
 
         // Analyze
         onProgress({ repo, stage: 'analyzing', message: `Claude is analyzing ${repo}...` });
-        const onStderr = (line: string): void => {
-          onProgress({ repo, stage: 'analyzing', message: line });
+        const onToolProgress = (message: string): void => {
+          onProgress({ repo, stage: 'analyzing', message });
         };
         let analysis: CodebaseAnalysis;
         try {
-          analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions, prereqs.jiraMcp, onStderr);
+          analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions, prereqs.jiraMcp, onToolProgress);
         } catch (firstError) {
           // Retry once on parse failure
           if (this.isParseError(firstError)) {
@@ -174,7 +174,7 @@ export class CodebaseService {
               stage: 'analyzing',
               message: `Retrying analysis of ${repo} (parse error)...`,
             });
-            analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions, prereqs.jiraMcp, onStderr);
+            analysis = await this.codebaseProvider.analyze(repoDir, prompt, mergedOptions, prereqs.jiraMcp, onToolProgress);
           } else {
             throw firstError;
           }
@@ -420,7 +420,7 @@ export class CodebaseService {
 
   private extractErrorMessage(cause: unknown, repo: string): string {
     if (this.isTimeoutError(cause)) {
-      return `Analysis of ${repo} timed out after 25 minutes. The repository may be too large — try re-analyzing with fewer selected repos.`;
+      return `Analysis of ${repo} timed out after 30 minutes. The repository may be too large — try re-analyzing with fewer selected repos.`;
     }
     if (this.isParseError(cause)) {
       return `Could not parse analysis output for ${repo} after retry.`;
