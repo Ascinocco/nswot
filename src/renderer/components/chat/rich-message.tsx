@@ -1,4 +1,5 @@
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import ContentBlockRenderer from './content-block-renderer';
 import ThinkingBlock from './blocks/thinking-block';
 import ToolProgress from './tool-progress';
@@ -49,8 +50,8 @@ export default function RichMessage({
       >
         {/* Plain text content */}
         {text && (
-          <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
-            <Markdown>{text}</Markdown>
+          <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400 prose-th:text-gray-300 prose-td:text-gray-300 prose-thead:border-gray-700 prose-tr:border-gray-800">
+            <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
           </div>
         )}
 
@@ -71,8 +72,8 @@ export default function RichMessage({
 
         {/* Streaming text */}
         {streamingText && (
-          <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
-            <Markdown>{streamingText}</Markdown>
+          <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400 prose-th:text-gray-300 prose-td:text-gray-300 prose-thead:border-gray-700 prose-tr:border-gray-800">
+            <Markdown remarkPlugins={[remarkGfm]}>{streamingText}</Markdown>
             <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-blue-400" />
           </div>
         )}

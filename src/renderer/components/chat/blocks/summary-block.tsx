@@ -1,4 +1,5 @@
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { SummaryCardsBlockData } from '../../../../main/domain/content-block.types';
 
 interface SummaryBlockProps {
@@ -24,7 +25,7 @@ export default function SummaryBlock({ data }: SummaryBlockProps): React.JSX.Ele
           <div key={title} className="rounded-lg border border-gray-800 bg-gray-900 p-3">
             <h5 className="mb-1 text-xs font-medium text-gray-300">{title}</h5>
             <div className="prose prose-sm prose-invert max-w-none text-gray-400 prose-headings:text-gray-300 prose-strong:text-gray-300 prose-li:text-gray-400 prose-ul:my-1 prose-ol:my-1 prose-li:my-0">
-              <Markdown>{content}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
             </div>
           </div>
         ))}

@@ -296,7 +296,31 @@ You have render tools available for creating rich visualizations. ALWAYS prefer 
 - **render_data_table**: Use for tabular data comparisons, rankings, or structured listings.
   Input format: { "title": "Table Title", "headers": ["Col1", "Col2"], "rows": [["val1", "val2"], ["val3", "val4"]] }
 
-You can combine text explanation with render tools in the same response — for example, explain a trend and then show a chart illustrating it.`;
+You can combine text explanation with render tools in the same response — for example, explain a trend and then show a chart illustrating it.
+
+READ TOOL INSTRUCTIONS:
+You have read tools that query LOCALLY CACHED data from the last sync — they do NOT make live API calls.
+
+- **fetch_jira_data**: Returns cached Jira epics (key, summary, status, priority, type, labels) and stories (same fields) and comments (body text, issue key). Does NOT include sprint metadata, story points, velocity, burndown data, or time tracking. Use only when you need specific issue details not already in the analysis summaries below.
+- **fetch_confluence_data**: Returns cached Confluence pages and comments. Use for specific page content not in the summaries.
+- **fetch_github_data**: Returns cached GitHub PRs, issues, and comments. Use for specific PR/issue details not in the summaries.
+- **search_profiles**: Searches stakeholder profiles by keyword or tags. Use to find specific stakeholder quotes or concerns.
+
+IMPORTANT: The ANALYSIS DATA section below already contains comprehensive summaries of all data sources. Use that FIRST for answering questions. Only call read tools when the user asks for specific raw details (e.g., "show me all open stories for project X" or "what did Stakeholder C say about performance?"). Do NOT call read tools to get data types that were never synced (sprint velocity, story points, burndown metrics, etc.).
+
+WRITE TOOL INSTRUCTIONS:
+You have write tools that create or update items in external systems (Jira, Confluence, GitHub). Each write tool execution spawns a separate subprocess with a timeout, so large or batch operations can fail.
+
+- **create_jira_issue**: Creates a single Jira issue (epic, story, task, bug). ALWAYS prefer this over batch creation.
+- **create_confluence_page**: Creates a single Confluence page.
+- **create_github_issue**: Creates a single GitHub issue.
+
+IMPORTANT RULES FOR WRITE TOOLS:
+1. NEVER use batch creation tools (e.g., create_jira_issues). They attempt too many API calls in a single subprocess and will time out.
+2. Create issues ONE AT A TIME. Call create_jira_issue once, wait for the result, then call it again for the next issue.
+3. When creating multiple related items (e.g., an epic + stories), create the parent first, confirm success, then create children one by one.
+4. If a write tool times out, do NOT retry with a larger batch. Instead, retry the single item.
+5. Always confirm each creation result with the user before proceeding to the next item.`;
 
   prompt += '\n\nANALYSIS DATA:';
 

@@ -1,4 +1,5 @@
 import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type {
   SwotAnalysisBlockData,
   SummaryCardsBlockData,
@@ -88,8 +89,8 @@ export default function ContentBlockRenderer({
 
 function TextBlock({ text }: { text: string }): React.JSX.Element {
   return (
-    <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
-      <Markdown>{text}</Markdown>
+    <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400 prose-th:text-gray-300 prose-td:text-gray-300 prose-thead:border-gray-700 prose-tr:border-gray-800">
+      <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
     </div>
   );
 }

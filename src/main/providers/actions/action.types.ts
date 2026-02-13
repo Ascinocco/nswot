@@ -7,5 +7,5 @@ export interface ActionExecutorOptions {
 export const DEFAULT_ACTION_OPTIONS: ActionExecutorOptions = {
   model: 'sonnet',
   maxTurns: 15,
-  timeoutMs: 300_000,
+  timeoutMs: 600_000,
 };
