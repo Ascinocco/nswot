@@ -85,6 +85,11 @@ export const IPC_CHANNELS = {
   THEME_UPDATE: 'theme:update',
   THEME_DELETE: 'theme:delete',
 
+  // Progress & Streaming Events
+  ANALYSIS_PROGRESS: 'analysis:progress',
+  CODEBASE_PROGRESS: 'codebase:progress',
+  CHAT_CHUNK: 'chat:chunk',
+
   // Chat Actions
   CHAT_ACTION_PENDING: 'chat:action:pending',
   CHAT_ACTION_APPROVE: 'chat:action:approve',

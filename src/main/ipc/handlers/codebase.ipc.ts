@@ -37,7 +37,7 @@ export function registerCodebaseHandlers(codebaseService: CodebaseService): void
 
       const onProgress = (progress: CodebaseProgress): void => {
         if (window && !window.isDestroyed()) {
-          window.webContents.send('codebase:progress', progress);
+          window.webContents.send(IPC_CHANNELS.CODEBASE_PROGRESS, progress);
         }
       };
 

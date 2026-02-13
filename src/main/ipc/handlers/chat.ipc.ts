@@ -28,7 +28,7 @@ export function registerChatHandlers(chatService: ChatService): void {
       const window = BrowserWindow.fromWebContents(event.sender);
       const onChunk = (chunk: string): void => {
         if (window && !window.isDestroyed()) {
-          window.webContents.send('chat:chunk', { analysisId, chunk });
+          window.webContents.send(IPC_CHANNELS.CHAT_CHUNK, { analysisId, chunk });
         }
       };
       const onAction = (action: ChatAction): void => {
@@ -54,11 +54,11 @@ export function registerChatHandlers(chatService: ChatService): void {
 
   ipcMain.handle(
     IPC_CHANNELS.CHAT_ACTION_APPROVE,
-    async (event, actionId: string): Promise<IPCResult<ActionResult>> => {
+    async (event, analysisId: string, actionId: string): Promise<IPCResult<ActionResult>> => {
       const window = BrowserWindow.fromWebContents(event.sender);
       const onChunk = (chunk: string): void => {
         if (window && !window.isDestroyed()) {
-          window.webContents.send('chat:chunk', { chunk });
+          window.webContents.send(IPC_CHANNELS.CHAT_CHUNK, { analysisId, chunk });
         }
       };
 
@@ -70,11 +70,11 @@ export function registerChatHandlers(chatService: ChatService): void {
 
   ipcMain.handle(
     IPC_CHANNELS.CHAT_ACTION_REJECT,
-    async (event, actionId: string): Promise<IPCResult<void>> => {
+    async (event, analysisId: string, actionId: string): Promise<IPCResult<void>> => {
       const window = BrowserWindow.fromWebContents(event.sender);
       const onChunk = (chunk: string): void => {
         if (window && !window.isDestroyed()) {
-          window.webContents.send('chat:chunk', { chunk });
+          window.webContents.send(IPC_CHANNELS.CHAT_CHUNK, { analysisId, chunk });
         }
       };
 

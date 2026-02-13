@@ -114,8 +114,8 @@ export interface NswotAPI {
     onChunk(callback: (data: { analysisId: string; chunk: string }) => void): () => void;
     setEditorContext(context: { filePath: string | null; contentPreview: string | null; selectedText: string | null } | null): Promise<IPCResult<void>>;
     actions: {
-      approve(actionId: string): Promise<IPCResult<ActionResult>>;
-      reject(actionId: string): Promise<IPCResult<void>>;
+      approve(analysisId: string, actionId: string): Promise<IPCResult<ActionResult>>;
+      reject(analysisId: string, actionId: string): Promise<IPCResult<void>>;
       edit(actionId: string, editedInput: Record<string, unknown>): Promise<IPCResult<void>>;
       list(analysisId: string): Promise<IPCResult<ChatAction[]>>;
       onPending(callback: (action: ChatAction) => void): () => void;

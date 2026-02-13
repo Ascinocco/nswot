@@ -84,7 +84,7 @@ export function registerAnalysisHandlers(
       const window = BrowserWindow.fromWebContents(event.sender);
       const onProgress = (progress: { analysisId: string; stage: string; message: string }): void => {
         if (window && !window.isDestroyed()) {
-          window.webContents.send('analysis:progress', progress);
+          window.webContents.send(IPC_CHANNELS.ANALYSIS_PROGRESS, progress);
         }
       };
 

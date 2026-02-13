@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../channels';
+import { ERROR_CODES } from '../../domain/errors';
 import type { IPCResult, Theme } from '../../domain/types';
 import type { ThemeRepository } from '../../repositories/theme.repository';
 
@@ -19,7 +20,7 @@ export function registerThemeHandlers(themeRepo: ThemeRepository): void {
         const themes = await themeRepo.findByAnalysis(analysisId);
         return toIpcResult(themes);
       } catch {
-        return toIpcError('DB_ERROR', 'Failed to list themes');
+        return toIpcError(ERROR_CODES.DB_ERROR, 'Failed to list themes');
       }
     },
   );
@@ -31,7 +32,7 @@ export function registerThemeHandlers(themeRepo: ThemeRepository): void {
         const theme = await themeRepo.findById(id);
         return toIpcResult(theme);
       } catch {
-        return toIpcError('DB_ERROR', 'Failed to get theme');
+        return toIpcError(ERROR_CODES.DB_ERROR, 'Failed to get theme');
       }
     },
   );
@@ -42,11 +43,11 @@ export function registerThemeHandlers(themeRepo: ThemeRepository): void {
       try {
         const updated = await themeRepo.update(id, fields);
         if (!updated) {
-          return toIpcError('NOT_FOUND', `Theme ${id} not found`);
+          return toIpcError(ERROR_CODES.NOT_FOUND, `Theme ${id} not found`);
         }
         return toIpcResult(updated);
       } catch {
-        return toIpcError('DB_ERROR', 'Failed to update theme');
+        return toIpcError(ERROR_CODES.DB_ERROR, 'Failed to update theme');
       }
     },
   );
@@ -58,7 +59,7 @@ export function registerThemeHandlers(themeRepo: ThemeRepository): void {
         await themeRepo.deleteById(id);
         return toIpcResult<void>(undefined);
       } catch {
-        return toIpcError('DB_ERROR', 'Failed to delete theme');
+        return toIpcError(ERROR_CODES.DB_ERROR, 'Failed to delete theme');
       }
     },
   );

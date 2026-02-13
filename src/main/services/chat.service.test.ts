@@ -798,8 +798,40 @@ describe('ChatService file-write integration', () => {
     expect(fileService.writeFile).toHaveBeenCalledWith('exports/metrics.csv', csvContent);
   });
 
-  it('propagates FileService error when file-write fails', async () => {
+  it('rejects path traversal attempts before reaching FileService', async () => {
     const action = makeFileWriteAction('write_markdown_file', '../../../etc/passwd', 'malicious');
+
+    chatActionRepo = {
+      findById: vi.fn().mockResolvedValue(action),
+      findByAnalysis: vi.fn().mockResolvedValue([
+        { ...action, status: 'failed' },
+        { ...action, id: 'file-action-2', status: 'pending' },
+      ]),
+      updateStatus: vi.fn().mockResolvedValue(undefined),
+      updateToolInput: vi.fn().mockResolvedValue(undefined),
+      insert: vi.fn(),
+      deleteByAnalysis: vi.fn(),
+    } as unknown as ChatActionRepository;
+
+    const realExecutor = new ActionExecutorImpl(undefined, fileService);
+    service = new ChatService(chatRepo, analysisRepo, settingsService, chatActionRepo, realExecutor);
+
+    const result = await service.approveAction('file-action-1', vi.fn());
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.success).toBe(false);
+      expect(result.value.error).toContain('Path traversal not allowed');
+    }
+
+    expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('file-action-1', 'failed', {
+      success: false,
+      error: 'Path traversal not allowed',
+    });
+  });
+
+  it('propagates FileService error when file-write fails', async () => {
+    const action = makeFileWriteAction('write_markdown_file', 'valid/path.md', 'content');
 
     chatActionRepo = {
       findById: vi.fn().mockResolvedValue(action),

@@ -19,6 +19,8 @@ import type { JiraProject } from '../providers/jira/jira.types';
 const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 minutes before expiry
 
 export class IntegrationService {
+  private refreshPromise: Promise<Result<JiraOAuthTokens, DomainError>> | null = null;
+
   constructor(
     private readonly integrationRepo: IntegrationRepository,
     private readonly cacheRepo: IntegrationCacheRepository,
@@ -344,26 +346,51 @@ export class IntegrationService {
 
     // Auto-refresh if expired or about to expire
     if (tokens.expiresAt - TOKEN_EXPIRY_BUFFER_MS < Date.now()) {
-      const oauthRaw = this.secureStorage.retrieve(`jira_oauth_${workspaceId}`);
-      if (!oauthRaw) return null;
+      // Use mutex to prevent concurrent refresh attempts
+      if (this.refreshPromise) {
+        const result = await this.refreshPromise;
+        return result.ok ? result.value : null;
+      }
 
+      this.refreshPromise = this.refreshTokens(workspaceId, tokens.refreshToken);
+      try {
+        const result = await this.refreshPromise;
+        return result.ok ? result.value : null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    }
+
+    return tokens;
+  }
+
+  private async refreshTokens(
+    workspaceId: string,
+    refreshToken: string,
+  ): Promise<Result<JiraOAuthTokens, DomainError>> {
+    const oauthRaw = this.secureStorage.retrieve(`jira_oauth_${workspaceId}`);
+    if (!oauthRaw) {
+      return err(new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'OAuth credentials not found'));
+    }
+
+    try {
       const { clientId, clientSecret } = JSON.parse(oauthRaw) as {
         clientId: string;
         clientSecret: string;
       };
 
       const authProvider = new JiraAuthProvider(clientId, clientSecret);
-      const refreshed = await authProvider.refreshAccessToken(tokens.refreshToken);
+      const refreshed = await authProvider.refreshAccessToken(refreshToken);
 
       this.secureStorage.store(
         `jira_tokens_${workspaceId}`,
         JSON.stringify(refreshed),
       );
 
-      return refreshed;
+      return ok(refreshed);
+    } catch (cause) {
+      return err(new DomainError(ERROR_CODES.JIRA_AUTH_FAILED, 'Token refresh failed', cause));
     }
-
-    return tokens;
   }
 
   private mapJiraError(cause: unknown): DomainError {

@@ -4,7 +4,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 function generateLabel(index: number): string {
   if (index < 26) return `Stakeholder ${ALPHABET[index]}`;
-  const first = ALPHABET[Math.floor(index / 26) - 1];
+  const first = ALPHABET[Math.floor((index - 26) / 26)];
   const second = ALPHABET[index % 26];
   return `Stakeholder ${first}${second}`;
 }

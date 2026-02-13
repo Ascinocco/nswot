@@ -58,7 +58,7 @@ export function useApproveAction(analysisId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (actionId: string) => {
-      const result = await window.nswot.chat.actions.approve(actionId);
+      const result = await window.nswot.chat.actions.approve(analysisId, actionId);
       return unwrapResult(result);
     },
     onSuccess: () => {
@@ -84,7 +84,7 @@ export function useRejectAction(analysisId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (actionId: string) => {
-      const result = await window.nswot.chat.actions.reject(actionId);
+      const result = await window.nswot.chat.actions.reject(analysisId, actionId);
       unwrapResult(result);
     },
     onSuccess: () => {

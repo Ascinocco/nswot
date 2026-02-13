@@ -116,67 +116,71 @@ export class AnthropicProvider implements LLMProvider {
     // Track tool_use blocks: index -> accumulated tool call
     const toolCallMap = new Map<number, { id: string; name: string; arguments: string }>();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') continue;
 
-        try {
-          const event = JSON.parse(data) as AnthropicStreamEvent;
+          try {
+            const event = JSON.parse(data) as AnthropicStreamEvent;
 
-          if (event.type === 'content_block_start') {
-            const cbs = event as AnthropicContentBlockStart;
-            if (cbs.content_block.type === 'tool_use') {
-              toolCallMap.set(cbs.index, {
-                id: cbs.content_block.id,
-                name: cbs.content_block.name,
-                arguments: '',
-              });
-            }
-          } else if (event.type === 'content_block_delta') {
-            const cbd = event as AnthropicContentBlockDelta;
-            if (cbd.delta.type === 'text_delta') {
-              const text = cbd.delta.text;
-              contentChunks.push(text);
-              tokenCount++;
-
-              if (onChunk) onChunk(text);
-
-              if (onToken && tokenCount - lastProgressAt >= 50) {
-                lastProgressAt = tokenCount;
-                onToken(tokenCount);
+            if (event.type === 'content_block_start') {
+              const cbs = event as AnthropicContentBlockStart;
+              if (cbs.content_block.type === 'tool_use') {
+                toolCallMap.set(cbs.index, {
+                  id: cbs.content_block.id,
+                  name: cbs.content_block.name,
+                  arguments: '',
+                });
               }
-            } else if (cbd.delta.type === 'input_json_delta') {
-              const existing = toolCallMap.get(cbd.index);
-              if (existing) {
-                existing.arguments += cbd.delta.partial_json;
+            } else if (event.type === 'content_block_delta') {
+              const cbd = event as AnthropicContentBlockDelta;
+              if (cbd.delta.type === 'text_delta') {
+                const text = cbd.delta.text;
+                contentChunks.push(text);
+                tokenCount++;
+
+                if (onChunk) onChunk(text);
+
+                if (onToken && tokenCount - lastProgressAt >= 50) {
+                  lastProgressAt = tokenCount;
+                  onToken(tokenCount);
+                }
+              } else if (cbd.delta.type === 'input_json_delta') {
+                const existing = toolCallMap.get(cbd.index);
+                if (existing) {
+                  existing.arguments += cbd.delta.partial_json;
+                }
               }
+            } else if (event.type === 'message_delta') {
+              const md = event as AnthropicMessageDelta;
+              finishReason = md.delta.stop_reason;
+            } else if (event.type === 'error') {
+              const errEvent = event as { type: 'error'; error?: { message?: string } };
+              throw new DomainError(
+                ERROR_CODES.LLM_REQUEST_FAILED,
+                errEvent.error?.message ?? 'Anthropic stream error',
+              );
             }
-          } else if (event.type === 'message_delta') {
-            const md = event as AnthropicMessageDelta;
-            finishReason = md.delta.stop_reason;
-          } else if (event.type === 'error') {
-            const errEvent = event as { type: 'error'; error?: { message?: string } };
-            throw new DomainError(
-              ERROR_CODES.LLM_REQUEST_FAILED,
-              errEvent.error?.message ?? 'Anthropic stream error',
-            );
+          } catch (e) {
+            if (e instanceof DomainError) throw e;
+            // Skip malformed SSE chunks
           }
-        } catch (e) {
-          if (e instanceof DomainError) throw e;
-          // Skip malformed SSE chunks
         }
       }
+    } finally {
+      reader.cancel().catch(() => {});
     }
 
     // Final progress callback

@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentWorkspace } from '../hooks/use-workspace';
-import { useAnalyses, useAnalysis, useDeleteAnalysis } from '../hooks/use-analysis';
+import { useAnalyses, useDeleteAnalysis } from '../hooks/use-analysis';
 import { useExportMarkdown } from '../hooks/use-export';
-import SwotResults from '../components/analysis/swot-results';
 import ChatPanel from '../components/analysis/chat-panel';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -34,11 +33,8 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
   const deleteAnalysis = useDeleteAnalysis();
   const exportMarkdown = useExportMarkdown();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showChat, setShowChat] = useState(false);
+  const [showChat, setShowChat] = useState<string | null>(null);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
-
-  const { data: selectedAnalysis } = useAnalysis(selectedId);
 
   const handleExport = useCallback(
     async (analysisId: string) => {
@@ -81,15 +77,12 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
       {analyses && analyses.length > 0 && (
         <div className="space-y-3">
           {analyses.map((analysis) => {
-            const isSelected = selectedId === analysis.id;
             const isCompleted = analysis.status === 'completed';
 
             return (
               <div
                 key={analysis.id}
-                className={`rounded-lg border bg-gray-900 p-4 transition-colors ${
-                  isSelected ? 'border-blue-700' : 'border-gray-800'
-                }`}
+                className="rounded-lg border border-gray-800 bg-gray-900 p-4 transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -156,19 +149,13 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
                     {isCompleted && (
                       <>
                         <button
-                          onClick={() => {
-                            setSelectedId(isSelected ? null : analysis.id);
-                            setShowChat(false);
-                          }}
+                          onClick={() => navigate(`/analysis/${analysis.id}`)}
                           className="rounded px-2 py-1 text-xs text-blue-400 transition-colors hover:bg-blue-900/30 hover:text-blue-300"
                         >
-                          {isSelected ? 'Hide' : 'View'}
+                          View
                         </button>
                         <button
-                          onClick={() => {
-                            setSelectedId(analysis.id);
-                            setShowChat(true);
-                          }}
+                          onClick={() => setShowChat(showChat === analysis.id ? null : analysis.id)}
                           className="rounded px-2 py-1 text-xs text-green-400 transition-colors hover:bg-green-900/30 hover:text-green-300"
                         >
                           Chat
@@ -197,9 +184,8 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
                     <button
                       onClick={() => {
                         if (confirm('Delete this analysis?')) {
-                          if (selectedId === analysis.id) {
-                            setSelectedId(null);
-                            setShowChat(false);
+                          if (showChat === analysis.id) {
+                            setShowChat(null);
                           }
                           deleteAnalysis.mutate(analysis.id);
                         }
@@ -226,16 +212,11 @@ export default function AnalysisHistoryPage(): React.JSX.Element {
       )}
 
       {/* Chat Panel */}
-      {showChat && selectedId && (
+      {showChat && (
         <ChatPanel
-          analysisId={selectedId}
-          onClose={() => setShowChat(false)}
+          analysisId={showChat}
+          onClose={() => setShowChat(null)}
         />
-      )}
-
-      {/* SWOT Results Detail */}
-      {selectedId && selectedAnalysis?.swotOutput && !showChat && (
-        <SwotResults analysis={selectedAnalysis} />
       )}
     </div>
   );

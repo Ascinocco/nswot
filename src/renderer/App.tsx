@@ -10,6 +10,7 @@ import AnalysisHistoryPage from './routes/analysis-history';
 import ComparisonPage from './routes/comparison';
 import ThemesPage from './routes/themes';
 import SettingsPage from './routes/settings';
+import AnalysisDetailPage from './routes/analysis-detail';
 import OnboardingPage from './routes/onboarding';
 
 const NAV_ITEMS = [
@@ -84,6 +85,7 @@ function AppShell(): React.JSX.Element {
           <Route path="/integrations" element={<ErrorBoundary><IntegrationsPage /></ErrorBoundary>} />
           <Route path="/analysis" element={<ErrorBoundary><AnalysisPage /></ErrorBoundary>} />
           <Route path="/history" element={<ErrorBoundary><AnalysisHistoryPage /></ErrorBoundary>} />
+          <Route path="/analysis/:analysisId" element={<ErrorBoundary><AnalysisDetailPage /></ErrorBoundary>} />
           <Route path="/comparison" element={<ErrorBoundary><ComparisonPage /></ErrorBoundary>} />
           <Route path="/themes/:analysisId" element={<ErrorBoundary><ThemesPage /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />

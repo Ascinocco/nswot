@@ -82,8 +82,8 @@ const api: NswotAPI = {
         _event: unknown,
         data: { repo: string; stage: 'cloning' | 'analyzing' | 'parsing' | 'done' | 'failed'; message: string },
       ) => callback(data);
-      ipcRenderer.on('codebase:progress', handler);
-      return () => ipcRenderer.removeListener('codebase:progress', handler);
+      ipcRenderer.on(IPC_CHANNELS.CODEBASE_PROGRESS, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.CODEBASE_PROGRESS, handler);
     },
   },
   analysis: {
@@ -106,8 +106,8 @@ const api: NswotAPI = {
     onProgress: (callback) => {
       const handler = (_event: unknown, data: { analysisId: string; stage: string; message: string }) =>
         callback(data);
-      ipcRenderer.on('analysis:progress', handler);
-      return () => ipcRenderer.removeListener('analysis:progress', handler);
+      ipcRenderer.on(IPC_CHANNELS.ANALYSIS_PROGRESS, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.ANALYSIS_PROGRESS, handler);
     },
   },
   chat: {
@@ -117,16 +117,16 @@ const api: NswotAPI = {
     onChunk: (callback) => {
       const handler = (_event: unknown, data: { analysisId: string; chunk: string }) =>
         callback(data);
-      ipcRenderer.on('chat:chunk', handler);
-      return () => ipcRenderer.removeListener('chat:chunk', handler);
+      ipcRenderer.on(IPC_CHANNELS.CHAT_CHUNK, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.CHAT_CHUNK, handler);
     },
     setEditorContext: (context: { filePath: string | null; contentPreview: string | null; selectedText: string | null } | null) =>
       ipcRenderer.invoke(IPC_CHANNELS.CHAT_SET_EDITOR_CONTEXT, context),
     actions: {
-      approve: (actionId: string) =>
-        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_APPROVE, actionId),
-      reject: (actionId: string) =>
-        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_REJECT, actionId),
+      approve: (analysisId: string, actionId: string) =>
+        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_APPROVE, analysisId, actionId),
+      reject: (analysisId: string, actionId: string) =>
+        ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_REJECT, analysisId, actionId),
       edit: (actionId: string, editedInput: Record<string, unknown>) =>
         ipcRenderer.invoke(IPC_CHANNELS.CHAT_ACTION_EDIT, actionId, editedInput),
       list: (analysisId: string) =>

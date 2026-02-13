@@ -94,12 +94,13 @@ describe('file-system', () => {
       expect(entries[0]!.name).toBe('app.ts');
     });
 
-    it('filters out .nswot directory', async () => {
+    it('shows .nswot directory in file browser', async () => {
       mkdirSync(join(workspaceRoot, '.nswot'));
       writeFileSync(join(workspaceRoot, 'data.json'), '{}');
 
       const entries = await readDirectory(workspaceRoot, '.');
-      expect(entries).toHaveLength(1);
+      expect(entries).toHaveLength(2);
+      expect(entries.some((e) => e.name === '.nswot')).toBe(true);
     });
 
     it('returns relative paths', async () => {

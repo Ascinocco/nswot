@@ -86,84 +86,88 @@ export class OpenRouterProvider implements LLMProvider {
     let lastProgressAt = 0;
     const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
 
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') continue;
 
-        try {
-          const parsed = JSON.parse(data) as {
-            choices?: Array<{
-              delta?: {
-                content?: string;
-                tool_calls?: Array<{
-                  index: number;
-                  id?: string;
-                  function?: { name?: string; arguments?: string };
-                }>;
-              };
-              finish_reason?: string | null;
-            }>;
-            error?: { message?: string };
-          };
+          try {
+            const parsed = JSON.parse(data) as {
+              choices?: Array<{
+                delta?: {
+                  content?: string;
+                  tool_calls?: Array<{
+                    index: number;
+                    id?: string;
+                    function?: { name?: string; arguments?: string };
+                  }>;
+                };
+                finish_reason?: string | null;
+              }>;
+              error?: { message?: string };
+            };
 
-          if (parsed.error?.message) {
-            throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, parsed.error.message);
-          }
-
-          const choice = parsed.choices?.[0];
-          if (!choice) continue;
-
-          const content = choice.delta?.content;
-          if (content) {
-            contentChunks.push(content);
-            tokenCount++;
-
-            if (onChunk) onChunk(content);
-
-            if (onToken && tokenCount - lastProgressAt >= 50) {
-              lastProgressAt = tokenCount;
-              onToken(tokenCount);
+            if (parsed.error?.message) {
+              throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, parsed.error.message);
             }
-          }
 
-          // Accumulate tool calls (streamed incrementally)
-          const deltaToolCalls = choice.delta?.tool_calls;
-          if (deltaToolCalls) {
-            for (const dtc of deltaToolCalls) {
-              const existing = toolCallAccumulator.get(dtc.index);
-              if (existing) {
-                if (dtc.function?.arguments) {
-                  existing.arguments += dtc.function.arguments;
-                }
-              } else {
-                toolCallAccumulator.set(dtc.index, {
-                  id: dtc.id ?? `call_${dtc.index}`,
-                  name: dtc.function?.name ?? '',
-                  arguments: dtc.function?.arguments ?? '',
-                });
+            const choice = parsed.choices?.[0];
+            if (!choice) continue;
+
+            const content = choice.delta?.content;
+            if (content) {
+              contentChunks.push(content);
+              tokenCount++;
+
+              if (onChunk) onChunk(content);
+
+              if (onToken && tokenCount - lastProgressAt >= 50) {
+                lastProgressAt = tokenCount;
+                onToken(tokenCount);
               }
             }
-          }
 
-          if (choice.finish_reason) {
-            finishReason = choice.finish_reason;
+            // Accumulate tool calls (streamed incrementally)
+            const deltaToolCalls = choice.delta?.tool_calls;
+            if (deltaToolCalls) {
+              for (const dtc of deltaToolCalls) {
+                const existing = toolCallAccumulator.get(dtc.index);
+                if (existing) {
+                  if (dtc.function?.arguments) {
+                    existing.arguments += dtc.function.arguments;
+                  }
+                } else {
+                  toolCallAccumulator.set(dtc.index, {
+                    id: dtc.id ?? `call_${dtc.index}`,
+                    name: dtc.function?.name ?? '',
+                    arguments: dtc.function?.arguments ?? '',
+                  });
+                }
+              }
+            }
+
+            if (choice.finish_reason) {
+              finishReason = choice.finish_reason;
+            }
+          } catch (e) {
+            if (e instanceof DomainError) throw e;
+            // Skip malformed SSE chunks
           }
-        } catch (e) {
-          if (e instanceof DomainError) throw e;
-          // Skip malformed SSE chunks
         }
       }
+    } finally {
+      reader.cancel().catch(() => {});
     }
 
     // Final progress callback

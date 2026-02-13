@@ -8,7 +8,7 @@ export interface FileEntry {
   isDirectory: boolean;
 }
 
-const IGNORED_PATTERNS = new Set(['.git', 'node_modules', '.nswot']);
+const IGNORED_PATTERNS = new Set(['.git', 'node_modules']);
 
 function isIgnored(name: string): boolean {
   if (IGNORED_PATTERNS.has(name)) return true;

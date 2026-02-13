@@ -80,6 +80,9 @@ export class ActionExecutor {
     if (!path || typeof path !== 'string') {
       return { success: false, error: 'Missing required field: path' };
     }
+    if (path.includes('..')) {
+      return { success: false, error: 'Path traversal not allowed' };
+    }
     if (content === undefined || typeof content !== 'string') {
       return { success: false, error: 'Missing required field: content' };
     }

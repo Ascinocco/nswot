@@ -5,6 +5,7 @@ interface FrontMatter {
   name?: string;
   role?: string;
   team?: string;
+  tags?: string;
 }
 
 function parseFrontMatter(content: string): { frontMatter: FrontMatter; body: string } {
@@ -25,6 +26,7 @@ function parseFrontMatter(content: string): { frontMatter: FrontMatter; body: st
     if (key === 'name') frontMatter.name = value;
     else if (key === 'role') frontMatter.role = value;
     else if (key === 'team') frontMatter.team = value;
+    else if (key === 'tags') frontMatter.tags = value;
   }
 
   return { frontMatter, body };
@@ -83,5 +85,8 @@ export function parseProfileMarkdown(content: string, sourceFile: string): Profi
     interviewQuotes,
     notes,
     sourceFile,
+    tags: frontMatter.tags
+      ? frontMatter.tags.split(',').map((t) => t.trim()).filter(Boolean)
+      : undefined,
   };
 }

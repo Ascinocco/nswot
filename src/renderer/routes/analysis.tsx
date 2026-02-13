@@ -29,10 +29,8 @@ const STAGE_INDEX: Record<string, number> = Object.fromEntries(
   PIPELINE_STEPS.map((s, i) => [s.key, i]),
 );
 
-// Module-level state — survives SPA navigation (component unmount/remount)
-let activeAnalysisId: string | null = null;
-
 export default function AnalysisPage(): React.JSX.Element {
+  const activeAnalysisRef = useRef<string | null>(null);
   const { data: workspace } = useCurrentWorkspace();
   const { data: profiles } = useProfiles(!!workspace);
   const { data: apiKeyStatus } = useApiKeyStatus();
@@ -123,8 +121,8 @@ export default function AnalysisPage(): React.JSX.Element {
 
   // Recover running or recently-completed analysis on mount
   useEffect(() => {
-    if (!activeAnalysisId) return;
-    const recoverId = activeAnalysisId;
+    if (!activeAnalysisRef.current) return;
+    const recoverId = activeAnalysisRef.current;
 
     const recover = async (): Promise<void> => {
       const result = await window.nswot.analysis.get(recoverId);
@@ -135,11 +133,11 @@ export default function AnalysisPage(): React.JSX.Element {
       if (analysis.status === 'completed' && analysis.swotOutput) {
         setCompletedAnalysis(analysis);
         setProgress({ stage: 'completed', message: 'Analysis complete!' });
-        activeAnalysisId = null;
+        activeAnalysisRef.current = null;
       } else if (analysis.status === 'failed') {
         setProgress({ stage: 'failed', message: analysis.error ?? 'Analysis failed' });
         setAnalysisError(analysis.error ?? 'Analysis failed');
-        activeAnalysisId = null;
+        activeAnalysisRef.current = null;
       } else if (analysis.status === 'running') {
         setAnalysisRunning(true);
         setProgress({ stage: 'sending', message: 'Analysis in progress...' });
@@ -151,7 +149,7 @@ export default function AnalysisPage(): React.JSX.Element {
   // Listen for progress events
   useEffect(() => {
     const cleanup = window.nswot.analysis.onProgress((data) => {
-      activeAnalysisId = data.analysisId;
+      activeAnalysisRef.current = data.analysisId;
       setProgress({ stage: data.stage, message: data.message });
 
       if (data.stage === 'completed') {
@@ -160,13 +158,13 @@ export default function AnalysisPage(): React.JSX.Element {
           if (result.success && result.data && mountedRef.current) {
             setCompletedAnalysis(result.data);
           }
-          activeAnalysisId = null;
+          activeAnalysisRef.current = null;
           if (mountedRef.current) setAnalysisRunning(false);
         });
       }
 
       if (data.stage === 'failed') {
-        activeAnalysisId = null;
+        activeAnalysisRef.current = null;
         if (mountedRef.current) {
           setAnalysisRunning(false);
           setAnalysisError(data.message);

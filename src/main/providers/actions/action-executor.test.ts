@@ -600,6 +600,19 @@ describe('ActionExecutor', () => {
       expect(result.error).toContain('Missing required field: content');
     });
 
+    it('returns error for path traversal attempt', async () => {
+      const fileService = createMockFileService();
+      const fileExecutor = new ActionExecutor(undefined, fileService);
+
+      const result = await fileExecutor.execute('write_markdown_file', {
+        path: '../../../etc/passwd',
+        content: 'malicious',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Path traversal not allowed');
+    });
+
     it('returns error when FileService write fails', async () => {
       const fileService = createMockFileService();
       vi.mocked(fileService.writeFile).mockResolvedValue(
@@ -608,8 +621,8 @@ describe('ActionExecutor', () => {
       const fileExecutor = new ActionExecutor(undefined, fileService);
 
       const result = await fileExecutor.execute('write_markdown_file', {
-        path: '../../../etc/passwd',
-        content: 'malicious',
+        path: 'valid/path.md',
+        content: 'content',
       });
 
       expect(result.success).toBe(false);
