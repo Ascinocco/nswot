@@ -564,7 +564,7 @@ Key constraints:
 
 ### 8.3 Agent Harness (Phase 4)
 
-Phase 4 replaces the SSE streaming + tool-use bridge (Phase 3c) with a full agent harness that drives the entire chat experience. See `docs/18-phase4-chat-experience-plan.md` for the complete design.
+Phase 4 replaces the SSE streaming + tool-use bridge (Phase 3c) with a full agent harness that drives the entire chat experience. "Chat Analysis" becomes the primary navigation entry, replacing the separate Analysis and Analysis History pages. See `docs/18-phase4-chat-experience-plan.md` for the complete design.
 
 ```text
 User Message → Agent Harness → LLM Provider (tool_use response)
@@ -583,6 +583,7 @@ Components:
 - **Execution Loop**: send → tool_use → execute → tool_result → repeat until no more tool calls
 - **Approval Gates**: write tools pause loop, emit pending event, wait for user decision (or auto-approve via memory)
 - **Interrupt Handling**: stop button cancels in-flight LLM request, stores partial response
+- **Thinking Capture**: extracts `extended_thinking` blocks from Anthropic responses, routes as `thinking` content blocks to the renderer
 
 Tool taxonomy:
 
@@ -594,9 +595,15 @@ Tool taxonomy:
 
 Render tools return compact confirmations as `tool_result` (not the full data) to avoid wasting context window. The data goes directly into a `ContentBlock` emitted to the renderer.
 
+Navigation model:
+- Single route `/chat-analysis` with two states: conversation list (default) and active conversation
+- Unified config-to-chat flow: inline config panel collapses on "Run Analysis", pipeline progress indicator shows analysis phases
+- Conversations are first-class entities stored in a `conversations` table (browse, resume, delete)
+
 Storage additions:
+- `conversations` table — `id, workspace_id, title, created_at, updated_at`
 - `chat_messages.content_format` — distinguishes plain text vs rich content block arrays
-- `approval_memory` table — per-conversation auto-approval tracking
+- `approval_memory` table — per-conversation auto-approval tracking (keyed by `conversation_id + tool_name`)
 - `analyses.conversation_id` / `analyses.parent_analysis_id` — groups re-runs in a conversation
 
 ---

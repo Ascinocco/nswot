@@ -11,7 +11,7 @@ nswot is a local-first Electron desktop app that turns stakeholder interview not
 - `docs/01-product-spec.md` — Canonical MVP product scope
 - `docs/02-architecture-spec.md` — Canonical MVP architecture (layered: IPC -> Services -> Repositories -> Providers -> Infrastructure)
 - `docs/03-sprints.md` — 6-week MVP sprint plan
-- `docs/04-phases-roadmap.md` — Phase 1/2/3 roadmap
+- `docs/04-phases-roadmap.md` — Phase 1/2/3/4 roadmap
 - `docs/05-domain-model.md` — Domain entities, invariants, relationships
 - `docs/06-error-handling-strategy.md` — Error taxonomy, Result type, retry/circuit breaker policies
 - `docs/07-testing-strategy.md` — Testing pyramid and scope
@@ -123,6 +123,6 @@ result.match({
 - **No writes outside workspace.** All fs operations validate resolved path starts with workspace root.
 - **No secrets in SQLite or plaintext.** API keys and OAuth tokens go through safeStorage only.
 - **No evidence, no claim.** SWOT items without concrete evidence are omitted or marked low confidence.
-- **Current scope: Phase 3 complete, Phase 4 next.** Phases 1-3e are complete. Phase 3 covered codebase analysis, chat actions, comparison, themes, export, multi-provider LLM/codebase, visualizations, onboarding, de-anonymization, structured logging, and file watching. Do not implement Phase 4 features (chat-driven agent experience) without explicit instruction. See `docs/04-phases-roadmap.md`.
+- **Current scope: Phase 3 complete, Phase 4 next.** Phases 1-3e are complete. Phase 4 transforms nswot into a chat-primary agent experience: "Chat Analysis" replaces the Analysis + History pages, conversations are first-class entities (browse, resume, delete), config-to-chat happens on one page, pipeline progress is visible, and LLM thinking/reasoning is displayed. Agent harness with tool registry (render/read/write) drives multi-turn interactions. Sprints 36–41 with two-agent parallel execution. See `docs/18-phase4-chat-experience-plan.md` and `docs/04-phases-roadmap.md`.
 - **Structured logging.** Use `Logger` singleton (`src/main/infrastructure/logger.ts`) — `logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug()`. Logs to console and `~/.nswot/logs/nswot-YYYY-MM-DD.log` with daily rotation.
 - **Multi-provider pattern.** LLM and codebase providers are selected via factory based on user preference. Add new providers by implementing `LLMProvider` or `CodebaseProviderInterface` and registering in the factory. Provider type stored as preference (`llmProviderType`, `codebaseProviderType`).

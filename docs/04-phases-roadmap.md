@@ -214,28 +214,50 @@ Users must have for codebase analysis and chat actions:
 
 ## Phase 4 — Chat-Driven Agent Experience
 
-**Goal**: transform nswot into a chat-driven agent interface where analysis, exploration, and action all flow through conversational interaction powered by an agent harness with tool-use.
+**Goal**: transform nswot into a chat-primary agent interface where "Chat Analysis" is the main navigation entry, analysis configuration and conversational interaction happen on the same page, and conversations are first-class entities that can be browsed, resumed, and continued.
 
 > Feature plan: `docs/18-phase4-chat-experience-plan.md`
+> Sprints 36–41, 6 weeks, two-agent parallel execution (continues from Phase 3e Sprints 22–35).
 
 ### Scope
 
-**Core Transformation:**
-- Analysis page transitions instantly to full-page chat view on "Run Analysis"
-- Agent streams initial analysis as rich content blocks (SWOT cards, summary cards, quality metrics)
-- Status bar: agent state, source activity icons, running token count + cost estimate, stop button
-- Chatbox anchored to bottom, scrollable message area between status bar and input
+**Chat-Primary Navigation:**
+- "Chat Analysis" replaces Analysis + Analysis History as the primary sidebar entry
+- Single route `/chat-analysis` with two states: conversation list and active conversation
+- Old Analysis and Analysis History pages retired; existing results remain accessible via conversation history
+
+**Unified Config-to-Chat Flow:**
+- Conversation starts with an inline config panel (role, profiles, data sources) — no page navigation
+- On "Run Analysis" the config panel collapses, pipeline progress indicator appears, and the chat view streams results
+- Config panel can be re-expanded to adjust settings for re-runs within the same conversation
+
+**Pipeline Progress Indicator:**
+- Horizontal stepped bar showing analysis phases: Load data → Anonymize → Build prompt → LLM generating → Parse → Validate → Store
+- Active step highlighted, completed steps checked, error steps marked red
+- Maps directly to existing `PipelineStep` stages in the analysis service
 
 **Rich Content Blocks:**
 - `ContentBlock[]` replaces plain text in chat messages — typed blocks rendered as React components
-- Block types: text, swot_analysis, summary_cards, quality_metrics, mermaid, chart, data_table, comparison, approval, action_status
+- Block types: text, swot_analysis, summary_cards, quality_metrics, mermaid, chart, data_table, comparison, approval, action_status, thinking
 - Mermaid diagrams and D3/Chart.js charts rendered inline as SVG, exportable to PNG via SVG-to-canvas pipeline
+
+**Thinking Display:**
+- LLM reasoning/thinking data displayed to the user as collapsible cards
+- Anthropic `extended_thinking` when using direct Anthropic provider; graceful degradation for OpenRouter
+- Progressive streaming — thinking content appears as it arrives
 
 **Agent Harness:**
 - Tool registry with categorized tools: render (no approval), read (no approval), write (requires approval)
 - Execution loop: send → tool_use → execute tool → tool_result → repeat until final text response
 - Approval gates pause the loop for write tools, resume on user decision
 - Interrupt handling: stop button cancels in-flight request, stores partial response
+- Thinking capture component extracts and routes thinking blocks to the renderer
+
+**Conversation History:**
+- Conversations are first-class entities — browse, search, resume, delete
+- Auto-generated titles from first analysis (e.g., "Staff Engineer — 12 profiles, 3 Jira projects")
+- Conversation list as the default state of the Chat Analysis page
+- Each conversation groups one or more analysis runs (re-runs)
 
 **Approval Memory (3-Tier):**
 - Yes — approve this specific action (one-time)
@@ -258,6 +280,7 @@ Users must have for codebase analysis and chat actions:
 - Token count and cost estimate visible in status bar throughout conversation
 - Agent state indicator (Analyzing / Thinking / Fetching data / Ready)
 - Source activity icons show which integrations are being queried
+- Status bar sits between pipeline progress and chat message area
 
 ### Prerequisites
 
@@ -267,7 +290,10 @@ Users must have for codebase analysis and chat actions:
 
 ### Decision Value Delivered
 
-- Eliminates context-switching between analysis results page and chat — everything in one conversational flow
+- Chat-primary navigation eliminates context-switching — configuration, analysis, follow-ups, and actions all happen in one place
+- Conversation history makes past analyses browsable and resumable, not just a flat list of runs
+- Pipeline progress indicator gives users visibility into what the system is doing during analysis
+- Thinking display builds trust by showing the LLM's reasoning process
 - Multi-turn agentic follow-ups let users drill deeper without leaving the interface
 - Rich inline content (diagrams, tables, SWOT cards) replaces static page layouts with dynamic exploration
 - Approval memory reduces friction for repeated actions while maintaining user control
@@ -275,8 +301,13 @@ Users must have for codebase analysis and chat actions:
 
 ### Exit Criteria
 
-- Analysis page transitions to chat view on "Run Analysis" and streams initial results as content blocks
-- All 10 content block types render correctly in the chat message area
+- "Chat Analysis" is the primary sidebar entry; old Analysis and Analysis History pages removed
+- Conversation list shows all past conversations with auto-generated titles, resumable on click
+- Config panel on Chat Analysis page configures analysis inline; collapses on run, re-expandable for re-runs
+- Pipeline progress indicator shows 7-step progress during analysis with active/completed/error states
+- Agent streams initial results as rich content blocks (SWOT cards, summaries, metrics, thinking)
+- All 11 content block types (including thinking) render correctly in the chat message area
+- Thinking/reasoning data displays as collapsible cards during and after analysis
 - Agent harness completes multi-turn tool-use loops (render + read tools) without manual intervention
 - Write tools pause for user approval; "Yes + Remember" auto-approves subsequent same-type actions in the conversation
 - Re-run creates a new analysis record in the same conversation with a pinned summary
