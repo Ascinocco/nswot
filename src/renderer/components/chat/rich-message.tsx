@@ -1,3 +1,4 @@
+import Markdown from 'react-markdown';
 import ContentBlockRenderer from './content-block-renderer';
 import ThinkingBlock from './blocks/thinking-block';
 import ToolProgress from './tool-progress';
@@ -48,7 +49,9 @@ export default function RichMessage({
       >
         {/* Plain text content */}
         {text && !blocks && (
-          <div className="text-sm leading-relaxed whitespace-pre-wrap">{text}</div>
+          <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
+            <Markdown>{text}</Markdown>
+          </div>
         )}
 
         {/* Streaming thinking (before blocks) */}
@@ -68,8 +71,8 @@ export default function RichMessage({
 
         {/* Streaming text */}
         {streamingText && (
-          <div className="text-sm leading-relaxed whitespace-pre-wrap">
-            {streamingText}
+          <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
+            <Markdown>{streamingText}</Markdown>
             <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-blue-400" />
           </div>
         )}

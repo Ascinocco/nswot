@@ -1,3 +1,4 @@
+import Markdown from 'react-markdown';
 import type {
   SwotAnalysisBlockData,
   SummaryCardsBlockData,
@@ -87,12 +88,8 @@ export default function ContentBlockRenderer({
 
 function TextBlock({ text }: { text: string }): React.JSX.Element {
   return (
-    <div className="prose prose-invert prose-sm max-w-none">
-      {text.split('\n').map((line, i) => (
-        <p key={i} className="my-1 text-sm text-gray-200">
-          {line || '\u00A0'}
-        </p>
-      ))}
+    <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
+      <Markdown>{text}</Markdown>
     </div>
   );
 }

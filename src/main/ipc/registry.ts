@@ -83,6 +83,7 @@ export function registerIpcHandlers(context: IpcContext): void {
     context.approvalMemoryService,
     context.chatRepo,
     context.settingsService,
+    context.analysisRepo,
   );
   registerApprovalMemoryHandlers(context.approvalMemoryService);
 }
