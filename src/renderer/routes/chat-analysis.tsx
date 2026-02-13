@@ -102,7 +102,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
   // Agent state (scoped to active conversation)
   const agentState = useAgentState(activeConversationId);
   const tokenCount = useTokenCount(activeConversationId);
-  const agentBlocks = useAgentBlocks(activeConversationId);
+  const { blocks: agentBlocks, clearBlocks } = useAgentBlocks(activeConversationId);
   const agentThinking = useAgentThinking(activeConversationId);
   const toolActivity = useToolActivity(activeConversationId);
   const stopAgent = useStopAgent();
@@ -160,11 +160,12 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         };
         setMessages((prev) => [...prev, assistantMsg]);
         setStreamingText('');
+        clearBlocks();
       }
     }
 
     prevAgentStateRef.current = agentState;
-  }, [agentState, agentBlocks, streamingText]);
+  }, [agentState, agentBlocks, streamingText, clearBlocks]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

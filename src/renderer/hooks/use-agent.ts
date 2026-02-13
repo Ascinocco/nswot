@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type AgentState = 'idle' | 'thinking' | 'executing_tool' | 'awaiting_approval' | 'error';
 
@@ -43,20 +43,28 @@ export function useTokenCount(conversationId: string | null): TokenCount {
   return tokens;
 }
 
-export function useAgentBlocks(conversationId: string | null): ContentBlock[] {
+export function useAgentBlocks(conversationId: string | null): {
+  blocks: ContentBlock[];
+  clearBlocks: () => void;
+} {
   const [blocks, setBlocks] = useState<ContentBlock[]>([]);
+  const prevStateRef = useRef<string>('idle');
 
   useEffect(() => {
     setBlocks([]);
+    prevStateRef.current = 'idle';
   }, [conversationId]);
 
-  // Clear blocks when agent transitions to a new turn (state event received)
+  // Clear blocks only when a NEW turn starts (idle → thinking),
+  // not during mid-loop iterations (executing_tool → thinking).
   useEffect(() => {
     if (!conversationId) return;
     const cleanup = window.nswot.agent.onState((data) => {
-      if (data.conversationId === conversationId && data.state === 'thinking') {
-        // New turn starting — clear blocks from previous turn
-        setBlocks([]);
+      if (data.conversationId === conversationId) {
+        if (data.state === 'thinking' && prevStateRef.current === 'idle') {
+          setBlocks([]);
+        }
+        prevStateRef.current = data.state as string;
       }
     });
     return cleanup;
@@ -72,7 +80,11 @@ export function useAgentBlocks(conversationId: string | null): ContentBlock[] {
     return cleanup;
   }, [conversationId]);
 
-  return blocks;
+  const clearBlocks = useCallback(() => {
+    setBlocks([]);
+  }, []);
+
+  return { blocks, clearBlocks };
 }
 
 export function useAgentThinking(conversationId: string | null): string | null {
