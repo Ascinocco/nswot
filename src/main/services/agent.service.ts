@@ -136,7 +136,7 @@ export class AgentService {
 
         if (signal.aborted) {
           interrupted = true;
-          finalContent = response.content;
+          finalContent += response.content;
           break;
         }
 
@@ -155,8 +155,13 @@ export class AgentService {
 
         // If no tool calls, this is the final response
         if (!response.toolCalls || response.toolCalls.length === 0) {
-          finalContent = cleanContent;
+          finalContent += cleanContent;
           break;
+        }
+
+        // Accumulate text from iterations that also have tool calls
+        if (cleanContent) {
+          finalContent += cleanContent;
         }
 
         // Process tool calls
@@ -186,7 +191,7 @@ export class AgentService {
 
         if (signal.aborted) {
           interrupted = true;
-          finalContent = cleanContent;
+          finalContent += cleanContent;
           break;
         }
 

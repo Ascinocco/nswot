@@ -48,7 +48,7 @@ export default function RichMessage({
         }`}
       >
         {/* Plain text content */}
-        {text && !blocks && (
+        {text && (
           <div className="prose prose-invert prose-sm max-w-none text-gray-200 prose-headings:text-gray-100 prose-strong:text-gray-100 prose-code:text-blue-300 prose-a:text-blue-400">
             <Markdown>{text}</Markdown>
           </div>

@@ -155,7 +155,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           blocks: hasBlocks ? [...agentBlocks] : undefined,
-          text: hasText && !hasBlocks ? streamingText : undefined,
+          text: hasText ? streamingText : undefined,
           error: isNowError ? 'The agent encountered an error during this turn.' : undefined,
         };
         setMessages((prev) => [...prev, assistantMsg]);
