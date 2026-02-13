@@ -26,6 +26,48 @@ import type { ContentBlock } from '../hooks/use-agent';
 
 type PageState = 'list' | 'config' | 'running' | 'chat';
 
+const ROLE_LABELS: Record<string, string> = {
+  staff_engineer: 'Staff Engineer',
+  senior_em: 'Senior EM',
+  vp_engineering: 'VP Engineering',
+};
+
+function ConfigSummary({ config }: {
+  config: {
+    role: string;
+    modelId: string;
+    config: { profileIds: string[]; jiraProjectKeys: string[]; confluenceSpaceKeys: string[]; githubRepos: string[]; codebaseRepos: string[] };
+    completedAt: string | null;
+  };
+}): React.JSX.Element {
+  const parts: string[] = [];
+  parts.push(`Role: ${ROLE_LABELS[config.role] ?? config.role}`);
+  // Show model short name (last segment after /)
+  const modelShort = config.modelId.includes('/') ? config.modelId.split('/').pop()! : config.modelId;
+  parts.push(`Model: ${modelShort}`);
+  if (config.config.profileIds.length > 0) {
+    parts.push(`${config.config.profileIds.length} profile${config.config.profileIds.length > 1 ? 's' : ''}`);
+  }
+  if (config.config.jiraProjectKeys.length > 0) {
+    parts.push(`Jira: ${config.config.jiraProjectKeys.join(', ')}`);
+  }
+  if (config.config.confluenceSpaceKeys.length > 0) {
+    parts.push(`Confluence: ${config.config.confluenceSpaceKeys.join(', ')}`);
+  }
+  if (config.config.githubRepos.length > 0) {
+    parts.push(`GitHub: ${config.config.githubRepos.join(', ')}`);
+  }
+  if (config.config.codebaseRepos.length > 0) {
+    parts.push(`Codebase: ${config.config.codebaseRepos.join(', ')}`);
+  }
+
+  return (
+    <div className="rounded border border-gray-800 bg-gray-900/50 px-3 py-1.5 text-xs text-gray-400">
+      {parts.join(' \u00b7 ')}
+    </div>
+  );
+}
+
 interface ChatMessageDisplay {
   id: string;
   role: 'user' | 'assistant';
@@ -70,6 +112,16 @@ export default function ChatAnalysisPage(): React.JSX.Element {
   const [completedStages, setCompletedStages] = useState<string[]>([]);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [pipelineMessage, setPipelineMessage] = useState<string | null>(null);
+  const [pipelineVisible, setPipelineVisible] = useState(false);
+
+  // History view: read-only config summary from loaded analysis
+  const [savedAnalysisConfig, setSavedAnalysisConfig] = useState<{
+    role: string;
+    modelId: string;
+    config: { profileIds: string[]; jiraProjectKeys: string[]; confluenceSpaceKeys: string[]; githubRepos: string[]; codebaseRepos: string[] };
+    completedAt: string | null;
+  } | null>(null);
+  const [isFromHistory, setIsFromHistory] = useState(false);
 
   // Analysis IDs for pinned summaries (multiple re-runs within conversation)
   const [analysisIds, setAnalysisIds] = useState<string[]>([]);
@@ -131,6 +183,15 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     return cleanup;
   }, []);
 
+  // Auto-dismiss pipeline after completion (active flow only, not history)
+  useEffect(() => {
+    if (!completedStages.includes('completed') || isFromHistory) return;
+    const timer = setTimeout(() => {
+      setPipelineVisible(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [completedStages, isFromHistory]);
+
   // Listen for streaming chunks (scoped to current conversation's analyses)
   useEffect(() => {
     const cleanup = window.nswot.chat.onChunk((data) => {
@@ -172,6 +233,20 @@ export default function ChatAnalysisPage(): React.JSX.Element {
       // Store model ID from the latest analysis
       const latestAnalysis = analyses[analyses.length - 1]!;
       setSelectedModelId(latestAnalysis.modelId);
+
+      // Populate history view state
+      setIsFromHistory(true);
+      setSavedAnalysisConfig({
+        role: latestAnalysis.role,
+        modelId: latestAnalysis.modelId,
+        config: latestAnalysis.config,
+        completedAt: latestAnalysis.completedAt,
+      });
+      setCompletedStages([
+        'collecting', 'anonymizing', 'building_prompt',
+        'sending', 'parsing', 'validating', 'storing', 'completed',
+      ]);
+      setPipelineVisible(true);
 
       // Load messages from all analyses
       const allMessages: ChatMessageDisplay[] = [];
@@ -241,6 +316,9 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setCompletedStages([]);
     setPipelineError(null);
     setPipelineMessage(null);
+    setPipelineVisible(false);
+    setIsFromHistory(false);
+    setSavedAnalysisConfig(null);
     setAnalysisIds([]);
   }, []);
 
@@ -276,6 +354,9 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         setCompletedStages([]);
         setPipelineError(null);
         setPipelineMessage(null);
+        setPipelineVisible(true);
+        setIsFromHistory(false);
+        setSavedAnalysisConfig(null);
         setStreamingText('');
 
         // Create conversation if this is a new one
@@ -323,9 +404,11 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     [activeConversationId, createConversation, navigate],
   );
 
-  // Handle re-run: expand config panel for re-configuration
+  // Handle re-run: show config panel for re-configuration
   const handleReRun = useCallback(() => {
+    setPageState('config');
     setConfigCollapsed(false);
+    setSavedAnalysisConfig(null);
   }, []);
 
   // Handle sending a follow-up message
@@ -391,6 +474,9 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setMessages([]);
     setStreamingText('');
     setAnalysisIds([]);
+    setPipelineVisible(false);
+    setIsFromHistory(false);
+    setSavedAnalysisConfig(null);
     navigate('/chat-analysis');
   }, [navigate]);
 
@@ -437,7 +523,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         <h2 className="text-lg font-semibold text-white">
           {pageState === 'config' ? 'New Analysis' : 'Analysis'}
         </h2>
-        {pageState === 'chat' && configCollapsed && (
+        {(pageState === 'chat' || pageState === 'running') && (
           <button
             onClick={handleReRun}
             className="ml-auto rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
@@ -447,16 +533,23 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         )}
       </div>
 
-      {/* Config panel */}
-      <AnalysisConfigPanel
-        collapsed={configCollapsed}
-        onToggle={() => setConfigCollapsed(!configCollapsed)}
-        onRun={handleRunAnalysis}
-        isRunning={isRunning}
-      />
+      {/* Config panel — only in config state */}
+      {pageState === 'config' && (
+        <AnalysisConfigPanel
+          collapsed={configCollapsed}
+          onToggle={() => setConfigCollapsed(!configCollapsed)}
+          onRun={handleRunAnalysis}
+          isRunning={isRunning}
+        />
+      )}
 
-      {/* Pipeline progress */}
-      {(pageState === 'running' || completedStages.length > 0) && (
+      {/* Read-only config summary — history view only */}
+      {savedAnalysisConfig && pageState === 'chat' && (
+        <ConfigSummary config={savedAnalysisConfig} />
+      )}
+
+      {/* Pipeline progress — visible during run and briefly after completion */}
+      {pipelineVisible && (
         <div className="mt-3">
           <PipelineProgress
             currentStage={currentStage}
@@ -468,7 +561,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
       )}
 
       {/* Status bar + memory indicator + pinned summary */}
-      {pageState !== 'config' && (
+      {pageState !== 'config' && (isAgentActive || tokenCount.input + tokenCount.output > 0) && (
         <div className="mt-2 space-y-1.5">
           <StatusBar
             agentState={agentState}

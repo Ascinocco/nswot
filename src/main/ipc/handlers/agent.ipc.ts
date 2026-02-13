@@ -161,16 +161,28 @@ export function registerAgentHandlers(
 
         // Store assistant response (persist if there's text content or blocks)
         if (result.value.content || result.value.blocks.length > 0) {
-          const contentToStore = result.value.blocks.length > 0
-            ? JSON.stringify(result.value.blocks)
-            : result.value.content;
-          const contentFormat = result.value.blocks.length > 0 ? 'blocks' : 'text';
-          await chatRepo.insert(
-            input.analysisId,
-            'assistant',
-            contentToStore,
-            contentFormat,
-          );
+          if (result.value.blocks.length > 0) {
+            // When we have blocks, also preserve any text content as a leading text block
+            const blocksToStore = result.value.content
+              ? [
+                  { type: 'text', id: generateBlockId(), data: { text: result.value.content } },
+                  ...result.value.blocks,
+                ]
+              : result.value.blocks;
+            await chatRepo.insert(
+              input.analysisId,
+              'assistant',
+              JSON.stringify(blocksToStore),
+              'blocks',
+            );
+          } else {
+            await chatRepo.insert(
+              input.analysisId,
+              'assistant',
+              result.value.content,
+              'text',
+            );
+          }
         }
 
         // Touch conversation timestamp
@@ -272,7 +284,8 @@ RENDER TOOL INSTRUCTIONS:
 You have render tools available for creating rich visualizations. ALWAYS prefer using these tools over describing data in plain text.
 
 - **render_chart**: Use when the user asks for charts, graphs, or visualizations (bar charts, pie charts, line graphs, etc.).
-  Input format: { "chartType": "bar"|"pie"|"line"|"doughnut"|"radar", "data": { "labels": ["Label1", "Label2"], "datasets": [{ "label": "Series Name", "data": [10, 20], "backgroundColor": ["#3b82f6", "#ef4444"] }] }, "title": "Chart Title" }
+  Input format: { "title": "Chart Title", "chartType": "bar"|"pie"|"line"|"doughnut"|"radar", "spec": { "data": { "labels": ["Label1", "Label2"], "datasets": [{ "label": "Series Name", "data": [10, 20], "backgroundColor": ["#3b82f6", "#ef4444"] }] } } }
+  - The "spec" object wraps the Chart.js config. Put "labels" and "datasets" inside spec.data.
   - For pie/doughnut: use a single dataset with backgroundColor array matching labels.
   - For bar/line: labels are x-axis categories, datasets contain y-values.
 
