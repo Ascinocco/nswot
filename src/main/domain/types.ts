@@ -95,6 +95,8 @@ export interface Analysis {
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
+  conversationId: string | null;
+  parentAnalysisId: string | null;
 }
 
 export interface AnalysisConfig {
@@ -183,6 +185,7 @@ export interface ChatMessage {
   analysisId: string;
   role: 'user' | 'assistant';
   content: string;
+  contentFormat: 'text' | 'blocks';
   createdAt: string;
 }
 
@@ -272,6 +275,14 @@ export interface Theme {
   sourceTypes: EvidenceSourceType[];
   frequency: number;
   createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  workspaceId: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface IPCResult<T> {

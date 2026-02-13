@@ -28,6 +28,8 @@ interface AnalysisRow {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  conversation_id: string | null;
+  parent_analysis_id: string | null;
 }
 
 interface ComparisonRow {
@@ -69,6 +71,8 @@ function toDomain(row: AnalysisRow): Analysis {
     startedAt: row.started_at,
     completedAt: row.completed_at,
     createdAt: row.created_at,
+    conversationId: row.conversation_id ?? null,
+    parentAnalysisId: row.parent_analysis_id ?? null,
   };
 }
 
@@ -86,7 +90,7 @@ export class AnalysisRepository {
   async findByWorkspace(workspaceId: string): Promise<Analysis[]> {
     const rows = this.db
       .prepare(
-        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE workspace_id = ? ORDER BY created_at DESC',
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at, conversation_id, parent_analysis_id FROM analyses WHERE workspace_id = ? ORDER BY created_at DESC',
       )
       .all(workspaceId) as AnalysisRow[];
     return rows.map(toDomain);
@@ -95,7 +99,7 @@ export class AnalysisRepository {
   async findById(id: string): Promise<Analysis | null> {
     const row = this.db
       .prepare(
-        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE id = ?',
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at, conversation_id, parent_analysis_id FROM analyses WHERE id = ?',
       )
       .get(id) as AnalysisRow | undefined;
     return row ? toDomain(row) : null;
@@ -106,15 +110,17 @@ export class AnalysisRepository {
     role: Analysis['role'];
     modelId: string;
     config: AnalysisConfig;
+    conversationId?: string;
+    parentAnalysisId?: string;
   }): Promise<Analysis> {
     const id = randomUUID();
     const now = new Date().toISOString();
     const configJson = JSON.stringify(params.config);
     this.db
       .prepare(
-        'INSERT INTO analyses (id, workspace_id, role, model_id, status, config, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO analyses (id, workspace_id, role, model_id, status, config, conversation_id, parent_analysis_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       )
-      .run(id, params.workspaceId, params.role, params.modelId, 'pending', configJson, now);
+      .run(id, params.workspaceId, params.role, params.modelId, 'pending', configJson, params.conversationId ?? null, params.parentAnalysisId ?? null, now);
     return {
       id,
       workspaceId: params.workspaceId,
@@ -132,6 +138,8 @@ export class AnalysisRepository {
       startedAt: null,
       completedAt: null,
       createdAt: now,
+      conversationId: params.conversationId ?? null,
+      parentAnalysisId: params.parentAnalysisId ?? null,
     };
   }
 
@@ -202,7 +210,7 @@ export class AnalysisRepository {
   async findRunning(): Promise<Analysis[]> {
     const rows = this.db
       .prepare(
-        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at FROM analyses WHERE status = ?',
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at, conversation_id, parent_analysis_id FROM analyses WHERE status = ?',
       )
       .all('running') as AnalysisRow[];
     return rows.map(toDomain);
@@ -237,6 +245,21 @@ export class AnalysisRepository {
       )
       .run(now);
     return result.changes;
+  }
+
+  async findByConversation(conversationId: string): Promise<Analysis[]> {
+    const rows = this.db
+      .prepare(
+        'SELECT id, workspace_id, role, model_id, status, config, input_snapshot, swot_output, summaries_output, quality_metrics, raw_llm_response, warning, error, started_at, completed_at, created_at, conversation_id, parent_analysis_id FROM analyses WHERE conversation_id = ? ORDER BY created_at ASC',
+      )
+      .all(conversationId) as AnalysisRow[];
+    return rows.map(toDomain);
+  }
+
+  async clearConversationId(conversationId: string): Promise<void> {
+    this.db
+      .prepare('UPDATE analyses SET conversation_id = NULL WHERE conversation_id = ?')
+      .run(conversationId);
   }
 
   async findForComparison(workspaceId: string): Promise<ComparisonAnalysisSummary[]> {

@@ -1,24 +1,21 @@
 import { useEffect } from 'react';
-import { HashRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import ErrorBoundary from './components/error-boundary';
 import { useOnboardingStatus } from './hooks/use-onboarding';
 import WorkspacePage from './routes/workspace';
 import ProfilesPage from './routes/profiles';
 import IntegrationsPage from './routes/integrations';
-import AnalysisPage from './routes/analysis';
-import AnalysisHistoryPage from './routes/analysis-history';
+import ChatAnalysisPage from './routes/chat-analysis';
 import ComparisonPage from './routes/comparison';
 import ThemesPage from './routes/themes';
 import SettingsPage from './routes/settings';
-import AnalysisDetailPage from './routes/analysis-detail';
 import OnboardingPage from './routes/onboarding';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Workspace' },
   { to: '/profiles', label: 'Profiles' },
   { to: '/integrations', label: 'Integrations' },
-  { to: '/analysis', label: 'Analysis' },
-  { to: '/history', label: 'History' },
+  { to: '/chat-analysis', label: 'Chat Analysis' },
   { to: '/comparison', label: 'Compare' },
   { to: '/settings', label: 'Settings' },
 ] as const;
@@ -83,13 +80,16 @@ function AppShell(): React.JSX.Element {
           <Route path="/" element={<ErrorBoundary><WorkspacePage /></ErrorBoundary>} />
           <Route path="/profiles" element={<ErrorBoundary><ProfilesPage /></ErrorBoundary>} />
           <Route path="/integrations" element={<ErrorBoundary><IntegrationsPage /></ErrorBoundary>} />
-          <Route path="/analysis" element={<ErrorBoundary><AnalysisPage /></ErrorBoundary>} />
-          <Route path="/history" element={<ErrorBoundary><AnalysisHistoryPage /></ErrorBoundary>} />
-          <Route path="/analysis/:analysisId" element={<ErrorBoundary><AnalysisDetailPage /></ErrorBoundary>} />
+          <Route path="/chat-analysis" element={<ErrorBoundary><ChatAnalysisPage /></ErrorBoundary>} />
+          <Route path="/chat-analysis/:conversationId" element={<ErrorBoundary><ChatAnalysisPage /></ErrorBoundary>} />
           <Route path="/comparison" element={<ErrorBoundary><ComparisonPage /></ErrorBoundary>} />
           <Route path="/themes/:analysisId" element={<ErrorBoundary><ThemesPage /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
           <Route path="/onboarding" element={<ErrorBoundary><OnboardingPage /></ErrorBoundary>} />
+          {/* Redirects: old routes → Chat Analysis */}
+          <Route path="/analysis" element={<Navigate to="/chat-analysis" replace />} />
+          <Route path="/analysis/:analysisId" element={<Navigate to="/chat-analysis" replace />} />
+          <Route path="/history" element={<Navigate to="/chat-analysis" replace />} />
         </Routes>
       </main>
     </div>

@@ -66,6 +66,13 @@ export interface RunAnalysisInput {
   modelId: string;
   contextWindow: number;
   multiStep?: boolean;
+  conversationId?: string;
+  parentAnalysisId?: string;
+}
+
+export interface RunAnalysisInChatInput extends RunAnalysisInput {
+  conversationId: string;
+  parentAnalysisId?: string;
 }
 
 export class AnalysisService {
@@ -109,6 +116,8 @@ export class AnalysisService {
         githubRepos: input.githubRepos,
         codebaseRepos: input.codebaseRepos,
       },
+      conversationId: input.conversationId,
+      parentAnalysisId: input.parentAnalysisId,
     });
 
     try {
@@ -208,6 +217,168 @@ export class AnalysisService {
       );
 
       // Stage 7: Store results
+      onProgress({ analysisId: analysis.id, stage: 'storing', message: 'Storing results...' });
+      await this.analysisRepo.storeResult(analysis.id, {
+        swotOutput: pipelineResult.swotOutput!,
+        summariesOutput: pipelineResult.summariesOutput!,
+        qualityMetrics: pipelineResult.qualityMetrics!,
+        rawLlmResponse: pipelineResult.rawLlmResponse!,
+        warning: pipelineResult.warning,
+      });
+
+      onProgress({ analysisId: analysis.id, stage: 'completed', message: 'Analysis complete!' });
+
+      const completed = await this.analysisRepo.findById(analysis.id);
+      return ok(completed!);
+    } catch (cause) {
+      const error = cause instanceof DomainError
+        ? cause
+        : new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, cause instanceof Error ? cause.message : 'Analysis failed');
+
+      await this.analysisRepo.updateStatus(analysis.id, 'failed', {
+        error: error.message,
+        completedAt: new Date().toISOString(),
+      });
+
+      onProgress({ analysisId: analysis.id, stage: 'failed', message: error.message });
+      return err(error);
+    }
+  }
+
+  /**
+   * Run an analysis linked to a conversation. The analysis record is created
+   * with a conversation_id (and optional parent_analysis_id for re-runs).
+   * Returns the completed analysis — the caller (agent harness) converts
+   * the results into content blocks for the chat.
+   */
+  async runAnalysisInChat(
+    input: RunAnalysisInChatInput,
+    onProgress: (progress: AnalysisProgress) => void,
+  ): Promise<Result<Analysis, DomainError>> {
+    const workspaceId = this.workspaceService.getCurrentId();
+    if (!workspaceId) {
+      return err(new DomainError(ERROR_CODES.WORKSPACE_NOT_FOUND, 'No workspace is open'));
+    }
+
+    const apiKey = this.settingsService.getActiveApiKey();
+    if (!apiKey) {
+      return err(new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'API key is not configured'));
+    }
+
+    if (input.profileIds.length === 0) {
+      return err(new DomainError(ERROR_CODES.ANALYSIS_NO_PROFILES, 'At least one profile is required'));
+    }
+
+    // Create analysis record linked to the conversation
+    const analysis = await this.analysisRepo.insert({
+      workspaceId,
+      role: input.role,
+      modelId: input.modelId,
+      config: {
+        profileIds: input.profileIds,
+        jiraProjectKeys: input.jiraProjectKeys,
+        confluenceSpaceKeys: input.confluenceSpaceKeys,
+        githubRepos: input.githubRepos,
+        codebaseRepos: input.codebaseRepos,
+      },
+      conversationId: input.conversationId,
+      parentAnalysisId: input.parentAnalysisId,
+    });
+
+    // Delegate to the existing pipeline — same logic as runAnalysis()
+    // but the analysis record already has conversation_id set
+    try {
+      await this.analysisRepo.updateStatus(analysis.id, 'running', {
+        startedAt: new Date().toISOString(),
+      });
+
+      onProgress({ analysisId: analysis.id, stage: 'collecting', message: 'Loading profiles and integration data...' });
+      const profiles = await this.profileRepo.findByIds(input.profileIds);
+      if (profiles.length === 0) {
+        throw new DomainError(ERROR_CODES.ANALYSIS_NO_PROFILES, 'No profiles found for the selected IDs');
+      }
+
+      const jiraMarkdown = await this.collectJiraData(workspaceId, input.jiraProjectKeys);
+      const rawConfluenceMarkdown = await this.collectConfluenceData(workspaceId, input.confluenceSpaceKeys);
+      const confluenceMarkdown = rawConfluenceMarkdown ? scrubIntegrationAuthors(rawConfluenceMarkdown) : null;
+      const rawGithubMarkdown = await this.collectGithubData(workspaceId, input.githubRepos);
+      const githubMarkdown = rawGithubMarkdown ? scrubIntegrationAuthors(rawGithubMarkdown) : null;
+      const codebaseMarkdown = await this.collectCodebaseData(workspaceId, input.codebaseRepos);
+
+      onProgress({ analysisId: analysis.id, stage: 'anonymizing', message: 'Anonymizing stakeholder data...' });
+      const { anonymizedProfiles, pseudonymMap } = anonymizeProfiles(profiles);
+
+      const inputSnapshot: AnonymizedPayload = {
+        profiles: anonymizedProfiles,
+        jiraData: jiraMarkdown ? { markdown: jiraMarkdown } : null,
+        confluenceData: confluenceMarkdown ? { markdown: confluenceMarkdown } : null,
+        githubData: githubMarkdown ? { markdown: githubMarkdown } : null,
+        codebaseData: codebaseMarkdown ? { markdown: codebaseMarkdown } : null,
+        pseudonymMap,
+      };
+
+      await this.analysisRepo.updateStatus(analysis.id, 'running', { inputSnapshot });
+
+      await this.analysisRepo.insertProfiles(
+        analysis.id,
+        anonymizedProfiles.map((ap, i) => ({
+          analysisId: analysis.id,
+          profileId: profiles[i]!.id,
+          anonymizedLabel: ap.label,
+        })),
+      );
+
+      const connectedSources: ConnectedSource[] = [];
+      if (jiraMarkdown) connectedSources.push('jira');
+      if (confluenceMarkdown) connectedSources.push('confluence');
+      if (githubMarkdown) connectedSources.push('github');
+      if (codebaseMarkdown) connectedSources.push('codebase');
+
+      const dataSources: PromptDataSources = {
+        jiraDataMarkdown: jiraMarkdown,
+        confluenceDataMarkdown: confluenceMarkdown,
+        githubDataMarkdown: githubMarkdown,
+        codebaseDataMarkdown: codebaseMarkdown,
+      };
+
+      const llmCaller: LlmCaller = {
+        call: async (messages, modelId, onToken) => {
+          if (this.llmProvider) {
+            const resp = await this.llmProvider.createChatCompletion({
+              apiKey,
+              modelId,
+              messages,
+              temperature: LLM_TEMPERATURE,
+              maxTokens: LLM_MAX_TOKENS,
+              onToken,
+            });
+            return { content: resp.content, finishReason: resp.finishReason };
+          }
+          throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'No LLM provider configured');
+        },
+      };
+
+      const steps = input.multiStep
+        ? [new ExtractionStep(), new SynthesisStep(), new SwotGenerationStep()]
+        : [new SwotGenerationStep()];
+      const orchestrator = new AnalysisOrchestrator(steps);
+      const pipelineResult = await orchestrator.run(
+        {
+          analysisId: analysis.id,
+          role: input.role,
+          modelId: input.modelId,
+          contextWindow: input.contextWindow,
+          anonymizedProfiles,
+          inputSnapshot,
+          dataSources,
+          connectedSources,
+          llmCaller,
+        },
+        (stage, message) => {
+          onProgress({ analysisId: analysis.id, stage: stage as AnalysisStage, message });
+        },
+      );
+
       onProgress({ analysisId: analysis.id, stage: 'storing', message: 'Storing results...' });
       await this.analysisRepo.storeResult(analysis.id, {
         swotOutput: pipelineResult.swotOutput!,

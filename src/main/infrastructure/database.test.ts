@@ -10,14 +10,16 @@ function getTableNames(db: Database.Database): string[] {
 }
 
 describe('initializeDatabase', () => {
-  it('creates all 10 tables', () => {
+  it('creates all 12 tables', () => {
     const db = initializeDatabase(':memory:');
     const tables = getTableNames(db);
     expect(tables).toEqual([
       'analyses',
       'analysis_profiles',
+      'approval_memory',
       'chat_actions',
       'chat_messages',
+      'conversations',
       'integration_cache',
       'integrations',
       'preferences',
@@ -31,7 +33,7 @@ describe('initializeDatabase', () => {
   it('sets user_version to latest migration version', () => {
     const db = initializeDatabase(':memory:');
     const version = db.pragma('user_version', { simple: true });
-    expect(version).toBe(5);
+    expect(version).toBe(6);
     db.close();
   });
 

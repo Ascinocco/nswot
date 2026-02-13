@@ -14,10 +14,16 @@ export interface LlmToolCall {
   arguments: string;
 }
 
+export interface LlmUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface LlmResponse {
   content: string;
   finishReason: string | null;
   toolCalls?: LlmToolCall[];
+  usage?: LlmUsage;
 }
 
 export interface LlmCompletionRequest {

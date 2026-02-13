@@ -91,6 +91,8 @@ const api: NswotAPI = {
     get: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET, id),
     delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_DELETE, id),
     run: (input) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_RUN, input),
+    findByConversation: (conversationId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_FIND_BY_CONVERSATION, conversationId),
     getPseudonymMap: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ANALYSIS_GET_PSEUDONYM_MAP, id),
     previewPayload: (profileIds, jiraProjectKeys, confluenceSpaceKeys, githubRepos, codebaseRepos, role, contextWindow) =>
       ipcRenderer.invoke(
@@ -161,6 +163,51 @@ const api: NswotAPI = {
       ipcRenderer.on(IPC_CHANNELS.MENU_NAVIGATE, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.MENU_NAVIGATE, handler);
     },
+  },
+  conversations: {
+    list: () => ipcRenderer.invoke(IPC_CHANNELS.CONVERSATION_LIST),
+    get: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CONVERSATION_GET, id),
+    create: (role: string) => ipcRenderer.invoke(IPC_CHANNELS.CONVERSATION_CREATE, role),
+    updateTitle: (id: string, title: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.CONVERSATION_UPDATE_TITLE, id, title),
+    delete: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.CONVERSATION_DELETE, id),
+  },
+  agent: {
+    send: (input: { conversationId: string; analysisId: string; modelId: string; content: string }) =>
+      ipcRenderer.invoke(IPC_CHANNELS.AGENT_SEND, input),
+    interrupt: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_INTERRUPT),
+    onState: (callback: (data: { conversationId: string; state: string }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; state: string }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.AGENT_STATE, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_STATE, handler);
+    },
+    onBlock: (callback: (data: { conversationId: string; block: { type: string; id: string; data: unknown } }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; block: { type: string; id: string; data: unknown } }) =>
+        callback(data);
+      ipcRenderer.on(IPC_CHANNELS.AGENT_BLOCK, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_BLOCK, handler);
+    },
+    onThinking: (callback: (data: { conversationId: string; thinking: string }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; thinking: string }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.AGENT_THINKING, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_THINKING, handler);
+    },
+    onTokenCount: (callback: (data: { conversationId: string; inputTokens: number; outputTokens: number }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; inputTokens: number; outputTokens: number }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.AGENT_TOKEN_COUNT, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_TOKEN_COUNT, handler);
+    },
+    onToolActivity: (callback: (data: { conversationId: string; toolName: string; status: 'started' | 'completed' | 'error'; message?: string }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; toolName: string; status: 'started' | 'completed' | 'error'; message?: string }) => callback(data);
+      ipcRenderer.on(IPC_CHANNELS.AGENT_TOOL_ACTIVITY, handler);
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_TOOL_ACTIVITY, handler);
+    },
+  },
+  approvalMemory: {
+    list: (conversationId: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MEMORY_LIST, conversationId),
+    set: (conversationId: string, toolName: string, allowed: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.APPROVAL_MEMORY_SET, conversationId, toolName, allowed),
   },
 };
 

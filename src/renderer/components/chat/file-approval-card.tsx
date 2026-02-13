@@ -4,6 +4,7 @@ import MermaidRenderer from '../visualizations/mermaid-renderer';
 interface FileApprovalCardProps {
   action: ChatAction;
   onApprove: (actionId: string) => void;
+  onApproveAndRemember?: (actionId: string) => void;
   onReject: (actionId: string) => void;
   onEdit: (actionId: string, editedInput: Record<string, unknown>) => void;
   isApproving: boolean;
@@ -36,6 +37,7 @@ function isMermaidTool(toolName: string): boolean {
 export default function FileApprovalCard({
   action,
   onApprove,
+  onApproveAndRemember,
   onReject,
   onEdit,
   isApproving,
@@ -174,6 +176,16 @@ export default function FileApprovalCard({
             >
               {isApproving ? 'Creating...' : 'Approve'}
             </button>
+            {onApproveAndRemember && (
+              <button
+                onClick={() => onApproveAndRemember(action.id)}
+                disabled={isBusy}
+                className="rounded bg-green-800 px-3 py-1 text-xs font-medium text-green-200 transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Approve and auto-approve future actions of this type"
+              >
+                {isApproving ? 'Creating...' : 'Yes + Remember'}
+              </button>
+            )}
             <button
               onClick={handleStartEdit}
               disabled={isBusy}

@@ -143,6 +143,8 @@ declare global {
     startedAt: string | null;
     completedAt: string | null;
     createdAt: string;
+    conversationId: string | null;
+    parentAnalysisId: string | null;
   }
 
   type IntegrationProvider = 'jira' | 'confluence' | 'github' | 'codebase';
@@ -265,6 +267,7 @@ declare global {
     analysisId: string;
     role: 'user' | 'assistant';
     content: string;
+    contentFormat?: 'text' | 'blocks';
     createdAt: string;
   }
 
@@ -359,6 +362,14 @@ declare global {
     completedAt: string | null;
   }
 
+  interface Conversation {
+    id: string;
+    workspaceId: string;
+    title: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }
+
   interface NswotAPI {
     system: {
       ping(): Promise<IPCResult<string>>;
@@ -441,7 +452,10 @@ declare global {
         role: string;
         modelId: string;
         contextWindow: number;
+        conversationId?: string;
+        parentAnalysisId?: string;
       }): Promise<IPCResult<Analysis>>;
+      findByConversation(conversationId: string): Promise<IPCResult<Analysis[]>>;
       previewPayload(
         profileIds: string[],
         jiraProjectKeys: string[],
@@ -484,6 +498,26 @@ declare global {
     };
     menu: {
       onNavigate(callback: (path: string) => void): () => void;
+    };
+    conversations: {
+      list(): Promise<IPCResult<Conversation[]>>;
+      get(id: string): Promise<IPCResult<Conversation>>;
+      create(role: string): Promise<IPCResult<Conversation>>;
+      updateTitle(id: string, title: string): Promise<IPCResult<void>>;
+      delete(id: string): Promise<IPCResult<void>>;
+    };
+    agent: {
+      send(input: { conversationId: string; analysisId: string; modelId: string; content: string }): Promise<IPCResult<{ content: string; blocks: Array<{ type: string; id: string; data: unknown }> }>>;
+      interrupt(): Promise<IPCResult<void>>;
+      onState(callback: (data: { conversationId: string; state: string }) => void): () => void;
+      onBlock(callback: (data: { conversationId: string; block: { type: string; id: string; data: unknown } }) => void): () => void;
+      onThinking(callback: (data: { conversationId: string; thinking: string }) => void): () => void;
+      onTokenCount(callback: (data: { conversationId: string; inputTokens: number; outputTokens: number }) => void): () => void;
+      onToolActivity(callback: (data: { conversationId: string; toolName: string; status: 'started' | 'completed' | 'error'; message?: string }) => void): () => void;
+    };
+    approvalMemory: {
+      list(conversationId: string): Promise<IPCResult<Array<{ toolName: string; allowed: boolean }>>>;
+      set(conversationId: string, toolName: string, allowed: boolean): Promise<IPCResult<void>>;
     };
   }
 

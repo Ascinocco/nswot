@@ -35,6 +35,19 @@ import { CodebaseProvider } from './providers/codebase/codebase.provider';
 import { CodebaseService } from './services/codebase.service';
 import { ComparisonService } from './services/comparison.service';
 import { ThemeRepository } from './repositories/theme.repository';
+import { ConversationRepository } from './repositories/conversation.repository';
+import { ApprovalMemoryRepository } from './repositories/approval-memory.repository';
+import { ConversationService } from './services/conversation.service';
+import { ApprovalMemoryService } from './services/approval-memory.service';
+import { AgentService } from './services/agent.service';
+import { ToolRegistry } from './providers/agent-tools/tool-registry';
+import { ToolExecutorRouter } from './providers/agent-tools/tool-executor-router';
+import { RenderExecutor } from './providers/agent-tools/render-executor';
+import { ReadExecutor } from './providers/agent-tools/read-executor';
+import { WriteExecutor } from './providers/agent-tools/write-executor';
+import { RENDER_TOOLS } from './providers/agent-tools/render-tools';
+import { READ_TOOLS } from './providers/agent-tools/read-tools';
+import { WRITE_TOOLS } from './providers/agent-tools/write-tools';
 import { Logger } from './infrastructure/logger';
 import { FileWatcher } from './infrastructure/file-watcher';
 import type { FileChangeEvent } from './infrastructure/file-watcher';
@@ -298,6 +311,28 @@ const analysisService = new AnalysisService(
 );
 const comparisonService = new ComparisonService(analysisRepo);
 
+// Phase 4: Conversations, approval memory, agent harness
+const conversationRepo = new ConversationRepository(db);
+const approvalMemoryRepo = new ApprovalMemoryRepository(db);
+const conversationService = new ConversationService(conversationRepo, workspaceService, analysisRepo);
+const approvalMemoryService = new ApprovalMemoryService(approvalMemoryRepo);
+
+const toolRegistry = new ToolRegistry();
+toolRegistry.registerAll(RENDER_TOOLS, 'render');
+toolRegistry.registerAll(READ_TOOLS, 'read');
+toolRegistry.registerAll(WRITE_TOOLS, 'write');
+
+const renderExecutor = new RenderExecutor(comparisonService);
+const readExecutor = new ReadExecutor(
+  integrationRepo,
+  integrationCacheRepo,
+  profileRepo,
+  workspaceService,
+);
+const writeExecutor = new WriteExecutor(fileService, actionExecutor);
+const toolExecutorRouter = new ToolExecutorRouter(renderExecutor, readExecutor, writeExecutor);
+const agentService = new AgentService(llmProvider, toolRegistry, toolExecutorRouter);
+
 // File watcher
 const fileWatcher = new FileWatcher();
 fileWatcher.on('change', (event: FileChangeEvent) => {
@@ -331,6 +366,10 @@ registerIpcHandlers({
   codebaseService,
   comparisonService,
   themeRepo,
+  agentService,
+  conversationService,
+  approvalMemoryService,
+  chatRepo,
   onWorkspaceOpen: (path: string) => {
     logger.info('Starting file watcher', { path });
     fileWatcher.start(path);

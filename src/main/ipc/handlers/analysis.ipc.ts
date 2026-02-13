@@ -2,9 +2,11 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../channels';
 import type { IPCResult, Analysis } from '../../domain/types';
 import type { AnalysisRepository } from '../../repositories/analysis.repository';
+import type { ChatRepository } from '../../repositories/chat.repository';
 import type { AnalysisService, RunAnalysisInput } from '../../services/analysis.service';
 import type { WorkspaceService } from '../../services/workspace.service';
 import { DomainError, ERROR_CODES } from '../../domain/errors';
+import { generateBlockId } from '../../services/agent.service';
 
 function toIpcResult<T>(data: T): IPCResult<T> {
   return { success: true, data };
@@ -18,6 +20,7 @@ export function registerAnalysisHandlers(
   analysisRepo: AnalysisRepository,
   analysisService: AnalysisService,
   workspaceService: WorkspaceService,
+  chatRepo?: ChatRepository,
 ): void {
   ipcMain.handle(
     IPC_CHANNELS.ANALYSIS_LIST,
@@ -89,7 +92,38 @@ export function registerAnalysisHandlers(
       };
 
       const result = await analysisService.runAnalysis(input, onProgress);
-      if (result.ok) return toIpcResult(result.value);
+      if (result.ok) {
+        // Create initial chat message with analysis results as content blocks
+        if (chatRepo && result.value.swotOutput) {
+          const blocks: Array<{ type: string; id: string; data: unknown }> = [];
+          blocks.push({
+            type: 'swot_analysis',
+            id: generateBlockId(),
+            data: result.value.swotOutput,
+          });
+          if (result.value.summariesOutput) {
+            blocks.push({
+              type: 'summary_cards',
+              id: generateBlockId(),
+              data: result.value.summariesOutput,
+            });
+          }
+          if (result.value.qualityMetrics) {
+            blocks.push({
+              type: 'quality_metrics',
+              id: generateBlockId(),
+              data: result.value.qualityMetrics,
+            });
+          }
+          await chatRepo.insert(
+            result.value.id,
+            'assistant',
+            JSON.stringify(blocks),
+            'blocks',
+          );
+        }
+        return toIpcResult(result.value);
+      }
       return toIpcError(result.error);
     },
   );
@@ -109,6 +143,20 @@ export function registerAnalysisHandlers(
       } catch (cause) {
         return toIpcError(
           new DomainError(ERROR_CODES.DB_ERROR, 'Failed to get pseudonym map'),
+        );
+      }
+    },
+  );
+
+  ipcMain.handle(
+    IPC_CHANNELS.ANALYSIS_FIND_BY_CONVERSATION,
+    async (_event, conversationId: string): Promise<IPCResult<Analysis[]>> => {
+      try {
+        const analyses = await analysisRepo.findByConversation(conversationId);
+        return toIpcResult(analyses);
+      } catch (cause) {
+        return toIpcError(
+          new DomainError(ERROR_CODES.DB_ERROR, 'Failed to find analyses by conversation'),
         );
       }
     },

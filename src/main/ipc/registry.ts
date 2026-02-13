@@ -13,6 +13,9 @@ import { registerGitHubHandlers } from './handlers/github.ipc';
 import { registerCodebaseHandlers } from './handlers/codebase.ipc';
 import { registerComparisonHandlers } from './handlers/comparison.ipc';
 import { registerThemeHandlers } from './handlers/theme.ipc';
+import { registerConversationHandlers } from './handlers/conversation.ipc';
+import { registerAgentHandlers } from './handlers/agent.ipc';
+import { registerApprovalMemoryHandlers } from './handlers/approval-memory.ipc';
 import type { SettingsService } from '../services/settings.service';
 import type { WorkspaceService } from '../services/workspace.service';
 import type { FileService } from '../services/file.service';
@@ -27,6 +30,10 @@ import type { GitHubService } from '../services/github.service';
 import type { CodebaseService } from '../services/codebase.service';
 import type { ComparisonService } from '../services/comparison.service';
 import type { ThemeRepository } from '../repositories/theme.repository';
+import type { AgentService } from '../services/agent.service';
+import type { ConversationService } from '../services/conversation.service';
+import type { ApprovalMemoryService } from '../services/approval-memory.service';
+import type { ChatRepository } from '../repositories/chat.repository';
 import type { IPCResult } from '../domain/types';
 
 export interface IpcContext {
@@ -44,6 +51,10 @@ export interface IpcContext {
   codebaseService?: CodebaseService;
   comparisonService: ComparisonService;
   themeRepo?: ThemeRepository;
+  agentService: AgentService;
+  conversationService: ConversationService;
+  approvalMemoryService: ApprovalMemoryService;
+  chatRepo: ChatRepository;
   onWorkspaceOpen?: (path: string) => void;
 }
 
@@ -56,7 +67,7 @@ export function registerIpcHandlers(context: IpcContext): void {
   registerWorkspaceHandlers(context.workspaceService, context.onWorkspaceOpen);
   registerFileHandlers(context.fileService);
   registerProfileHandlers(context.profileService);
-  registerAnalysisHandlers(context.analysisRepo, context.analysisService, context.workspaceService);
+  registerAnalysisHandlers(context.analysisRepo, context.analysisService, context.workspaceService, context.chatRepo);
   registerChatHandlers(context.chatService);
   registerExportHandlers(context.exportService);
   registerIntegrationHandlers(context.integrationService);
@@ -65,4 +76,13 @@ export function registerIpcHandlers(context: IpcContext): void {
   if (context.codebaseService) registerCodebaseHandlers(context.codebaseService);
   registerComparisonHandlers(context.comparisonService, context.analysisRepo, context.workspaceService);
   if (context.themeRepo) registerThemeHandlers(context.themeRepo);
+  registerConversationHandlers(context.conversationService);
+  registerAgentHandlers(
+    context.agentService,
+    context.conversationService,
+    context.approvalMemoryService,
+    context.chatRepo,
+    context.settingsService,
+  );
+  registerApprovalMemoryHandlers(context.approvalMemoryService);
 }

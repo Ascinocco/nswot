@@ -69,3 +69,12 @@ export async function writeFileContent(
   const fullPath = validateWorkspacePath(workspaceRoot, relativePath);
   await fsWriteFile(fullPath, content, 'utf-8');
 }
+
+export async function writeBinaryFileContent(
+  workspaceRoot: string,
+  relativePath: string,
+  content: Buffer,
+): Promise<void> {
+  const fullPath = validateWorkspacePath(workspaceRoot, relativePath);
+  await fsWriteFile(fullPath, content);
+}

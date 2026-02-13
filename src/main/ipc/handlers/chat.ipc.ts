@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { IPC_CHANNELS } from '../channels';
+import { resolveAgentApproval } from '../agent-approval';
 import type { IPCResult, ChatMessage, ChatAction, ActionResult } from '../../domain/types';
 import type { ChatService } from '../../services/chat.service';
 import type { EditorContext } from '../../services/chat.service';
@@ -55,6 +56,12 @@ export function registerChatHandlers(chatService: ChatService): void {
   ipcMain.handle(
     IPC_CHANNELS.CHAT_ACTION_APPROVE,
     async (event, analysisId: string, actionId: string): Promise<IPCResult<ActionResult>> => {
+      // Check if this is a Phase 4 agent approval (pending promise in agent loop)
+      if (resolveAgentApproval(actionId, true)) {
+        return toIpcResult({ success: true } as ActionResult);
+      }
+
+      // Phase 3c flow: execute the action via ChatService
       const window = BrowserWindow.fromWebContents(event.sender);
       const onChunk = (chunk: string): void => {
         if (window && !window.isDestroyed()) {
@@ -71,6 +78,12 @@ export function registerChatHandlers(chatService: ChatService): void {
   ipcMain.handle(
     IPC_CHANNELS.CHAT_ACTION_REJECT,
     async (event, analysisId: string, actionId: string): Promise<IPCResult<void>> => {
+      // Check if this is a Phase 4 agent rejection (pending promise in agent loop)
+      if (resolveAgentApproval(actionId, false)) {
+        return toIpcResult<void>(undefined);
+      }
+
+      // Phase 3c flow: reject via ChatService
       const window = BrowserWindow.fromWebContents(event.sender);
       const onChunk = (chunk: string): void => {
         if (window && !window.isDestroyed()) {

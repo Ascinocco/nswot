@@ -50,6 +50,7 @@ export const IPC_CHANNELS = {
   ANALYSIS_DELETE: 'analysis:delete',
   ANALYSIS_PREVIEW_PAYLOAD: 'analysis:previewPayload',
   ANALYSIS_GET_PSEUDONYM_MAP: 'analysis:getPseudonymMap',
+  ANALYSIS_FIND_BY_CONVERSATION: 'analysis:findByConversation',
 
   // Chat
   CHAT_SEND: 'chat:send',
@@ -74,6 +75,7 @@ export const IPC_CHANNELS = {
   EXPORT_MARKDOWN: 'export:markdown',
   EXPORT_CSV: 'export:csv',
   EXPORT_PDF: 'export:pdf',
+  EXPORT_DIAGRAM_PNG: 'export:diagram:png',
 
   // Comparison
   COMPARISON_LIST: 'comparison:list',
@@ -109,6 +111,29 @@ export const IPC_CHANNELS = {
 
   // Menu
   MENU_NAVIGATE: 'menu:navigate',
+
+  // Conversations (Phase 4)
+  CONVERSATION_LIST: 'conversation:list',
+  CONVERSATION_GET: 'conversation:get',
+  CONVERSATION_CREATE: 'conversation:create',
+  CONVERSATION_UPDATE_TITLE: 'conversation:updateTitle',
+  CONVERSATION_DELETE: 'conversation:delete',
+
+  // Agent (Phase 4)
+  AGENT_SEND: 'agent:send',
+  AGENT_INTERRUPT: 'agent:interrupt',
+  AGENT_STATE: 'agent:state',
+  AGENT_BLOCK: 'agent:block',
+  AGENT_THINKING: 'agent:thinking',
+  AGENT_TOKEN_COUNT: 'agent:tokenCount',
+
+  // Agent Tool Activity (Phase 4 Sprint 39)
+  AGENT_TOOL_ACTIVITY: 'agent:toolActivity',
+
+  // Approval Memory (Phase 4)
+  APPROVAL_MEMORY_GET: 'approvalMemory:get',
+  APPROVAL_MEMORY_SET: 'approvalMemory:set',
+  APPROVAL_MEMORY_LIST: 'approvalMemory:list',
 } as const;
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS];

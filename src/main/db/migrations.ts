@@ -149,4 +149,30 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE profiles ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    version: 6,
+    description: 'Phase 4 — conversations, content format, approval memory, analysis linking',
+    sql: `
+      CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        title TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_conversations_workspace_id ON conversations(workspace_id);
+
+      ALTER TABLE analyses ADD COLUMN conversation_id TEXT REFERENCES conversations(id);
+      ALTER TABLE analyses ADD COLUMN parent_analysis_id TEXT;
+
+      ALTER TABLE chat_messages ADD COLUMN content_format TEXT NOT NULL DEFAULT 'text';
+
+      CREATE TABLE IF NOT EXISTS approval_memory (
+        conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+        tool_name TEXT NOT NULL,
+        allowed INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (conversation_id, tool_name)
+      );
+    `,
+  },
 ];
