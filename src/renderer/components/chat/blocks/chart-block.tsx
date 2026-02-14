@@ -114,7 +114,7 @@ export default function ChartBlock({ data }: ChartBlockProps): React.JSX.Element
 
       chartRef.current = new Chart(canvasRef.current, {
         type: chartType as 'bar',
-        data: (spec.data as Record<string, unknown>) ?? { labels: [], datasets: [] },
+        data: (spec.data ?? { labels: [], datasets: [] }) as never,
         options: mergedOptions,
       });
       setError(null);

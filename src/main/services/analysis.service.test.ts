@@ -43,6 +43,8 @@ function makeAnalysis(): Analysis {
     error: null,
     startedAt: null,
     completedAt: null,
+    conversationId: null,
+    parentAnalysisId: null,
     createdAt: '2024-01-01T00:00:00.000Z',
   };
 }

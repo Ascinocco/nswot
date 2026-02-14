@@ -21,6 +21,16 @@ const TOOL_LABELS: Record<ActionToolName, string> = {
   write_markdown_file: 'Write Markdown File',
   write_csv_file: 'Write CSV File',
   write_mermaid_file: 'Write Mermaid Diagram',
+  fetch_jira_data: 'Fetch Jira Data',
+  fetch_confluence_data: 'Fetch Confluence Data',
+  fetch_github_data: 'Fetch GitHub Data',
+  run_codebase_analysis: 'Run Codebase Analysis',
+  search_profiles: 'Search Profiles',
+  render_swot_analysis: 'Render SWOT Analysis',
+  render_mermaid: 'Render Diagram',
+  render_chart: 'Render Chart',
+  render_data_table: 'Render Data Table',
+  write_file: 'Write File',
 };
 
 const TOOL_ICONS: Record<ActionToolName, string> = {
@@ -33,6 +43,16 @@ const TOOL_ICONS: Record<ActionToolName, string> = {
   write_markdown_file: 'MD',
   write_csv_file: 'CSV',
   write_mermaid_file: 'MMD',
+  fetch_jira_data: 'J',
+  fetch_confluence_data: 'C',
+  fetch_github_data: 'GH',
+  run_codebase_analysis: 'CB',
+  search_profiles: 'P',
+  render_swot_analysis: 'SW',
+  render_mermaid: 'MM',
+  render_chart: 'CH',
+  render_data_table: 'DT',
+  write_file: 'F',
 };
 
 const inputClasses =

@@ -115,7 +115,7 @@ export type ContentFormat = 'text' | 'blocks';
 export function isBlockType<T extends ContentBlockType>(
   block: ContentBlock,
   type: T,
-): block is ContentBlockBase<T> {
+): block is ContentBlock & ContentBlockBase<T> {
   return block.type === type;
 }
 

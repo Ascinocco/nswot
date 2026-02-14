@@ -89,7 +89,7 @@ export function useAgentBlocks(conversationId: string | null): {
     const cleanup = window.nswot.agent.onBlock((data) => {
       if (data.conversationId === conversationId) {
         if (isValidBlock(data.block)) {
-          setBlocks((prev) => [...prev, data.block]);
+          setBlocks((prev) => [...prev, data.block as ContentBlock]);
         } else {
           console.warn('[use-agent] Received invalid block from IPC, skipping:', data.block);
         }

@@ -18,6 +18,7 @@
     "types": ["vite/client"]
   },
   "include": [
-    "src/renderer/**/*"
+    "src/renderer/**/*",
+    "src/main/domain/**/*"
   ]
 }

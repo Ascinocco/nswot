@@ -94,7 +94,7 @@ describe('ConversationService', () => {
         expect(result.value.id).toBe('conv-1');
       }
       // Verify the title passed to the repo contains the role
-      const insertCall = (repo.insert as ReturnType<typeof vi.fn>).mock.calls[0];
+      const insertCall = (repo.insert as ReturnType<typeof vi.fn>).mock.calls[0]!;
       expect(insertCall[0]).toBe('ws-1');
       expect(insertCall[1]).toContain('Staff Engineer Analysis');
     });

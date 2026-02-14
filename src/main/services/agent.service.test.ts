@@ -283,7 +283,7 @@ describe('AgentService', () => {
       await agent.executeTurn(TEST_API_KEY, TEST_MODEL_ID, [systemMessage, userMessage]);
 
       // Verify the LLM received a compact confirmation, not the full block data
-      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
       const toolResultMessage = secondCall[0].messages.find(
         (m: AgentMessage) => m.role === 'tool',
       );
@@ -332,7 +332,7 @@ describe('AgentService', () => {
       }
 
       // Verify tool result was passed back to LLM
-      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
       const toolResult = secondCall[0].messages.find((m: AgentMessage) => m.role === 'tool');
       expect(toolResult.content).toContain('PROJ-1');
     });
@@ -418,7 +418,7 @@ describe('AgentService', () => {
       expect(executor.execute).not.toHaveBeenCalled();
 
       // Verify rejection message was sent to LLM
-      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
       const toolResult = secondCall[0].messages.find((m: AgentMessage) => m.role === 'tool');
       expect(toolResult.content).toContain('declined');
     });
@@ -542,7 +542,7 @@ describe('AgentService', () => {
 
       expect(result.ok).toBe(true);
       // Verify error message was sent back to LLM
-      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
       const toolResult = secondCall[0].messages.find((m: AgentMessage) => m.role === 'tool');
       expect(toolResult.content).toContain('Invalid tool arguments');
     });
@@ -569,7 +569,7 @@ describe('AgentService', () => {
       );
 
       expect(result.ok).toBe(true);
-      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
       const toolResult = secondCall[0].messages.find((m: AgentMessage) => m.role === 'tool');
       expect(toolResult.content).toContain('Unknown tool');
     });
@@ -768,7 +768,7 @@ describe('AgentService', () => {
       const swotBlock: ContentBlock = {
         type: 'swot_analysis',
         id: 'swot-1',
-        data: { strengths: ['test'] },
+        data: { strengths: [{ claim: 'test', evidence: [], impact: '', recommendation: '', confidence: 'medium' as const }], weaknesses: [], opportunities: [], threats: [] },
       };
 
       const provider = makeMockLlmProvider([
@@ -844,7 +844,7 @@ describe('AgentService', () => {
       expect(executor.execute).toHaveBeenCalledTimes(2);
 
       // LLM received both tool results
-      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+      const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
       const toolResults = secondCall[0].messages.filter((m: AgentMessage) => m.role === 'tool');
       expect(toolResults).toHaveLength(2);
     });

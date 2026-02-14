@@ -286,7 +286,17 @@ declare global {
     | 'create_github_pr'
     | 'write_markdown_file'
     | 'write_csv_file'
-    | 'write_mermaid_file';
+    | 'write_mermaid_file'
+    | 'fetch_jira_data'
+    | 'fetch_confluence_data'
+    | 'fetch_github_data'
+    | 'run_codebase_analysis'
+    | 'search_profiles'
+    | 'render_swot_analysis'
+    | 'render_mermaid'
+    | 'render_chart'
+    | 'render_data_table'
+    | 'write_file';
 
   interface ActionResult {
     success: boolean;

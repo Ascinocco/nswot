@@ -175,6 +175,8 @@ function makeAnalysis(overrides?: Partial<Analysis>): Analysis {
     error: null,
     startedAt: '2024-01-01T00:00:00.000Z',
     completedAt: '2024-01-01T00:01:00.000Z',
+    conversationId: null,
+    parentAnalysisId: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     ...overrides,
   };

@@ -17,6 +17,12 @@ const KIND_STYLES: Record<DeltaKind, { border: string; bg: string; label: string
     label: 'Changed',
     labelStyle: 'bg-yellow-900/50 text-yellow-300',
   },
+  unchanged: {
+    border: 'border-gray-800',
+    bg: 'bg-gray-900/10',
+    label: 'Unchanged',
+    labelStyle: 'bg-gray-900/50 text-gray-300',
+  },
 };
 
 const CATEGORY_LABELS: Record<SwotCategory, string> = {

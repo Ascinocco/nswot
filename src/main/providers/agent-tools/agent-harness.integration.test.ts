@@ -302,7 +302,7 @@ describe('Agent Harness Integration', () => {
     }
 
     // LLM received error message from validation
-    const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1];
+    const secondCall = (provider.createChatCompletion as ReturnType<typeof vi.fn>).mock.calls[1]!;
     const toolResult = secondCall[0].messages.find(
       (m: { role: string }) => m.role === 'tool',
     );

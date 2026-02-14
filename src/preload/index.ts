@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IPC_CHANNELS } from '../main/ipc/channels';
 import type { NswotAPI } from './api';
 import type { ChatAction } from '../main/domain/types';
+import type { AgentState } from '../main/services/agent.service';
+import type { ContentBlock } from '../main/domain/content-block.types';
 
 const api: NswotAPI = {
   system: {
@@ -176,13 +178,13 @@ const api: NswotAPI = {
     send: (input: { conversationId: string; analysisId: string; modelId: string; content: string }) =>
       ipcRenderer.invoke(IPC_CHANNELS.AGENT_SEND, input),
     interrupt: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_INTERRUPT),
-    onState: (callback: (data: { conversationId: string; state: string }) => void) => {
-      const handler = (_event: unknown, data: { conversationId: string; state: string }) => callback(data);
+    onState: (callback: (data: { conversationId: string; state: AgentState }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; state: AgentState }) => callback(data);
       ipcRenderer.on(IPC_CHANNELS.AGENT_STATE, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_STATE, handler);
     },
-    onBlock: (callback: (data: { conversationId: string; block: { type: string; id: string; data: unknown } }) => void) => {
-      const handler = (_event: unknown, data: { conversationId: string; block: { type: string; id: string; data: unknown } }) =>
+    onBlock: (callback: (data: { conversationId: string; block: ContentBlock }) => void) => {
+      const handler = (_event: unknown, data: { conversationId: string; block: ContentBlock }) =>
         callback(data);
       ipcRenderer.on(IPC_CHANNELS.AGENT_BLOCK, handler);
       return () => ipcRenderer.removeListener(IPC_CHANNELS.AGENT_BLOCK, handler);

@@ -54,6 +54,8 @@ function makeCompletedAnalysis(overrides?: Partial<Analysis>): Analysis {
     error: null,
     startedAt: '2024-01-01T00:00:00.000Z',
     completedAt: '2024-01-01T00:01:00.000Z',
+    conversationId: null,
+    parentAnalysisId: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     ...overrides,
   };
@@ -99,6 +101,7 @@ describe('ChatService', () => {
           analysisId: 'analysis-1',
           role: 'user',
           content: 'Hello',
+          contentFormat: 'text',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
       ];
