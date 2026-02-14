@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useProfiles } from '../../hooks/use-profiles';
 import { usePreferences, useModels } from '../../hooks/use-settings';
 import {
@@ -72,24 +72,43 @@ export default function AnalysisConfigPanel({
 
   // Codebase manual sync
   const codebaseAnalyze = useCodebaseAnalyze();
+  const [isCodebaseSyncing, setIsCodebaseSyncing] = useState(false);
   const [codebaseSyncProgress, setCodebaseSyncProgress] = useState<string | null>(null);
+  const syncClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useCodebaseProgress(useCallback((data: { repo: string; stage: string; message: string }) => {
-    if (data.stage === 'done' || data.stage === 'failed') {
-      setCodebaseSyncProgress(null);
+    if (data.stage === 'done') {
+      setIsCodebaseSyncing(false);
+      setCodebaseSyncProgress('Codebase analysis complete');
+      syncClearTimerRef.current = setTimeout(() => setCodebaseSyncProgress(null), 5000);
+    } else if (data.stage === 'failed') {
+      setIsCodebaseSyncing(false);
+      setCodebaseSyncProgress(data.message || 'Codebase analysis failed');
     } else {
       setCodebaseSyncProgress(data.message);
     }
   }, []));
 
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (syncClearTimerRef.current) clearTimeout(syncClearTimerRef.current);
+    };
+  }, []);
+
   const handleCodebaseSync = useCallback(() => {
-    if (selectedCodebaseRepos.length === 0 || codebaseAnalyze.isPending) return;
+    if (selectedCodebaseRepos.length === 0 || isCodebaseSyncing) return;
+    setIsCodebaseSyncing(true);
     setCodebaseSyncProgress('Starting codebase analysis...');
+    if (syncClearTimerRef.current) {
+      clearTimeout(syncClearTimerRef.current);
+      syncClearTimerRef.current = null;
+    }
     codebaseAnalyze.mutate({
       repos: selectedCodebaseRepos,
       options: {},
       jiraProjectKeys: selectedJiraKeys,
     });
-  }, [selectedCodebaseRepos, selectedJiraKeys, codebaseAnalyze]);
+  }, [selectedCodebaseRepos, selectedJiraKeys, isCodebaseSyncing, codebaseAnalyze]);
 
   const defaultModelId = preferences?.selectedModelId ?? '';
   const [modelId, setModelId] = useState(defaultModelId);
@@ -223,7 +242,12 @@ export default function AnalysisConfigPanel({
               {/* Jira */}
               {jiraConnected && jiraProjects && jiraProjects.length > 0 && (
                 <div>
-                  <div className="mb-0.5 text-xs text-gray-500">Jira Projects</div>
+                  <div className="mb-0.5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Jira Projects</span>
+                    <span className="text-[10px] text-gray-500">
+                      Synced: {jiraIntegration?.lastSyncedAt ? new Date(jiraIntegration.lastSyncedAt).toLocaleString() : 'Never'}
+                    </span>
+                  </div>
                   <div className="max-h-24 overflow-y-auto rounded border border-gray-700 bg-gray-950 p-1.5">
                     {jiraProjects.map((p) => (
                       <label key={p.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-0.5 hover:bg-gray-800">
@@ -243,7 +267,12 @@ export default function AnalysisConfigPanel({
               {/* Confluence */}
               {confluenceConnected && confluenceSpaces && confluenceSpaces.length > 0 && (
                 <div>
-                  <div className="mb-0.5 text-xs text-gray-500">Confluence Spaces</div>
+                  <div className="mb-0.5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Confluence Spaces</span>
+                    <span className="text-[10px] text-gray-500">
+                      Synced: {confluenceIntegration?.lastSyncedAt ? new Date(confluenceIntegration.lastSyncedAt).toLocaleString() : 'Never'}
+                    </span>
+                  </div>
                   <div className="max-h-24 overflow-y-auto rounded border border-gray-700 bg-gray-950 p-1.5">
                     {confluenceSpaces.map((s) => (
                       <label key={s.key} className="flex cursor-pointer items-center gap-2 rounded px-2 py-0.5 hover:bg-gray-800">
@@ -263,7 +292,12 @@ export default function AnalysisConfigPanel({
               {/* GitHub */}
               {githubConnected && githubRepos && githubRepos.length > 0 && (
                 <div>
-                  <div className="mb-0.5 text-xs text-gray-500">GitHub Repos</div>
+                  <div className="mb-0.5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">GitHub Repos</span>
+                    <span className="text-[10px] text-gray-500">
+                      Synced: {githubIntegration?.lastSyncedAt ? new Date(githubIntegration.lastSyncedAt).toLocaleString() : 'Never'}
+                    </span>
+                  </div>
                   <div className="max-h-24 overflow-y-auto rounded border border-gray-700 bg-gray-950 p-1.5">
                     {githubRepos.map((r) => (
                       <label key={r.full_name} className="flex cursor-pointer items-center gap-2 rounded px-2 py-0.5 hover:bg-gray-800">
@@ -283,7 +317,18 @@ export default function AnalysisConfigPanel({
               {/* Codebase */}
               {hasCodebaseRepos && cachedCodebaseRepos && (
                 <div>
-                  <div className="mb-0.5 text-xs text-gray-500">Codebase Analyses</div>
+                  <div className="mb-0.5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Codebase Analyses</span>
+                    <span className="text-[10px] text-gray-500">
+                      Synced: {(() => {
+                        const latest = cachedCodebaseRepos.reduce((max, r) => {
+                          const t = new Date(r.analyzedAt).getTime();
+                          return t > max ? t : max;
+                        }, 0);
+                        return latest > 0 ? new Date(latest).toLocaleString() : 'Never';
+                      })()}
+                    </span>
+                  </div>
                   <div className="max-h-24 overflow-y-auto rounded border border-gray-700 bg-gray-950 p-1.5">
                     {cachedCodebaseRepos.map((r) => (
                       <label key={r.repo} className="flex cursor-pointer items-center gap-2 rounded px-2 py-0.5 hover:bg-gray-800">
@@ -301,10 +346,10 @@ export default function AnalysisConfigPanel({
                   <div className="mt-1.5 flex items-center gap-2">
                     <button
                       onClick={handleCodebaseSync}
-                      disabled={selectedCodebaseRepos.length === 0 || codebaseAnalyze.isPending || isRunning}
+                      disabled={selectedCodebaseRepos.length === 0 || isCodebaseSyncing || isRunning}
                       className="rounded border border-gray-700 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                     >
-                      {codebaseAnalyze.isPending ? 'Syncing...' : 'Sync Codebase'}
+                      {isCodebaseSyncing ? 'Syncing...' : 'Sync Codebase'}
                     </button>
                     <div className="group relative">
                       <span className="cursor-help text-xs text-gray-500">(i)</span>
@@ -313,7 +358,9 @@ export default function AnalysisConfigPanel({
                       </div>
                     </div>
                     {codebaseSyncProgress && (
-                      <span className="text-xs text-blue-400">{codebaseSyncProgress}</span>
+                      <span className={`text-xs ${codebaseSyncProgress.includes('complete') ? 'text-green-400' : codebaseSyncProgress.includes('failed') ? 'text-red-400' : 'text-blue-400'}`}>
+                        {codebaseSyncProgress}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -331,7 +378,7 @@ export default function AnalysisConfigPanel({
           {/* Run button */}
           <button
             onClick={handleRun}
-            disabled={isRunning || selectedProfileIds.length === 0 || codebaseAnalyze.isPending}
+            disabled={isRunning || selectedProfileIds.length === 0 || isCodebaseSyncing}
             className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
           >
             {isRunning ? (

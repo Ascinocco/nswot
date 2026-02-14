@@ -148,7 +148,7 @@ export class CodebaseService {
     const results: CodebaseAnalysis[] = [];
     const failures: Array<{ repo: string; error: string }> = [];
 
-    for (const repo of repos) {
+    const analyzeRepo = async (repo: string): Promise<void> => {
       try {
         // Clone or pull
         onProgress({ repo, stage: 'cloning', message: `Cloning ${repo}...` });
@@ -205,7 +205,9 @@ export class CodebaseService {
         failures.push({ repo, error: errorMessage });
         onProgress({ repo, stage: 'failed', message: errorMessage });
       }
-    }
+    };
+
+    await Promise.all(repos.map(analyzeRepo));
 
     // Update integration status
     if (results.length > 0) {
