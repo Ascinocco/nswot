@@ -1,5 +1,6 @@
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { markdownComponents } from './markdown-components';
 import ContentBlockRenderer from './content-block-renderer';
 import ThinkingBlock from './blocks/thinking-block';
 import ToolProgress from './tool-progress';
@@ -57,7 +58,7 @@ export default function RichMessage({
         {/* Plain text content (finalized messages) */}
         {text && (
           <div className={PROSE_CLASSES}>
-            <Markdown remarkPlugins={[remarkGfm]}>{text}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{text}</Markdown>
           </div>
         )}
 
@@ -70,7 +71,7 @@ export default function RichMessage({
         {segments && segments.map((segment, i) =>
           segment.type === 'text' ? (
             <div key={`seg-text-${i}`} className={PROSE_CLASSES}>
-              <Markdown remarkPlugins={[remarkGfm]}>{segment.content}</Markdown>
+              <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{segment.content}</Markdown>
             </div>
           ) : (
             <ContentBlockRenderer
@@ -94,7 +95,7 @@ export default function RichMessage({
         {/* Streaming text (after segments, with cursor) */}
         {streamingText && (
           <div className={PROSE_CLASSES}>
-            <Markdown remarkPlugins={[remarkGfm]}>{streamingText}</Markdown>
+            <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{streamingText}</Markdown>
             <span className="ml-0.5 inline-block h-4 w-1 animate-pulse bg-blue-400" />
           </div>
         )}
