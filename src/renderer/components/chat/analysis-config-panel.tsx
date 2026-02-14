@@ -322,7 +322,7 @@ export default function AnalysisConfigPanel({
                     <span className="text-[10px] text-gray-500">
                       Synced: {(() => {
                         const latest = cachedCodebaseRepos.reduce((max, r) => {
-                          const t = new Date(r.analyzedAt).getTime();
+                          const t = new Date(r.fetchedAt).getTime();
                           return t > max ? t : max;
                         }, 0);
                         return latest > 0 ? new Date(latest).toLocaleString() : 'Never';
