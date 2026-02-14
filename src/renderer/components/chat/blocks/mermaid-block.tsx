@@ -45,7 +45,14 @@ export default function MermaidBlock({ data }: MermaidBlockProps): React.JSX.Ele
       .render(id, data.source.trim())
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
+          // Allow both SVG and HTML profiles: Mermaid renders node labels
+          // inside <foreignObject> with HTML elements (div, span, etc.).
+          // SVG-only profile strips foreignObject, hiding all text labels.
+          // DOMPurify still strips scripts, event handlers, and JS URIs.
+          containerRef.current.innerHTML = DOMPurify.sanitize(svg, {
+            USE_PROFILES: { svg: true, svgFilters: true, html: true },
+            ADD_TAGS: ['foreignObject'],
+          });
           setError(null);
           setHasSvg(true);
         }

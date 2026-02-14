@@ -367,6 +367,35 @@ describe('ActionExecutor', () => {
       expect(result.error).toContain('Permission denied');
     });
 
+    it('spawns claude with stdin ignored to prevent hang', async () => {
+      const child = createMockChildProcess();
+      vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+
+      const envelope = JSON.stringify({ result: JSON.stringify({ success: true }) });
+
+      child.stdout.on.mockImplementation((event: string, handler: (chunk: Buffer) => void) => {
+        if (event === 'data') handler(Buffer.from(envelope));
+      });
+      child.stderr.on.mockImplementation(() => {});
+      child.on.mockImplementation((event: string, handler: (codeOrErr: unknown) => void) => {
+        if (event === 'close') handler(0);
+        return child;
+      });
+
+      await executor.execute('create_jira_issue', {
+        project: 'PROJ',
+        issueType: 'Task',
+        summary: 'Test',
+        description: 'Desc',
+      });
+
+      // stdin must be 'ignore' — piping stdin without writing causes Claude CLI
+      // to hang waiting for EOF, making every action timeout after 120s.
+      const spawnCall = vi.mocked(spawn).mock.calls[0]!;
+      const spawnOptions = spawnCall[2] as { stdio: unknown[] };
+      expect(spawnOptions.stdio[0]).toBe('ignore');
+    });
+
     it('respects custom options', async () => {
       const customExecutor = new ActionExecutor({ model: 'opus', maxTurns: 10 });
       const child = createMockChildProcess();
