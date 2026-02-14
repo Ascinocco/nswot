@@ -6,6 +6,7 @@ interface PipelineProgressProps {
 }
 
 const PIPELINE_STAGES = [
+  { id: 'syncing', label: 'Sync data' },
   { id: 'collecting', label: 'Load data' },
   { id: 'anonymizing', label: 'Anonymize' },
   { id: 'building_prompt', label: 'Build prompt' },

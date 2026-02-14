@@ -9,6 +9,8 @@ import {
   useGitHubIntegration,
   useGitHubRepos,
   useCodebaseListCached,
+  useCodebaseAnalyze,
+  useCodebaseProgress,
 } from '../../hooks/use-integrations';
 
 interface AnalysisConfigPanelProps {
@@ -67,6 +69,27 @@ export default function AnalysisConfigPanel({
   const [selectedConfluenceKeys, setSelectedConfluenceKeys] = useState<string[]>([]);
   const [selectedGithubRepos, setSelectedGithubRepos] = useState<string[]>([]);
   const [selectedCodebaseRepos, setSelectedCodebaseRepos] = useState<string[]>([]);
+
+  // Codebase manual sync
+  const codebaseAnalyze = useCodebaseAnalyze();
+  const [codebaseSyncProgress, setCodebaseSyncProgress] = useState<string | null>(null);
+  useCodebaseProgress(useCallback((data: { repo: string; stage: string; message: string }) => {
+    if (data.stage === 'done' || data.stage === 'failed') {
+      setCodebaseSyncProgress(null);
+    } else {
+      setCodebaseSyncProgress(data.message);
+    }
+  }, []));
+
+  const handleCodebaseSync = useCallback(() => {
+    if (selectedCodebaseRepos.length === 0 || codebaseAnalyze.isPending) return;
+    setCodebaseSyncProgress('Starting codebase analysis...');
+    codebaseAnalyze.mutate({
+      repos: selectedCodebaseRepos,
+      options: {},
+      jiraProjectKeys: selectedJiraKeys,
+    });
+  }, [selectedCodebaseRepos, selectedJiraKeys, codebaseAnalyze]);
 
   const defaultModelId = preferences?.selectedModelId ?? '';
   const [modelId, setModelId] = useState(defaultModelId);
@@ -273,6 +296,25 @@ export default function AnalysisConfigPanel({
                         <span className="text-xs text-gray-300">{r.repo}</span>
                       </label>
                     ))}
+                  </div>
+                  {/* Manual codebase sync button + info tooltip */}
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <button
+                      onClick={handleCodebaseSync}
+                      disabled={selectedCodebaseRepos.length === 0 || codebaseAnalyze.isPending || isRunning}
+                      className="rounded border border-gray-700 px-2 py-0.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                    >
+                      {codebaseAnalyze.isPending ? 'Syncing...' : 'Sync Codebase'}
+                    </button>
+                    <div className="group relative">
+                      <span className="cursor-help text-xs text-gray-500">(i)</span>
+                      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden w-56 -translate-x-1/2 rounded border border-gray-700 bg-gray-800 px-2.5 py-1.5 text-xs text-gray-300 shadow-lg group-hover:block">
+                        Codebase analysis uses AI to review your code, which takes several minutes and uses LLM credits. It&apos;s not auto-synced to avoid unexpected costs.
+                      </div>
+                    </div>
+                    {codebaseSyncProgress && (
+                      <span className="text-xs text-blue-400">{codebaseSyncProgress}</span>
+                    )}
                   </div>
                 </div>
               )}

@@ -15,6 +15,11 @@ import {
   useUpdateConversationTitle,
 } from '../hooks/use-conversations';
 import {
+  useIntegration,
+  useConfluenceIntegration,
+  useGitHubIntegration,
+} from '../hooks/use-integrations';
+import {
   useAgentState,
   useTokenCount,
   useAgentThinking,
@@ -26,6 +31,13 @@ import type { ContentBlock } from '../hooks/use-agent';
 import { CONTENT_BLOCK_TYPES } from '../../main/domain/content-block.types';
 
 type PageState = 'list' | 'config' | 'running' | 'chat';
+
+const AUTO_SYNC_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes
+
+function isStale(lastSyncedAt: string | null): boolean {
+  if (!lastSyncedAt) return true;
+  return Date.now() - new Date(lastSyncedAt).getTime() > AUTO_SYNC_FRESHNESS_MS;
+}
 
 const ROLE_LABELS: Record<string, string> = {
   staff_engineer: 'Staff Engineer',
@@ -89,6 +101,11 @@ export default function ChatAnalysisPage(): React.JSX.Element {
   const createConversation = useCreateConversation();
   const deleteConversation = useDeleteConversation();
   const updateTitle = useUpdateConversationTitle();
+
+  // Integration state for auto-sync staleness check
+  const { data: jiraIntegration } = useIntegration();
+  const { data: confluenceIntegration } = useConfluenceIntegration();
+  const { data: githubIntegration } = useGitHubIntegration();
 
   // Page state
   const [pageState, setPageState] = useState<PageState>(paramConversationId ? 'chat' : 'list');
@@ -254,7 +271,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         completedAt: latestAnalysis.completedAt,
       });
       setCompletedStages([
-        'collecting', 'anonymizing', 'building_prompt',
+        'syncing', 'collecting', 'anonymizing', 'building_prompt',
         'sending', 'parsing', 'validating', 'storing', 'completed',
       ]);
       setPipelineVisible(true);
@@ -404,6 +421,32 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         // Store model ID for follow-up messages
         setSelectedModelId(config.modelId);
 
+        // Auto-sync stale integrations before running analysis
+        setCurrentStage('syncing');
+        setPipelineMessage('Syncing integration data...');
+
+        const syncPromises: Promise<unknown>[] = [];
+        if (config.jiraProjectKeys.length > 0 && isStale(jiraIntegration?.lastSyncedAt ?? null)) {
+          syncPromises.push(window.nswot.integrations.sync(config.jiraProjectKeys));
+        }
+        if (config.confluenceSpaceKeys.length > 0 && isStale(confluenceIntegration?.lastSyncedAt ?? null)) {
+          syncPromises.push(window.nswot.confluence.sync(config.confluenceSpaceKeys));
+        }
+        if (config.githubRepos.length > 0 && isStale(githubIntegration?.lastSyncedAt ?? null)) {
+          syncPromises.push(window.nswot.github.sync(config.githubRepos));
+        }
+
+        if (syncPromises.length > 0) {
+          const results = await Promise.allSettled(syncPromises);
+          const anyFailed = results.some((r) => r.status === 'rejected');
+          if (anyFailed) {
+            setPipelineMessage('Some sources could not be synced — using cached data');
+          }
+        }
+
+        setCompletedStages(['syncing']);
+        setCurrentStage(null);
+
         // Determine parentAnalysisId for re-runs
         const parentAnalysisId = analysisIds.length > 0 ? analysisIds[analysisIds.length - 1] : undefined;
 
@@ -434,7 +477,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         setIsRunning(false);
       }
     },
-    [activeConversationId, analysisIds, createConversation, navigate, clearStreamSegments],
+    [activeConversationId, analysisIds, createConversation, navigate, clearStreamSegments, jiraIntegration, confluenceIntegration, githubIntegration],
   );
 
   // Handle re-run: show config panel for re-configuration
