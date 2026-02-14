@@ -13,7 +13,6 @@ import { AnalysisRepository } from './repositories/analysis.repository';
 import { ChatRepository } from './repositories/chat.repository';
 import { ChatActionRepository } from './repositories/chat-action.repository';
 import { ActionExecutor } from './providers/actions/action-executor';
-import { OpenRouterProvider } from './providers/llm/openrouter.provider';
 import { createLlmProvider } from './providers/llm/llm-provider-factory';
 import { CircuitBreaker } from './infrastructure/circuit-breaker';
 import { SettingsService } from './services/settings.service';
@@ -219,10 +218,12 @@ const integrationRepo = new IntegrationRepository(db);
 const integrationCacheRepo = new IntegrationCacheRepository(db);
 
 // Providers & infrastructure
-const openRouterProvider = new OpenRouterProvider();
 const llmProviderTypePref = preferencesRepo.getSync('llmProviderType');
+const llmProviderTypeValue = llmProviderTypePref?.value;
 const llmProvider = createLlmProvider(
-  llmProviderTypePref?.value === 'anthropic' ? 'anthropic' : 'openrouter',
+  llmProviderTypeValue === 'anthropic' ? 'anthropic'
+    : llmProviderTypeValue === 'openai' ? 'openai'
+    : 'openrouter',
 );
 const jiraProvider = new JiraProvider();
 const confluenceProvider = new ConfluenceProvider();
@@ -257,7 +258,7 @@ const secureStorage = createSecureStorage(join(NSWOT_DIR, 'keystore'));
 const settingsService = new SettingsService(
   preferencesRepo,
   secureStorage,
-  openRouterProvider,
+  (type) => createLlmProvider(type),
   llmCircuitBreaker,
 );
 const workspaceService = new WorkspaceService(workspaceRepo, preferencesRepo);

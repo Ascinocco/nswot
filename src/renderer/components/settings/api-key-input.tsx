@@ -8,13 +8,13 @@ export default function ApiKeyInput(): React.JSX.Element {
 
   const handleSave = (): void => {
     if (!value.trim()) return;
-    setApiKey.mutate(value.trim(), {
+    setApiKey.mutate({ apiKey: value.trim() }, {
       onSuccess: () => setValue(''),
     });
   };
 
   const handleClear = (): void => {
-    setApiKey.mutate('', {
+    setApiKey.mutate({ apiKey: '' }, {
       onSuccess: () => setValue(''),
     });
   };

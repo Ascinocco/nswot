@@ -1,18 +1,18 @@
-import { DomainError, ERROR_CODES } from '../../domain/errors';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { streamText } from 'ai';
+import { DomainError } from '../../domain/errors';
 import type { LLMProvider } from './llm-provider.interface';
 import type {
   LlmModel,
   LlmResponse,
   LlmCompletionRequest,
-  LlmToolCall,
   OpenRouterModelResponse,
 } from './llm.types';
+import { convertMessages, convertTools, handleStream } from './ai-sdk-stream-handler';
+import { mapAiSdkError } from './ai-sdk-error-mapper';
 
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
-const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const FETCH_TIMEOUT_MS = 30_000;
-/** Inactivity timeout for the SSE stream: abort if no data received within this period. */
-const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
 
 export class OpenRouterProvider implements LLMProvider {
   readonly name = 'openrouter';
@@ -45,197 +45,38 @@ export class OpenRouterProvider implements LLMProvider {
   }
 
   async createChatCompletion(request: LlmCompletionRequest): Promise<LlmResponse> {
-    const body: Record<string, unknown> = {
-      model: request.modelId,
-      messages: request.messages,
-      stream: true,
-    };
-    if (request.temperature !== undefined) body['temperature'] = request.temperature;
-    if (request.maxTokens !== undefined) body['max_tokens'] = request.maxTokens;
-    if (request.tools && (request.tools as unknown[]).length > 0) body['tools'] = request.tools;
-
-    // Connection-phase timeout only — cleared once we receive response headers.
-    // The streaming body read uses a per-chunk inactivity timeout instead.
-    const controller = new AbortController();
-    const connectionTimeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-    let response: Response;
-    try {
-      response = await fetch(OPENROUTER_CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${request.apiKey}`,
-          'HTTP-Referer': 'https://nswot.app',
-          'X-Title': 'nswot',
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (e) {
-      clearTimeout(connectionTimeout);
-      throw e;
-    }
-    clearTimeout(connectionTimeout);
-
-    if (!response.ok) {
-      this.throwHttpError(response.status, await this.extractErrorDetail(response));
-    }
-
-    return this.readSSEStream(response, request.onChunk, request.onToken);
-  }
-
-  private async readSSEStream(
-    response: Response,
-    onChunk?: (chunk: string) => void,
-    onToken?: (tokenCount: number) => void,
-  ): Promise<LlmResponse> {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'No response body from LLM');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    const contentChunks: string[] = [];
-    let tokenCount = 0;
-    let finishReason: string | null = null;
-    let lastProgressAt = 0;
-    const toolCallAccumulator = new Map<number, { id: string; name: string; arguments: string }>();
+    const openrouter = createOpenAICompatible({
+      name: 'openrouter',
+      apiKey: request.apiKey,
+      baseURL: 'https://openrouter.ai/api/v1',
+      headers: {
+        'HTTP-Referer': 'https://nswot.app',
+        'X-Title': 'nswot',
+      },
+    });
 
     try {
-      while (true) {
-        // Race each read against an inactivity timeout — catches stalled streams
-        let inactivityTimer: ReturnType<typeof setTimeout>;
-        const { done, value } = await Promise.race([
-          reader.read(),
-          new Promise<never>((_, reject) => {
-            inactivityTimer = setTimeout(
-              () => reject(new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'OpenRouter stream stalled: no data received for 60s')),
-              STREAM_INACTIVITY_TIMEOUT_MS,
-            );
-          }),
-        ]).finally(() => clearTimeout(inactivityTimer!));
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-
-          const data = trimmed.slice(6);
-          if (data === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(data) as {
-              choices?: Array<{
-                delta?: {
-                  content?: string;
-                  tool_calls?: Array<{
-                    index: number;
-                    id?: string;
-                    function?: { name?: string; arguments?: string };
-                  }>;
-                };
-                finish_reason?: string | null;
-              }>;
-              error?: { message?: string };
-            };
-
-            if (parsed.error?.message) {
-              throw new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, parsed.error.message);
-            }
-
-            const choice = parsed.choices?.[0];
-            if (!choice) continue;
-
-            const content = choice.delta?.content;
-            if (content) {
-              contentChunks.push(content);
-              tokenCount++;
-
-              if (onChunk) onChunk(content);
-
-              if (onToken && tokenCount - lastProgressAt >= 50) {
-                lastProgressAt = tokenCount;
-                onToken(tokenCount);
-              }
-            }
-
-            // Accumulate tool calls (streamed incrementally)
-            const deltaToolCalls = choice.delta?.tool_calls;
-            if (deltaToolCalls) {
-              for (const dtc of deltaToolCalls) {
-                const existing = toolCallAccumulator.get(dtc.index);
-                if (existing) {
-                  if (dtc.function?.arguments) {
-                    existing.arguments += dtc.function.arguments;
-                  }
-                } else {
-                  toolCallAccumulator.set(dtc.index, {
-                    id: dtc.id ?? `call_${dtc.index}`,
-                    name: dtc.function?.name ?? '',
-                    arguments: dtc.function?.arguments ?? '',
-                  });
-                }
-              }
-            }
-
-            if (choice.finish_reason) {
-              finishReason = choice.finish_reason;
-            }
-          } catch (e) {
-            if (e instanceof DomainError) throw e;
-            // Skip malformed SSE chunks
-          }
-        }
-      }
-    } finally {
-      reader.cancel().catch(() => {});
-    }
-
-    // Final progress callback
-    if (onToken && tokenCount > lastProgressAt) {
-      onToken(tokenCount);
-    }
-
-    const fullContent = contentChunks.join('');
-    if (!fullContent && toolCallAccumulator.size === 0) {
-      throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'Empty response from LLM');
-    }
-
-    const toolCalls: LlmToolCall[] | undefined =
-      toolCallAccumulator.size > 0
-        ? Array.from(toolCallAccumulator.values())
+      const toolSet = request.tools && (request.tools as unknown[]).length > 0
+        ? convertTools(request.tools)
         : undefined;
 
-    return { content: fullContent, finishReason, toolCalls };
+      const result = streamText({
+        model: openrouter.chatModel(request.modelId),
+        messages: convertMessages(request.messages),
+        tools: toolSet,
+        temperature: request.temperature,
+        maxOutputTokens: request.maxTokens,
+      });
+
+      return await handleStream(result, {
+        onChunk: request.onChunk,
+        onToken: request.onToken,
+        providerName: 'openrouter',
+      });
+    } catch (error) {
+      if (error instanceof DomainError) throw error;
+      throw mapAiSdkError(error, 'openrouter');
+    }
   }
 
-  private throwHttpError(status: number, detail: string): never {
-    if (status === 401 || status === 403) {
-      throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, detail || 'Invalid API key', undefined, status);
-    }
-    if (status === 429) {
-      throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, detail || 'Rate limited by OpenRouter', undefined, status);
-    }
-    throw new DomainError(
-      ERROR_CODES.LLM_REQUEST_FAILED,
-      detail || `OpenRouter returned status ${status}`,
-      undefined,
-      status,
-    );
-  }
-
-  private async extractErrorDetail(response: Response): Promise<string> {
-    try {
-      const errBody = (await response.json()) as { error?: { message?: string } };
-      return errBody.error?.message ?? '';
-    } catch {
-      return '';
-    }
-  }
 }

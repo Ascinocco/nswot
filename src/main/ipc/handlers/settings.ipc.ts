@@ -48,8 +48,8 @@ export function registerSettingsHandlers(settingsService: SettingsService): void
 
   ipcMain.handle(
     IPC_CHANNELS.SETTINGS_SET_API_KEY,
-    async (_event, apiKey: string): Promise<IPCResult<void>> => {
-      const result = await settingsService.setApiKey(apiKey);
+    async (_event, apiKey: string, providerType?: string): Promise<IPCResult<void>> => {
+      const result = await settingsService.setApiKey(apiKey, providerType);
       return match(result, {
         ok: () => toIpcResult<void>(undefined),
         err: (error) => toIpcError(error),

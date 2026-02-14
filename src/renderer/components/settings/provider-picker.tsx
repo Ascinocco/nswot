@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { usePreferences, useSetPreference, useApiKeyStatus, useSetApiKey, useModels } from '../../hooks/use-settings';
+import { usePreferences, useApiKeyStatus, useSetApiKey, useModels, useSetProvider } from '../../hooks/use-settings';
 
 export default function ProviderPicker(): React.JSX.Element {
   const { data: preferences, isLoading: prefsLoading } = usePreferences();
-  const setPreference = useSetPreference();
   const { data: keyStatus } = useApiKeyStatus();
   const setApiKey = useSetApiKey();
+  const setProviderMutation = useSetProvider();
   const [apiKeyInput, setApiKeyInput] = useState('');
 
   const currentProvider = preferences?.['llmProviderType'] ?? 'openrouter';
@@ -14,34 +14,39 @@ export default function ProviderPicker(): React.JSX.Element {
   const selectedModelId = preferences?.['selectedModelId'] ?? null;
 
   const handleProviderChange = (provider: string): void => {
-    setPreference.mutate({ key: 'llmProviderType', value: provider });
-    window.nswot.llm.setProvider(provider).catch((err: unknown) => {
-      console.error('[provider-picker] Failed to set provider:', err);
-    });
+    setProviderMutation.mutate(provider);
   };
 
   const handleSaveKey = (): void => {
     if (!apiKeyInput.trim()) return;
-    setApiKey.mutate(apiKeyInput.trim(), {
+    setApiKey.mutate({ apiKey: apiKeyInput.trim(), providerType: currentProvider }, {
       onSuccess: () => setApiKeyInput(''),
     });
   };
 
   const handleClearKey = (): void => {
-    setApiKey.mutate('', {
+    setApiKey.mutate({ apiKey: '', providerType: currentProvider }, {
       onSuccess: () => setApiKeyInput(''),
     });
   };
 
   const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
-    setPreference.mutate({ key: 'selectedModelId', value: e.target.value });
+    window.nswot.settings.set('selectedModelId', e.target.value).catch(() => {});
   };
 
   if (prefsLoading) {
     return <div className="text-sm text-gray-500">Loading...</div>;
   }
 
-  const placeholder = currentProvider === 'anthropic' ? 'sk-ant-...' : 'sk-or-...';
+  const placeholder =
+    currentProvider === 'anthropic' ? 'sk-ant-...'
+      : currentProvider === 'openai' ? 'sk-...'
+      : 'sk-or-...';
+
+  const providerLabel =
+    currentProvider === 'anthropic' ? 'Anthropic'
+      : currentProvider === 'openai' ? 'OpenAI'
+      : 'OpenRouter';
 
   return (
     <div className="space-y-6">
@@ -72,12 +77,24 @@ export default function ProviderPicker(): React.JSX.Element {
             <div className="text-sm font-medium text-white">Anthropic</div>
             <div className="text-xs text-gray-400">Direct access to Claude models</div>
           </button>
+          <button
+            type="button"
+            onClick={() => handleProviderChange('openai')}
+            className={`flex-1 rounded-lg border p-3 text-left transition-colors ${
+              currentProvider === 'openai'
+                ? 'border-blue-500 bg-blue-900/20'
+                : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+            }`}
+          >
+            <div className="text-sm font-medium text-white">OpenAI</div>
+            <div className="text-xs text-gray-400">Direct access to GPT and o-series models</div>
+          </button>
         </div>
       </div>
 
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-gray-300">
-          {currentProvider === 'anthropic' ? 'Anthropic' : 'OpenRouter'} API Key
+          {providerLabel} API Key
         </h4>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-400">Status:</span>

@@ -4,6 +4,7 @@ import { CircuitBreaker, CircuitOpenError } from '../infrastructure/circuit-brea
 import type { PreferencesRepository } from '../repositories/preferences.repository';
 import type { SecureStorage } from '../infrastructure/safe-storage';
 import type { LLMProvider } from '../providers/llm/llm-provider.interface';
+import type { LlmProviderType } from '../providers/llm/llm-provider-factory';
 import type { LlmModel } from '../providers/llm/llm.types';
 
 // Mock retry to execute without delays
@@ -15,6 +16,10 @@ function createMockPreferencesRepo(): PreferencesRepository {
   const store = new Map<string, string>();
   return {
     get: vi.fn(async (key: string) => {
+      const value = store.get(key);
+      return value !== undefined ? { key, value } : null;
+    }),
+    getSync: vi.fn((key: string) => {
       const value = store.get(key);
       return value !== undefined ? { key, value } : null;
     }),
@@ -72,13 +77,15 @@ describe('SettingsService', () => {
   let secureStorage: ReturnType<typeof createMockSecureStorage>;
   let provider: LLMProvider;
   let circuitBreaker: CircuitBreaker;
+  let resolverFn: (type: LlmProviderType) => LLMProvider;
 
   beforeEach(() => {
     prefsRepo = createMockPreferencesRepo();
     secureStorage = createMockSecureStorage();
     provider = createMockProvider();
     circuitBreaker = new CircuitBreaker();
-    service = new SettingsService(prefsRepo, secureStorage, provider, circuitBreaker);
+    resolverFn = vi.fn((_type: LlmProviderType) => provider);
+    service = new SettingsService(prefsRepo, secureStorage, resolverFn, circuitBreaker);
   });
 
   describe('preferences', () => {
@@ -98,7 +105,7 @@ describe('SettingsService', () => {
     });
   });
 
-  describe('OpenRouter API key management', () => {
+  describe('API key management', () => {
     it('reports API key as not set initially', async () => {
       const result = await service.getApiKeyStatus();
       expect(result.ok).toBe(true);
@@ -107,7 +114,7 @@ describe('SettingsService', () => {
       }
     });
 
-    it('reports API key as set after storing', async () => {
+    it('reports API key as set after storing for active provider', async () => {
       await service.setApiKey('sk-test-key');
       const result = await service.getApiKeyStatus();
       expect(result.ok).toBe(true);
@@ -116,9 +123,19 @@ describe('SettingsService', () => {
       }
     });
 
-    it('stores API key via secure storage', async () => {
+    it('stores OpenRouter API key by default', async () => {
       await service.setApiKey('sk-test-key');
       expect(secureStorage.store).toHaveBeenCalledWith('openrouter_api_key', 'sk-test-key');
+    });
+
+    it('stores Anthropic API key when providerType is anthropic', async () => {
+      await service.setApiKey('sk-ant-test', 'anthropic');
+      expect(secureStorage.store).toHaveBeenCalledWith('anthropic_api_key', 'sk-ant-test');
+    });
+
+    it('stores OpenAI API key when providerType is openai', async () => {
+      await service.setApiKey('sk-openai-test', 'openai');
+      expect(secureStorage.store).toHaveBeenCalledWith('openai_api_key', 'sk-openai-test');
     });
 
     it('clears API key when empty string is provided', async () => {
@@ -160,6 +177,25 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('OpenAI API key management', () => {
+    it('stores and retrieves OpenAI API key', async () => {
+      await service.setOpenaiApiKey('sk-openai-key');
+      expect(secureStorage.store).toHaveBeenCalledWith('openai_api_key', 'sk-openai-key');
+      expect(service.getOpenaiApiKey()).toBe('sk-openai-key');
+    });
+
+    it('clears OpenAI API key when empty', async () => {
+      await service.setOpenaiApiKey('sk-openai-key');
+      await service.setOpenaiApiKey('');
+      expect(secureStorage.remove).toHaveBeenCalledWith('openai_api_key');
+      expect(service.getOpenaiApiKey()).toBeNull();
+    });
+
+    it('returns null when OpenAI key not set', () => {
+      expect(service.getOpenaiApiKey()).toBeNull();
+    });
+  });
+
   describe('getApiKeyForProvider', () => {
     it('returns OpenRouter key for openrouter', async () => {
       await service.setApiKey('sk-or-key');
@@ -171,9 +207,33 @@ describe('SettingsService', () => {
       expect(service.getApiKeyForProvider('anthropic')).toBe('sk-ant-key');
     });
 
+    it('returns OpenAI key for openai', async () => {
+      await service.setOpenaiApiKey('sk-openai-key');
+      expect(service.getApiKeyForProvider('openai')).toBe('sk-openai-key');
+    });
+
     it('returns null for unconfigured provider', () => {
       expect(service.getApiKeyForProvider('openrouter')).toBeNull();
       expect(service.getApiKeyForProvider('anthropic')).toBeNull();
+      expect(service.getApiKeyForProvider('openai')).toBeNull();
+    });
+  });
+
+  describe('getApiKeyStatus (active provider)', () => {
+    it('checks key for active provider (openrouter by default)', async () => {
+      await service.setApiKey('sk-or-key');
+      const result = await service.getApiKeyStatus();
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.isSet).toBe(true);
+    });
+
+    it('returns false when active provider key is not set', async () => {
+      // Set a key for a non-active provider
+      await service.setAnthropicApiKey('sk-ant-key');
+      // Default active provider is openrouter, which has no key
+      const result = await service.getApiKeyStatus();
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.isSet).toBe(false);
     });
   });
 
@@ -194,6 +254,12 @@ describe('SettingsService', () => {
         expect(result.value).toHaveLength(2);
         expect(result.value[0]!.id).toBe('openai/gpt-4');
       }
+    });
+
+    it('uses resolver to get active provider', async () => {
+      await service.setApiKey('sk-test');
+      await service.listModels();
+      expect(resolverFn).toHaveBeenCalledWith('openrouter');
     });
 
     it('caches models for subsequent calls', async () => {
@@ -256,7 +322,6 @@ describe('SettingsService', () => {
         new CircuitOpenError('Circuit is open'),
       );
 
-      // Trip the circuit by exhausting retries (the retry module doesn't retry CircuitOpenError)
       const result = await service.listModels();
       expect(result.ok).toBe(false);
       if (!result.ok) {

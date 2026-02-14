@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AnthropicProvider } from './anthropic.provider';
+import { OpenAIProvider } from './openai.provider';
 import { DomainError } from '../../domain/errors';
 
 // Mock AI SDK modules
-vi.mock('@ai-sdk/anthropic', () => ({
-  createAnthropic: vi.fn(() => vi.fn((modelId: string) => ({ modelId, provider: 'anthropic' }))),
+vi.mock('@ai-sdk/openai', () => ({
+  createOpenAI: vi.fn(() => vi.fn((modelId: string) => ({ modelId, provider: 'openai' }))),
 }));
 
 vi.mock('ai', () => ({
@@ -13,7 +13,7 @@ vi.mock('ai', () => ({
 }));
 
 import { streamText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
+import { createOpenAI } from '@ai-sdk/openai';
 
 function createMockFullStream(parts: Array<Record<string, unknown>>): AsyncIterable<Record<string, unknown>> {
   return {
@@ -31,13 +31,13 @@ function createMockFullStream(parts: Array<Record<string, unknown>>): AsyncItera
   };
 }
 
-describe('AnthropicProvider', () => {
-  let provider: AnthropicProvider;
+describe('OpenAIProvider', () => {
+  let provider: OpenAIProvider;
 
   beforeEach(() => {
-    provider = new AnthropicProvider();
-    vi.mocked(createAnthropic).mockReturnValue(
-      vi.fn((modelId: string) => ({ modelId, provider: 'anthropic' })) as unknown as ReturnType<typeof createAnthropic>,
+    provider = new OpenAIProvider();
+    vi.mocked(createOpenAI).mockReturnValue(
+      vi.fn((modelId: string) => ({ modelId, provider: 'openai' })) as unknown as ReturnType<typeof createOpenAI>,
     );
   });
 
@@ -46,11 +46,14 @@ describe('AnthropicProvider', () => {
   });
 
   describe('listModels', () => {
-    it('returns hardcoded Claude model list', async () => {
+    it('returns hardcoded OpenAI model list', async () => {
       const models = await provider.listModels('sk-test');
       expect(models.length).toBeGreaterThan(0);
-      expect(models.every((m) => m.id.startsWith('claude-'))).toBe(true);
-      expect(models.every((m) => m.contextLength === 200000)).toBe(true);
+      const ids = models.map((m) => m.id);
+      expect(ids).toContain('gpt-4o');
+      expect(ids).toContain('gpt-4o-mini');
+      expect(ids).toContain('o3-mini');
+      expect(ids).toContain('o4-mini');
     });
   });
 
@@ -65,8 +68,8 @@ describe('AnthropicProvider', () => {
       } as ReturnType<typeof streamText>);
 
       const result = await provider.createChatCompletion({
-        apiKey: 'sk-ant-test',
-        modelId: 'claude-sonnet-4-5-20250929',
+        apiKey: 'sk-test',
+        modelId: 'gpt-4o',
         messages: [{ role: 'user', content: 'Hi' }],
       });
 
@@ -86,8 +89,8 @@ describe('AnthropicProvider', () => {
 
       const chunks: string[] = [];
       await provider.createChatCompletion({
-        apiKey: 'sk-ant-test',
-        modelId: 'claude-sonnet-4-5-20250929',
+        apiKey: 'sk-test',
+        modelId: 'gpt-4o',
         messages: [{ role: 'user', content: 'Hi' }],
         onChunk: (c) => chunks.push(c),
       });
@@ -100,7 +103,7 @@ describe('AnthropicProvider', () => {
         fullStream: createMockFullStream([
           {
             type: 'tool-call',
-            toolCallId: 'toolu_1',
+            toolCallId: 'call_1',
             toolName: 'create_issue',
             input: { title: 'bug' },
           },
@@ -109,73 +112,25 @@ describe('AnthropicProvider', () => {
       } as ReturnType<typeof streamText>);
 
       const result = await provider.createChatCompletion({
-        apiKey: 'sk-ant-test',
-        modelId: 'claude-sonnet-4-5-20250929',
+        apiKey: 'sk-test',
+        modelId: 'gpt-4o',
         messages: [{ role: 'user', content: 'Hi' }],
         tools: [{ type: 'function', function: { name: 'create_issue', parameters: {} } }],
       });
 
       expect(result.toolCalls).toHaveLength(1);
       expect(result.toolCalls![0]).toEqual({
-        id: 'toolu_1',
+        id: 'call_1',
         name: 'create_issue',
         arguments: '{"title":"bug"}',
       });
       expect(result.finishReason).toBe('tool_calls');
     });
 
-    it('extracts thinking content', async () => {
-      vi.mocked(streamText).mockReturnValue({
-        fullStream: createMockFullStream([
-          { type: 'reasoning-delta', id: '1', text: 'thinking...' },
-          { type: 'text-delta', id: '2', text: 'answer' },
-          { type: 'finish', finishReason: 'stop', totalUsage: {} },
-        ]),
-      } as ReturnType<typeof streamText>);
-
-      const result = await provider.createChatCompletion({
-        apiKey: 'sk-ant-test',
-        modelId: 'claude-sonnet-4-5-20250929',
-        messages: [{ role: 'user', content: 'Hi' }],
-        thinkingBudget: 1000,
-      });
-
-      expect(result.thinking).toBe('thinking...');
-      expect(result.content).toBe('answer');
-    });
-
-    it('configures thinking via providerOptions', async () => {
-      vi.mocked(streamText).mockReturnValue({
-        fullStream: createMockFullStream([
-          { type: 'text-delta', id: '1', text: 'ok' },
-          { type: 'finish', finishReason: 'stop', totalUsage: {} },
-        ]),
-      } as ReturnType<typeof streamText>);
-
-      await provider.createChatCompletion({
-        apiKey: 'sk-ant-test',
-        modelId: 'claude-sonnet-4-5-20250929',
-        messages: [{ role: 'user', content: 'Hi' }],
-        thinkingBudget: 2000,
-      });
-
-      const call = vi.mocked(streamText).mock.calls[0]![0];
-      expect(call.providerOptions).toEqual({
-        anthropic: { thinking: { type: 'enabled', budgetTokens: 2000 } },
-      });
-      // Temperature should be omitted when thinking is enabled
-      expect(call.temperature).toBeUndefined();
-    });
-
-    it('throws ANTHROPIC_AUTH_FAILED on 401', async () => {
+    it('throws OPENAI_AUTH_FAILED on 401', async () => {
       const apiError = new Error('invalid api key') as Error & { statusCode: number };
       apiError.statusCode = 401;
 
-      vi.mocked(streamText).mockReturnValue({
-        fullStream: createMockFullStream([]),
-      } as ReturnType<typeof streamText>);
-
-      // Simulate the error being thrown during stream consumption
       vi.mocked(streamText).mockImplementation(() => {
         throw apiError;
       });
@@ -183,17 +138,17 @@ describe('AnthropicProvider', () => {
       try {
         await provider.createChatCompletion({
           apiKey: 'sk-bad',
-          modelId: 'claude-sonnet-4-5-20250929',
+          modelId: 'gpt-4o',
           messages: [{ role: 'user', content: 'Hi' }],
         });
         expect.fail('Should have thrown');
       } catch (e) {
         expect(e).toBeInstanceOf(DomainError);
-        expect((e as DomainError).code).toBe('ANTHROPIC_AUTH_FAILED');
+        expect((e as DomainError).code).toBe('OPENAI_AUTH_FAILED');
       }
     });
 
-    it('throws ANTHROPIC_RATE_LIMITED on 429', async () => {
+    it('throws OPENAI_RATE_LIMITED on 429', async () => {
       const apiError = new Error('rate limited') as Error & { statusCode: number };
       apiError.statusCode = 429;
 
@@ -204,13 +159,13 @@ describe('AnthropicProvider', () => {
       try {
         await provider.createChatCompletion({
           apiKey: 'sk-test',
-          modelId: 'claude-sonnet-4-5-20250929',
+          modelId: 'gpt-4o',
           messages: [{ role: 'user', content: 'Hi' }],
         });
         expect.fail('Should have thrown');
       } catch (e) {
         expect(e).toBeInstanceOf(DomainError);
-        expect((e as DomainError).code).toBe('ANTHROPIC_RATE_LIMITED');
+        expect((e as DomainError).code).toBe('OPENAI_RATE_LIMITED');
       }
     });
 
@@ -224,27 +179,10 @@ describe('AnthropicProvider', () => {
       await expect(
         provider.createChatCompletion({
           apiKey: 'sk-test',
-          modelId: 'claude-sonnet-4-5-20250929',
+          modelId: 'gpt-4o',
           messages: [{ role: 'user', content: 'Hi' }],
         }),
       ).rejects.toThrow(DomainError);
-    });
-
-    it('maps max_tokens finish reason to length', async () => {
-      vi.mocked(streamText).mockReturnValue({
-        fullStream: createMockFullStream([
-          { type: 'text-delta', id: '1', text: 'truncated' },
-          { type: 'finish', finishReason: 'length', totalUsage: {} },
-        ]),
-      } as ReturnType<typeof streamText>);
-
-      const result = await provider.createChatCompletion({
-        apiKey: 'sk-test',
-        modelId: 'claude-sonnet-4-5-20250929',
-        messages: [{ role: 'user', content: 'Hi' }],
-      });
-
-      expect(result.finishReason).toBe('length');
     });
   });
 });

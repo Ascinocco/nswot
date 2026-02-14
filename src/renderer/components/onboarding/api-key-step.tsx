@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useApiKeyStatus, useSetApiKey } from '../../hooks/use-settings';
+import { useApiKeyStatus, useSetApiKey, useSetProvider } from '../../hooks/use-settings';
 
 interface ApiKeyStepProps {
   onNext: () => void;
@@ -7,29 +7,27 @@ interface ApiKeyStepProps {
 }
 
 export default function ApiKeyStep({ onNext, onBack }: ApiKeyStepProps): React.JSX.Element {
-  const [provider, setProvider] = useState<'openrouter' | 'anthropic'>('openrouter');
+  const [provider, setProvider] = useState<'openrouter' | 'anthropic' | 'openai'>('openrouter');
   const [apiKey, setApiKey] = useState('');
   const { data: status } = useApiKeyStatus();
   const setApiKeyMutation = useSetApiKey();
+  const setProviderMutation = useSetProvider();
 
   const handleSaveKey = (): void => {
     if (!apiKey.trim()) return;
-    setApiKeyMutation.mutate(apiKey.trim(), {
+    setApiKeyMutation.mutate({ apiKey: apiKey.trim(), providerType: provider }, {
       onSuccess: () => {
-        // Also save the provider preference
-        window.nswot.settings.set('llmProviderType', provider).catch((err: unknown) => {
-          console.error('[api-key-step] Failed to save provider preference:', err);
-        });
-        window.nswot.llm.setProvider(provider).catch((err: unknown) => {
-          console.error('[api-key-step] Failed to set provider:', err);
-        });
+        setProviderMutation.mutate(provider);
         setApiKey('');
       },
     });
   };
 
   const keyIsConfigured = status?.isSet ?? false;
-  const placeholder = provider === 'openrouter' ? 'sk-or-...' : 'sk-ant-...';
+  const placeholder =
+    provider === 'openrouter' ? 'sk-or-...'
+      : provider === 'anthropic' ? 'sk-ant-...'
+      : 'sk-...';
 
   return (
     <div className="mx-auto max-w-lg">
@@ -64,6 +62,18 @@ export default function ApiKeyStep({ onNext, onBack }: ApiKeyStepProps): React.J
           >
             <div className="text-sm font-medium text-white">Anthropic</div>
             <div className="text-xs text-gray-400">Direct access to Claude models</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setProvider('openai')}
+            className={`flex-1 rounded-lg border p-3 text-left transition-colors ${
+              provider === 'openai'
+                ? 'border-blue-500 bg-blue-900/20'
+                : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+            }`}
+          >
+            <div className="text-sm font-medium text-white">OpenAI</div>
+            <div className="text-xs text-gray-400">Direct access to GPT and o-series models</div>
           </button>
         </div>
       </div>

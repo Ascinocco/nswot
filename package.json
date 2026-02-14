@@ -19,9 +19,13 @@
     "dist": "pnpm rebuild:electron && electron-builder"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.44",
+    "@ai-sdk/openai": "^3.0.29",
+    "@ai-sdk/openai-compatible": "^2.0.30",
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/typography": "^0.5.19",
     "@tanstack/react-query": "^5.90.20",
+    "ai": "^6.0.86",
     "better-sqlite3": "^11.7.0",
     "chart.js": "^4.5.1",
     "d3": "^7.9.0",

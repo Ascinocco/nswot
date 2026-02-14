@@ -157,6 +157,8 @@ function isDomainLikeError(error: unknown): boolean {
 /** Error codes that represent non-transient failures (auth, validation, domain logic). */
 const NON_TRANSIENT_ERROR_CODES = new Set([
   'ANTHROPIC_AUTH_FAILED',
+  'OPENAI_AUTH_FAILED',
+  'OPENAI_RATE_LIMITED',
   'LLM_AUTH_FAILED',
   'LLM_PARSE_ERROR',
   'JIRA_AUTH_FAILED',

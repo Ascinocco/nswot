@@ -2,20 +2,34 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OpenRouterProvider } from './openrouter.provider';
 import { DomainError } from '../../domain/errors';
 
-function createSSEStream(chunks: string[]): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk));
-      }
-      controller.close();
-    },
-  });
-}
+// Mock AI SDK modules
+vi.mock('@ai-sdk/openai-compatible', () => ({
+  createOpenAICompatible: vi.fn(() => ({
+    chatModel: vi.fn((modelId: string) => ({ modelId, provider: 'openrouter' })),
+  })),
+}));
 
-function sseEvent(data: unknown): string {
-  return `data: ${JSON.stringify(data)}\n\n`;
+vi.mock('ai', () => ({
+  streamText: vi.fn(),
+  tool: vi.fn((def: unknown) => def),
+}));
+
+import { streamText } from 'ai';
+
+function createMockFullStream(parts: Array<Record<string, unknown>>): AsyncIterable<Record<string, unknown>> {
+  return {
+    [Symbol.asyncIterator]() {
+      let index = 0;
+      return {
+        async next() {
+          if (index < parts.length) {
+            return { value: parts[index++]!, done: false };
+          }
+          return { value: undefined, done: true };
+        },
+      };
+    },
+  };
 }
 
 describe('OpenRouterProvider', () => {
@@ -67,17 +81,13 @@ describe('OpenRouterProvider', () => {
 
   describe('createChatCompletion', () => {
     it('streams text content', async () => {
-      const stream = createSSEStream([
-        sseEvent({ choices: [{ delta: { content: 'Hello' } }] }),
-        sseEvent({ choices: [{ delta: { content: ' world' } }] }),
-        sseEvent({ choices: [{ finish_reason: 'stop' }] }),
-        'data: [DONE]\n\n',
-      ]);
-
-      fetchMock.mockResolvedValueOnce({
-        ok: true,
-        body: stream,
-      });
+      vi.mocked(streamText).mockReturnValue({
+        fullStream: createMockFullStream([
+          { type: 'text-delta', id: '1', text: 'Hello' },
+          { type: 'text-delta', id: '2', text: ' world' },
+          { type: 'finish', finishReason: 'stop', totalUsage: {} },
+        ]),
+      } as ReturnType<typeof streamText>);
 
       const result = await provider.createChatCompletion({
         apiKey: 'sk-test',
@@ -91,13 +101,13 @@ describe('OpenRouterProvider', () => {
     });
 
     it('calls onChunk for each text delta', async () => {
-      const stream = createSSEStream([
-        sseEvent({ choices: [{ delta: { content: 'A' } }] }),
-        sseEvent({ choices: [{ delta: { content: 'B' } }] }),
-        'data: [DONE]\n\n',
-      ]);
-
-      fetchMock.mockResolvedValueOnce({ ok: true, body: stream });
+      vi.mocked(streamText).mockReturnValue({
+        fullStream: createMockFullStream([
+          { type: 'text-delta', id: '1', text: 'A' },
+          { type: 'text-delta', id: '2', text: 'B' },
+          { type: 'finish', finishReason: 'stop', totalUsage: {} },
+        ]),
+      } as ReturnType<typeof streamText>);
 
       const chunks: string[] = [];
       await provider.createChatCompletion({
@@ -110,34 +120,18 @@ describe('OpenRouterProvider', () => {
       expect(chunks).toEqual(['A', 'B']);
     });
 
-    it('accumulates streaming tool calls', async () => {
-      const stream = createSSEStream([
-        sseEvent({
-          choices: [{
-            delta: {
-              tool_calls: [{
-                index: 0,
-                id: 'call_1',
-                function: { name: 'create_issue', arguments: '{"title":' },
-              }],
-            },
-          }],
-        }),
-        sseEvent({
-          choices: [{
-            delta: {
-              tool_calls: [{
-                index: 0,
-                function: { arguments: '"bug fix"}' },
-              }],
-            },
-          }],
-        }),
-        sseEvent({ choices: [{ finish_reason: 'tool_calls' }] }),
-        'data: [DONE]\n\n',
-      ]);
-
-      fetchMock.mockResolvedValueOnce({ ok: true, body: stream });
+    it('extracts tool calls', async () => {
+      vi.mocked(streamText).mockReturnValue({
+        fullStream: createMockFullStream([
+          {
+            type: 'tool-call',
+            toolCallId: 'call_1',
+            toolName: 'create_issue',
+            input: { title: 'bug fix' },
+          },
+          { type: 'finish', finishReason: 'tool-calls', totalUsage: {} },
+        ]),
+      } as ReturnType<typeof streamText>);
 
       const result = await provider.createChatCompletion({
         apiKey: 'sk-test',
@@ -154,52 +148,12 @@ describe('OpenRouterProvider', () => {
       expect(result.finishReason).toBe('tool_calls');
     });
 
-    it('passes temperature and maxTokens', async () => {
-      const stream = createSSEStream([
-        sseEvent({ choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }] }),
-        'data: [DONE]\n\n',
-      ]);
-
-      fetchMock.mockResolvedValueOnce({ ok: true, body: stream });
-
-      await provider.createChatCompletion({
-        apiKey: 'sk-test',
-        modelId: 'test',
-        messages: [{ role: 'user', content: 'Hi' }],
-        temperature: 0,
-        maxTokens: 8192,
-      });
-
-      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
-      expect(body.temperature).toBe(0);
-      expect(body.max_tokens).toBe(8192);
-    });
-
-    it('includes tools when provided', async () => {
-      const stream = createSSEStream([
-        sseEvent({ choices: [{ delta: { content: 'ok' }, finish_reason: 'stop' }] }),
-        'data: [DONE]\n\n',
-      ]);
-
-      fetchMock.mockResolvedValueOnce({ ok: true, body: stream });
-
-      const tools = [{ type: 'function', function: { name: 'test', parameters: {} } }];
-      await provider.createChatCompletion({
-        apiKey: 'sk-test',
-        modelId: 'test',
-        messages: [{ role: 'user', content: 'Hi' }],
-        tools,
-      });
-
-      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
-      expect(body.tools).toEqual(tools);
-    });
-
     it('throws LLM_AUTH_FAILED on 401', async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        json: async () => ({ error: { message: 'bad key' } }),
+      const apiError = new Error('bad key') as Error & { statusCode: number };
+      apiError.statusCode = 401;
+
+      vi.mocked(streamText).mockImplementation(() => {
+        throw apiError;
       });
 
       try {
@@ -216,10 +170,11 @@ describe('OpenRouterProvider', () => {
     });
 
     it('throws LLM_RATE_LIMITED on 429', async () => {
-      fetchMock.mockResolvedValueOnce({
-        ok: false,
-        status: 429,
-        json: async () => ({}),
+      const apiError = new Error('rate limited') as Error & { statusCode: number };
+      apiError.statusCode = 429;
+
+      vi.mocked(streamText).mockImplementation(() => {
+        throw apiError;
       });
 
       try {
@@ -228,14 +183,18 @@ describe('OpenRouterProvider', () => {
           modelId: 'test',
           messages: [{ role: 'user', content: 'Hi' }],
         });
+        expect.fail('Should have thrown');
       } catch (e) {
         expect((e as DomainError).code).toBe('LLM_RATE_LIMITED');
       }
     });
 
     it('throws LLM_EMPTY_RESPONSE when stream has no content', async () => {
-      const stream = createSSEStream(['data: [DONE]\n\n']);
-      fetchMock.mockResolvedValueOnce({ ok: true, body: stream });
+      vi.mocked(streamText).mockReturnValue({
+        fullStream: createMockFullStream([
+          { type: 'finish', finishReason: 'stop', totalUsage: {} },
+        ]),
+      } as ReturnType<typeof streamText>);
 
       await expect(
         provider.createChatCompletion({
@@ -244,21 +203,6 @@ describe('OpenRouterProvider', () => {
           messages: [{ role: 'user', content: 'Hi' }],
         }),
       ).rejects.toThrow(DomainError);
-    });
-
-    it('throws on inline stream error', async () => {
-      const stream = createSSEStream([
-        sseEvent({ error: { message: 'model overloaded' } }),
-      ]);
-      fetchMock.mockResolvedValueOnce({ ok: true, body: stream });
-
-      await expect(
-        provider.createChatCompletion({
-          apiKey: 'sk-test',
-          modelId: 'test',
-          messages: [{ role: 'user', content: 'Hi' }],
-        }),
-      ).rejects.toThrow('model overloaded');
     });
   });
 });

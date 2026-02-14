@@ -12,6 +12,7 @@ import type { LlmProviderType } from '../providers/llm/llm-provider-factory';
 
 const OPENROUTER_KEY_STORAGE = 'openrouter_api_key';
 const ANTHROPIC_KEY_STORAGE = 'anthropic_api_key';
+const OPENAI_KEY_STORAGE = 'openai_api_key';
 const MODEL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export class SettingsService {
@@ -22,7 +23,7 @@ export class SettingsService {
   constructor(
     private readonly preferencesRepo: PreferencesRepository,
     private readonly secureStorage: SecureStorage,
-    private readonly openRouterProvider: LLMProvider,
+    private readonly resolveProvider: (type: LlmProviderType) => LLMProvider,
     private readonly circuitBreaker: CircuitBreaker,
   ) {}
 
@@ -46,14 +47,31 @@ export class SettingsService {
 
   async getApiKeyStatus(): Promise<Result<{ isSet: boolean }, DomainError>> {
     try {
-      const key = this.getApiKey();
+      const key = this.getActiveApiKey();
       return ok({ isSet: key !== null });
     } catch (cause) {
       return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to check API key status', cause));
     }
   }
 
-  async setApiKey(apiKey: string): Promise<Result<void, DomainError>> {
+  async setApiKey(apiKey: string, providerType?: string): Promise<Result<void, DomainError>> {
+    try {
+      const target = (providerType as LlmProviderType) || this.getLlmProviderType();
+      switch (target) {
+        case 'anthropic':
+          return this.setAnthropicApiKey(apiKey);
+        case 'openai':
+          return this.setOpenaiApiKey(apiKey);
+        case 'openrouter':
+        default:
+          return this.setOpenrouterApiKey(apiKey);
+      }
+    } catch (cause) {
+      return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to store API key', cause));
+    }
+  }
+
+  private async setOpenrouterApiKey(apiKey: string): Promise<Result<void, DomainError>> {
     try {
       if (!apiKey) {
         this.secureStorage.remove(OPENROUTER_KEY_STORAGE);
@@ -97,6 +115,28 @@ export class SettingsService {
     }
   }
 
+  async setOpenaiApiKey(apiKey: string): Promise<Result<void, DomainError>> {
+    try {
+      if (!apiKey) {
+        this.secureStorage.remove(OPENAI_KEY_STORAGE);
+      } else {
+        this.secureStorage.store(OPENAI_KEY_STORAGE, apiKey);
+      }
+      this.invalidateModelCache();
+      return ok(undefined);
+    } catch (cause) {
+      return err(new DomainError(ERROR_CODES.INTERNAL_ERROR, 'Failed to store OpenAI API key', cause));
+    }
+  }
+
+  getOpenaiApiKey(): string | null {
+    try {
+      return this.secureStorage.retrieve(OPENAI_KEY_STORAGE);
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Get the API key for the given provider type.
    */
@@ -106,6 +146,8 @@ export class SettingsService {
         return this.getApiKey();
       case 'anthropic':
         return this.getAnthropicApiKey();
+      case 'openai':
+        return this.getOpenaiApiKey();
       default:
         return null;
     }
@@ -123,6 +165,7 @@ export class SettingsService {
     try {
       const pref = this.preferencesRepo.getSync('llmProviderType');
       if (pref?.value === 'anthropic') return 'anthropic';
+      if (pref?.value === 'openai') return 'openai';
       return 'openrouter';
     } catch {
       return 'openrouter';
@@ -130,7 +173,7 @@ export class SettingsService {
   }
 
   async listModels(provider?: LLMProvider): Promise<Result<LlmModel[], DomainError>> {
-    const activeProvider = provider ?? this.openRouterProvider;
+    const activeProvider = provider ?? this.resolveProvider(this.getLlmProviderType());
     const providerName = activeProvider.name;
 
     // Check cache (invalidate if provider changed)
@@ -142,9 +185,7 @@ export class SettingsService {
       return ok(this.modelCache);
     }
 
-    const apiKey = providerName === 'anthropic'
-      ? this.getAnthropicApiKey()
-      : this.getApiKey();
+    const apiKey = this.getApiKeyForProvider(providerName as LlmProviderType) ?? this.getApiKey();
 
     if (!apiKey) {
       return err(new DomainError(ERROR_CODES.LLM_AUTH_FAILED, 'API key is not configured'));

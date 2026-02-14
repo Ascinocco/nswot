@@ -13,7 +13,7 @@ const api: NswotAPI = {
     getAll: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
     set: (key, value) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, key, value),
     getApiKeyStatus: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET_API_KEY),
-    setApiKey: (apiKey) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_API_KEY, apiKey),
+    setApiKey: (apiKey, providerType?) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET_API_KEY, apiKey, providerType),
   },
   llm: {
     listModels: () => ipcRenderer.invoke(IPC_CHANNELS.LLM_LIST_MODELS),

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createLlmProvider } from './llm-provider-factory';
 import { OpenRouterProvider } from './openrouter.provider';
 import { AnthropicProvider } from './anthropic.provider';
+import { OpenAIProvider } from './openai.provider';
 
 describe('createLlmProvider', () => {
   it('returns OpenRouterProvider for "openrouter"', () => {
@@ -14,6 +15,12 @@ describe('createLlmProvider', () => {
     const provider = createLlmProvider('anthropic');
     expect(provider).toBeInstanceOf(AnthropicProvider);
     expect(provider.name).toBe('anthropic');
+  });
+
+  it('returns OpenAIProvider for "openai"', () => {
+    const provider = createLlmProvider('openai');
+    expect(provider).toBeInstanceOf(OpenAIProvider);
+    expect(provider.name).toBe('openai');
   });
 
   it('defaults to OpenRouterProvider when no type specified', () => {

@@ -18,7 +18,7 @@ export interface NswotAPI {
     getAll(): Promise<IPCResult<Record<string, string>>>;
     set(key: string, value: string): Promise<IPCResult<void>>;
     getApiKeyStatus(): Promise<IPCResult<{ isSet: boolean }>>;
-    setApiKey(apiKey: string): Promise<IPCResult<void>>;
+    setApiKey(apiKey: string, providerType?: string): Promise<IPCResult<void>>;
   };
   llm: {
     listModels(): Promise<IPCResult<LlmModel[]>>;

@@ -43,13 +43,30 @@ export function useApiKeyStatus() {
 export function useSetApiKey() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (apiKey: string) => {
-      const result = await window.nswot.settings.setApiKey(apiKey);
+    mutationFn: async ({ apiKey, providerType }: { apiKey: string; providerType?: string }) => {
+      const result = await window.nswot.settings.setApiKey(apiKey, providerType);
       unwrapResult(result);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.apiKeyStatus });
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.models });
+    },
+  });
+}
+
+export function useSetProvider() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (type: string) => {
+      const prefResult = await window.nswot.settings.set('llmProviderType', type);
+      unwrapResult(prefResult);
+      const providerResult = await window.nswot.llm.setProvider(type);
+      unwrapResult(providerResult);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.preferences });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.models });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.apiKeyStatus });
     },
   });
 }
