@@ -331,7 +331,7 @@ export default function AnalysisConfigPanel({
           {/* Run button */}
           <button
             onClick={handleRun}
-            disabled={isRunning || selectedProfileIds.length === 0}
+            disabled={isRunning || selectedProfileIds.length === 0 || codebaseAnalyze.isPending}
             className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
           >
             {isRunning ? (
