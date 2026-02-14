@@ -3,6 +3,8 @@ import type { IntegrationRepository } from '../../repositories/integration.repos
 import type { IntegrationCacheRepository } from '../../repositories/integration-cache.repository';
 import type { ProfileRepository } from '../../repositories/profile.repository';
 import type { WorkspaceService } from '../../services/workspace.service';
+import type { IntegrationService } from '../../services/integration.service';
+import type { ConfluenceService } from '../../services/confluence.service';
 import type { IntegrationCacheEntry, Profile } from '../../domain/types';
 import type { JiraIssue, JiraComment } from '../jira/jira.types';
 import { JIRA_RESOURCE_TYPES } from '../jira/jira.types';
@@ -27,6 +29,8 @@ export class ReadExecutor {
     private readonly integrationCacheRepo: IntegrationCacheRepository,
     private readonly profileRepo: ProfileRepository,
     private readonly workspaceService: WorkspaceService,
+    private readonly integrationService?: IntegrationService,
+    private readonly confluenceService?: ConfluenceService,
   ) {}
 
   async execute(
@@ -49,6 +53,10 @@ export class ReadExecutor {
         return this.fetchCodebaseData(workspaceId, input);
       case 'search_profiles':
         return this.searchProfiles(workspaceId, input);
+      case 'list_jira_projects':
+        return this.listJiraProjects();
+      case 'list_confluence_spaces':
+        return this.listConfluenceSpaces();
       default:
         return { content: JSON.stringify({ error: `Unknown read tool: ${toolName}` }) };
     }
@@ -380,6 +388,42 @@ export class ReadExecutor {
         totalProfiles: allProfiles.length,
         matchedProfiles: summaries.length,
         profiles: summaries,
+      }),
+    };
+  }
+
+  private async listJiraProjects(): Promise<ToolExecutionOutput> {
+    if (!this.integrationService) {
+      return { content: JSON.stringify({ error: 'Jira is not configured' }) };
+    }
+
+    const result = await this.integrationService.listProjects();
+    if (!result.ok) {
+      return { content: JSON.stringify({ error: result.error.message }) };
+    }
+
+    return {
+      content: JSON.stringify({
+        source: 'jira',
+        projects: result.value.map((p) => ({ key: p.key, name: p.name, type: p.projectTypeKey })),
+      }),
+    };
+  }
+
+  private async listConfluenceSpaces(): Promise<ToolExecutionOutput> {
+    if (!this.confluenceService) {
+      return { content: JSON.stringify({ error: 'Confluence is not configured' }) };
+    }
+
+    const result = await this.confluenceService.listSpaces();
+    if (!result.ok) {
+      return { content: JSON.stringify({ error: result.error.message }) };
+    }
+
+    return {
+      content: JSON.stringify({
+        source: 'confluence',
+        spaces: result.value.map((s) => ({ key: s.key, name: s.name, type: s.type })),
       }),
     };
   }

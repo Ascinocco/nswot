@@ -127,6 +127,24 @@ export const READ_TOOLS: ActionToolDefinition[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'list_jira_projects',
+      description:
+        'List all available Jira projects. Returns project key, name, and type. Use this to discover available projects before fetching data or creating issues.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_confluence_spaces',
+      description:
+        'List all available Confluence spaces. Returns space key, name, and type. Use this to discover available spaces before fetching pages or creating content.',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
 ];
 
 export const READ_TOOL_NAMES = READ_TOOLS.map((t) => t.function.name);

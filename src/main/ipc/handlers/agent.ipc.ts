@@ -361,6 +361,8 @@ You have read tools that query LOCALLY CACHED data from the last sync — they d
 - **fetch_confluence_data**: Returns cached Confluence pages and comments. Use for specific page content not in the summaries.
 - **fetch_github_data**: Returns cached GitHub PRs, issues, and comments. Use for specific PR/issue details not in the summaries.
 - **search_profiles**: Searches stakeholder profiles by keyword or tags. Use to find specific stakeholder quotes or concerns.
+- **list_jira_projects**: Lists all available Jira projects (key, name, type). Use this to discover project keys before fetching data or creating issues. Makes a LIVE API call (not cached).
+- **list_confluence_spaces**: Lists all available Confluence spaces (key, name, type). Use this to discover space keys before fetching pages or creating content. Makes a LIVE API call (not cached).
 
 IMPORTANT: The ANALYSIS DATA section below already contains comprehensive summaries of all data sources. Use that FIRST for answering questions. Only call read tools when the user asks for specific raw details (e.g., "show me all open stories for project X" or "what did Stakeholder C say about performance?"). Do NOT call read tools to get data types that were never synced (sprint velocity, story points, burndown metrics, etc.).
 

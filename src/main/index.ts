@@ -328,6 +328,8 @@ const readExecutor = new ReadExecutor(
   integrationCacheRepo,
   profileRepo,
   workspaceService,
+  integrationService,
+  confluenceService,
 );
 const writeExecutor = new WriteExecutor(fileService, actionExecutor);
 const toolExecutorRouter = new ToolExecutorRouter(renderExecutor, readExecutor, writeExecutor);

@@ -292,6 +292,8 @@ declare global {
     | 'fetch_github_data'
     | 'run_codebase_analysis'
     | 'search_profiles'
+    | 'list_jira_projects'
+    | 'list_confluence_spaces'
     | 'render_swot_analysis'
     | 'render_mermaid'
     | 'render_chart'

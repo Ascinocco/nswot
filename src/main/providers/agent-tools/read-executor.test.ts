@@ -512,6 +512,136 @@ describe('ReadExecutor', () => {
     });
   });
 
+  describe('list_jira_projects', () => {
+    it('returns projects from integration service', async () => {
+      const mockIntegrationService = {
+        listProjects: vi.fn().mockResolvedValue({
+          ok: true,
+          value: [
+            { id: '1', key: 'PROJ', name: 'Project One', projectTypeKey: 'software' },
+            { id: '2', key: 'INFRA', name: 'Infrastructure', projectTypeKey: 'service_desk' },
+          ],
+        }),
+      };
+
+      const executor = new ReadExecutor(
+        makeMockIntegrationRepo(),
+        makeMockCacheRepo(),
+        makeMockProfileRepo(),
+        makeMockWorkspaceService(),
+        mockIntegrationService as any,
+      );
+
+      const result = await executor.execute('list_jira_projects', {});
+      const parsed = JSON.parse(result.content!);
+
+      expect(parsed.source).toBe('jira');
+      expect(parsed.projects).toHaveLength(2);
+      expect(parsed.projects[0]).toEqual({ key: 'PROJ', name: 'Project One', type: 'software' });
+      expect(parsed.projects[1]).toEqual({ key: 'INFRA', name: 'Infrastructure', type: 'service_desk' });
+    });
+
+    it('returns error when integration service returns err', async () => {
+      const mockIntegrationService = {
+        listProjects: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { code: 'JIRA_AUTH_FAILED', message: 'Jira authentication failed' },
+        }),
+      };
+
+      const executor = new ReadExecutor(
+        makeMockIntegrationRepo(),
+        makeMockCacheRepo(),
+        makeMockProfileRepo(),
+        makeMockWorkspaceService(),
+        mockIntegrationService as any,
+      );
+
+      const result = await executor.execute('list_jira_projects', {});
+      const parsed = JSON.parse(result.content!);
+      expect(parsed.error).toBe('Jira authentication failed');
+    });
+
+    it('returns error when integration service not injected', async () => {
+      const executor = new ReadExecutor(
+        makeMockIntegrationRepo(),
+        makeMockCacheRepo(),
+        makeMockProfileRepo(),
+        makeMockWorkspaceService(),
+      );
+
+      const result = await executor.execute('list_jira_projects', {});
+      const parsed = JSON.parse(result.content!);
+      expect(parsed.error).toBe('Jira is not configured');
+    });
+  });
+
+  describe('list_confluence_spaces', () => {
+    it('returns spaces from confluence service', async () => {
+      const mockConfluenceService = {
+        listSpaces: vi.fn().mockResolvedValue({
+          ok: true,
+          value: [
+            { id: '1', key: 'DEV', name: 'Development', type: 'global' },
+            { id: '2', key: 'ENG', name: 'Engineering', type: 'personal' },
+          ],
+        }),
+      };
+
+      const executor = new ReadExecutor(
+        makeMockIntegrationRepo(),
+        makeMockCacheRepo(),
+        makeMockProfileRepo(),
+        makeMockWorkspaceService(),
+        undefined,
+        mockConfluenceService as any,
+      );
+
+      const result = await executor.execute('list_confluence_spaces', {});
+      const parsed = JSON.parse(result.content!);
+
+      expect(parsed.source).toBe('confluence');
+      expect(parsed.spaces).toHaveLength(2);
+      expect(parsed.spaces[0]).toEqual({ key: 'DEV', name: 'Development', type: 'global' });
+      expect(parsed.spaces[1]).toEqual({ key: 'ENG', name: 'Engineering', type: 'personal' });
+    });
+
+    it('returns error when confluence service returns err', async () => {
+      const mockConfluenceService = {
+        listSpaces: vi.fn().mockResolvedValue({
+          ok: false,
+          error: { code: 'CONFLUENCE_AUTH_FAILED', message: 'Confluence authentication failed' },
+        }),
+      };
+
+      const executor = new ReadExecutor(
+        makeMockIntegrationRepo(),
+        makeMockCacheRepo(),
+        makeMockProfileRepo(),
+        makeMockWorkspaceService(),
+        undefined,
+        mockConfluenceService as any,
+      );
+
+      const result = await executor.execute('list_confluence_spaces', {});
+      const parsed = JSON.parse(result.content!);
+      expect(parsed.error).toBe('Confluence authentication failed');
+    });
+
+    it('returns error when confluence service not injected', async () => {
+      const executor = new ReadExecutor(
+        makeMockIntegrationRepo(),
+        makeMockCacheRepo(),
+        makeMockProfileRepo(),
+        makeMockWorkspaceService(),
+      );
+
+      const result = await executor.execute('list_confluence_spaces', {});
+      const parsed = JSON.parse(result.content!);
+      expect(parsed.error).toBe('Confluence is not configured');
+    });
+  });
+
   describe('ToolExecutorRouter integration', () => {
     it('routes read tools through the router to ReadExecutor', async () => {
       const { ToolExecutorRouter } = await import('./tool-executor-router');

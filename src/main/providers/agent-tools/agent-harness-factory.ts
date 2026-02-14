@@ -5,6 +5,8 @@ import type { IntegrationCacheRepository } from '../../repositories/integration-
 import type { ProfileRepository } from '../../repositories/profile.repository';
 import type { WorkspaceService } from '../../services/workspace.service';
 import type { FileService } from '../../services/file.service';
+import type { IntegrationService } from '../../services/integration.service';
+import type { ConfluenceService } from '../../services/confluence.service';
 import type { ActionExecutor } from '../actions/action-executor';
 import { AgentService } from '../../services/agent.service';
 import { ToolRegistry } from './tool-registry';
@@ -24,6 +26,8 @@ export interface AgentHarnessOptions {
   profileRepo: ProfileRepository;
   workspaceService: WorkspaceService;
   fileService?: FileService;
+  integrationService?: IntegrationService;
+  confluenceService?: ConfluenceService;
   actionExecutor?: ActionExecutor;
 }
 
@@ -41,6 +45,8 @@ export function createAgentHarness(options: AgentHarnessOptions): AgentService {
     profileRepo,
     workspaceService,
     fileService,
+    integrationService,
+    confluenceService,
     actionExecutor,
   } = options;
 
@@ -57,6 +63,8 @@ export function createAgentHarness(options: AgentHarnessOptions): AgentService {
     integrationCacheRepo,
     profileRepo,
     workspaceService,
+    integrationService,
+    confluenceService,
   );
   const writeExecutor = new WriteExecutor(fileService, actionExecutor);
   const executorRouter = new ToolExecutorRouter(renderExecutor, readExecutor, writeExecutor);
