@@ -1,16 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { CONTENT_BLOCK_TYPES } from '../../main/domain/content-block.types';
+import type { ContentBlock } from '../../main/domain/content-block.types';
 
-export type AgentState = 'idle' | 'thinking' | 'executing_tool' | 'awaiting_approval' | 'error';
+// AgentState is defined globally in env.d.ts — re-export for consumers
+export type { AgentState };
 
 export interface TokenCount {
   input: number;
   output: number;
 }
 
-export interface ContentBlock {
-  type: string;
-  id: string;
-  data: unknown;
+// Re-export the real discriminated union from domain — never redefine locally
+export type { ContentBlock } from '../../main/domain/content-block.types';
+
+const VALID_BLOCK_TYPES = new Set<string>(CONTENT_BLOCK_TYPES);
+
+/** Validate that an IPC payload looks like a ContentBlock before accepting it. */
+export function isValidBlock(value: unknown): value is ContentBlock {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj.type === 'string' &&
+    VALID_BLOCK_TYPES.has(obj.type) &&
+    typeof obj.id === 'string' &&
+    obj.data !== undefined
+  );
 }
 
 export function useAgentState(conversationId: string | null): AgentState {
@@ -74,7 +88,11 @@ export function useAgentBlocks(conversationId: string | null): {
     if (!conversationId) return;
     const cleanup = window.nswot.agent.onBlock((data) => {
       if (data.conversationId === conversationId) {
-        setBlocks((prev) => [...prev, data.block as ContentBlock]);
+        if (isValidBlock(data.block)) {
+          setBlocks((prev) => [...prev, data.block]);
+        } else {
+          console.warn('[use-agent] Received invalid block from IPC, skipping:', data.block);
+        }
       }
     });
     return cleanup;

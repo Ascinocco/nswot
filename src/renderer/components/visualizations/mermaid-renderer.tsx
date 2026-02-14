@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
 
 interface MermaidRendererProps {
   content: string;
@@ -43,7 +44,7 @@ export default function MermaidRenderer({ content, className }: MermaidRendererP
       .render(id, content.trim())
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML = svg;
+          containerRef.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
           setError(null);
         }
       })

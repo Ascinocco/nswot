@@ -118,7 +118,7 @@ describe('WriteExecutor', () => {
       const parsed = JSON.parse(result.content!);
       expect(parsed.success).toBe(true);
       expect(parsed.id).toBe('PROJ-123');
-      expect(actionExecutor.execute).toHaveBeenCalledWith('create_jira_issue', input);
+      expect(actionExecutor.execute).toHaveBeenCalledWith('create_jira_issue', input, undefined);
     });
 
     it('delegates create_confluence_page to ActionExecutor', async () => {
@@ -147,7 +147,7 @@ describe('WriteExecutor', () => {
 
       const parsed = JSON.parse(result.content!);
       expect(parsed.success).toBe(true);
-      expect(actionExecutor.execute).toHaveBeenCalledWith('write_markdown_file', expect.any(Object));
+      expect(actionExecutor.execute).toHaveBeenCalledWith('write_markdown_file', expect.any(Object), undefined);
     });
 
     it('returns error when ActionExecutor fails', async () => {

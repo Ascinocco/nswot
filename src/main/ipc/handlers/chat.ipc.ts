@@ -4,6 +4,7 @@ import { resolveAgentApproval } from '../agent-approval';
 import type { IPCResult, ChatMessage, ChatAction, ActionResult } from '../../domain/types';
 import type { ChatService } from '../../services/chat.service';
 import type { EditorContext } from '../../services/chat.service';
+import type { ApprovalMemoryService } from '../../services/approval-memory.service';
 
 function toIpcResult<T>(data: T): IPCResult<T> {
   return { success: true, data };
@@ -13,7 +14,10 @@ function toIpcError<T>(error: { code: string; message: string }): IPCResult<T> {
   return { success: false, error: { code: error.code, message: error.message } };
 }
 
-export function registerChatHandlers(chatService: ChatService): void {
+export function registerChatHandlers(
+  chatService: ChatService,
+  approvalMemoryService?: ApprovalMemoryService,
+): void {
   ipcMain.handle(
     IPC_CHANNELS.CHAT_GET_MESSAGES,
     async (_event, analysisId: string): Promise<IPCResult<ChatMessage[]>> => {
@@ -55,9 +59,11 @@ export function registerChatHandlers(chatService: ChatService): void {
 
   ipcMain.handle(
     IPC_CHANNELS.CHAT_ACTION_APPROVE,
-    async (event, analysisId: string, actionId: string): Promise<IPCResult<ActionResult>> => {
+    async (event, analysisId: string, actionId: string, remember?: boolean): Promise<IPCResult<ActionResult>> => {
       // Check if this is a Phase 4 agent approval (pending promise in agent loop)
-      if (resolveAgentApproval(actionId, true)) {
+      const metadata = resolveAgentApproval(actionId, true, remember ?? false);
+      if (metadata) {
+        // Agent approval resolved — memory is handled inside agent.ipc.ts onApprovalRequest
         return toIpcResult({ success: true } as ActionResult);
       }
 
@@ -79,7 +85,8 @@ export function registerChatHandlers(chatService: ChatService): void {
     IPC_CHANNELS.CHAT_ACTION_REJECT,
     async (event, analysisId: string, actionId: string): Promise<IPCResult<void>> => {
       // Check if this is a Phase 4 agent rejection (pending promise in agent loop)
-      if (resolveAgentApproval(actionId, false)) {
+      const metadata = resolveAgentApproval(actionId, false);
+      if (metadata) {
         return toIpcResult<void>(undefined);
       }
 

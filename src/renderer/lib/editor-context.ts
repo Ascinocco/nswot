@@ -45,7 +45,9 @@ export function EditorContextProvider({ children }: { children: ReactNode }): Re
     const context = state.filePath
       ? { filePath: state.filePath, contentPreview: state.contentPreview, selectedText: state.selectedText }
       : null;
-    window.nswot.chat.setEditorContext(context);
+    window.nswot.chat.setEditorContext(context).catch((err: unknown) => {
+      console.error('[editor-context] Failed to sync editor context:', err);
+    });
   }, [state.filePath, state.contentPreview, state.selectedText]);
 
   const value: EditorContextValue = {

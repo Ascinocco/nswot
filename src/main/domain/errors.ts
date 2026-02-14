@@ -75,7 +75,9 @@ export class DomainError extends Error {
   constructor(
     public readonly code: ErrorCode,
     message: string,
-    public readonly cause?: unknown
+    public readonly cause?: unknown,
+    /** HTTP status code when this error originated from an HTTP response. */
+    public readonly status?: number,
   ) {
     super(message);
     this.name = 'DomainError';

@@ -15,7 +15,9 @@ export default function ProviderPicker(): React.JSX.Element {
 
   const handleProviderChange = (provider: string): void => {
     setPreference.mutate({ key: 'llmProviderType', value: provider });
-    window.nswot.llm.setProvider(provider);
+    window.nswot.llm.setProvider(provider).catch((err: unknown) => {
+      console.error('[provider-picker] Failed to set provider:', err);
+    });
   };
 
   const handleSaveKey = (): void => {

@@ -2,10 +2,10 @@ import type { ToolExecutionOutput } from '../../services/agent.service';
 import type { FileService } from '../../services/file.service';
 import type { ActionExecutor } from '../actions/action-executor';
 import type { ActionToolName } from '../../domain/types';
-import { isFileWriteTool, TOOL_NAMES } from '../actions/action-tools';
+import { isFileWriteTool, TOOL_NAMES, FILE_WRITE_TOOL_NAMES } from '../actions/action-tools';
 
 /** Set of Phase 3c action tool names for routing. */
-const PHASE3C_TOOL_NAMES = new Set([...TOOL_NAMES, ...['write_markdown_file', 'write_csv_file', 'write_mermaid_file']]);
+const PHASE3C_TOOL_NAMES = new Set([...TOOL_NAMES, ...FILE_WRITE_TOOL_NAMES]);
 
 /**
  * Executes write tools for the agent harness.
@@ -22,13 +22,14 @@ export class WriteExecutor {
   async execute(
     toolName: string,
     input: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<ToolExecutionOutput> {
     if (toolName === 'write_file') {
       return this.executeWriteFile(input);
     }
 
     if (PHASE3C_TOOL_NAMES.has(toolName)) {
-      return this.executePhase3cTool(toolName as ActionToolName, input);
+      return this.executePhase3cTool(toolName as ActionToolName, input, signal);
     }
 
     return { content: JSON.stringify({ error: `Unknown write tool: ${toolName}` }) };
@@ -51,9 +52,9 @@ export class WriteExecutor {
         content: JSON.stringify({ error: 'write_file requires a path string' }),
       };
     }
-    if (path.includes('..')) {
+    if (path.includes('..') || path.startsWith('/') || /^[a-zA-Z]:/.test(path)) {
       return {
-        content: JSON.stringify({ error: 'Path traversal not allowed' }),
+        content: JSON.stringify({ error: 'Path traversal not allowed: must be a relative path within the workspace' }),
       };
     }
     if (content === undefined || typeof content !== 'string') {
@@ -76,6 +77,7 @@ export class WriteExecutor {
   private async executePhase3cTool(
     toolName: ActionToolName,
     input: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<ToolExecutionOutput> {
     if (!this.actionExecutor) {
       return {
@@ -87,7 +89,7 @@ export class WriteExecutor {
 
     // File write tools (write_markdown_file, write_csv_file, write_mermaid_file)
     // also go through ActionExecutor which delegates to FileService
-    const result = await this.actionExecutor.execute(toolName, input);
+    const result = await this.actionExecutor.execute(toolName, input, signal);
 
     if (result.success) {
       return {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
 import type { MermaidBlockData } from '../../../../main/domain/content-block.types';
 
 let mermaidInitialized = false;
@@ -37,14 +38,14 @@ export default function MermaidBlock({ data }: MermaidBlockProps): React.JSX.Ele
 
     initMermaid();
 
-    const id = `mermaid-block-${Date.now()}`;
+    const id = `mermaid-block-${crypto.randomUUID()}`;
     let cancelled = false;
 
     mermaid
       .render(id, data.source.trim())
       .then(({ svg }) => {
         if (!cancelled && containerRef.current) {
-          containerRef.current.innerHTML = svg;
+          containerRef.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } });
           setError(null);
           setHasSvg(true);
         }

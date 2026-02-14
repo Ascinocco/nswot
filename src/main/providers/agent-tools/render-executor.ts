@@ -132,6 +132,24 @@ export class RenderExecutor {
       return { content: JSON.stringify({ error: `render_chart chartType must be one of: ${validTypes.join(', ')}` }) };
     }
 
+    const spec = input.spec as Record<string, unknown>;
+    if (typeof spec !== 'object' || spec === null) {
+      return { content: JSON.stringify({ error: 'render_chart spec must be an object' }) };
+    }
+
+    const specData = spec.data as Record<string, unknown> | undefined;
+    if (!specData || typeof specData !== 'object') {
+      return { content: JSON.stringify({ error: 'render_chart spec.data is required and must be an object with labels and datasets' }) };
+    }
+
+    if (!Array.isArray(specData.labels)) {
+      return { content: JSON.stringify({ error: 'render_chart spec.data.labels must be an array' }) };
+    }
+
+    if (!Array.isArray(specData.datasets) || specData.datasets.length === 0) {
+      return { content: JSON.stringify({ error: 'render_chart spec.data.datasets must be a non-empty array' }) };
+    }
+
     const data: ChartBlockData = {
       title: input.title as string,
       chartType: input.chartType as ChartBlockData['chartType'],

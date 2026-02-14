@@ -216,7 +216,9 @@ export class OpenCodeProvider implements CodebaseProviderInterface {
 
     const { exitCode, stderr } = await this.spawnWithTimeout('git', args, undefined, 120_000);
     if (exitCode !== 0) {
-      throw new Error(`git clone failed: ${stderr.trim()}`);
+      // Strip PAT from error messages to prevent secret leakage
+      const sanitized = stderr.replace(/https:\/\/[^@]+@/g, 'https://***@');
+      throw new Error(`git clone failed: ${sanitized.trim()}`);
     }
   }
 
@@ -321,12 +323,18 @@ export class OpenCodeProvider implements CodebaseProviderInterface {
         stderr += chunk.toString();
       });
 
+      let settled = false;
+
       child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         resolve({ stdout, stderr, exitCode: code ?? 1 });
       });
 
       child.on('error', (err) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         if (err.name === 'AbortError') {
           const timeoutError = new Error(`Command timed out after ${timeoutMs}ms`);

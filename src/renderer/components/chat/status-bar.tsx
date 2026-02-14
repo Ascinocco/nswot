@@ -13,7 +13,7 @@ const STATE_LABELS: Record<AgentState, string> = {
   idle: 'Ready',
   thinking: 'Thinking...',
   executing_tool: 'Executing tool...',
-  awaiting_approval: 'Awaiting approval...',
+  awaiting_approval: 'Action needs your approval',
   error: 'Error',
 };
 
@@ -21,7 +21,7 @@ const STATE_COLORS: Record<AgentState, string> = {
   idle: 'text-gray-400',
   thinking: 'text-blue-400',
   executing_tool: 'text-yellow-400',
-  awaiting_approval: 'text-amber-400',
+  awaiting_approval: 'text-amber-300',
   error: 'text-red-400',
 };
 
@@ -76,6 +76,7 @@ export default function StatusBar({
   modelPricing,
 }: StatusBarProps): React.JSX.Element {
   const isActive = agentState !== 'idle' && agentState !== 'error';
+  const isAwaitingApproval = agentState === 'awaiting_approval';
   const totalTokens = tokenCount.input + tokenCount.output;
   const activeSource = toolActivity ? TOOL_TO_SOURCE[toolActivity.toolName] ?? null : null;
 
@@ -83,12 +84,16 @@ export default function StatusBar({
     ? tokenCount.input * modelPricing.prompt + tokenCount.output * modelPricing.completion
     : null;
 
+  const borderClass = isAwaitingApproval
+    ? 'border-amber-700/60 bg-amber-950/10'
+    : 'border-gray-800 bg-gray-900';
+
   return (
-    <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900 px-3 py-1.5 text-xs">
+    <div className={`flex items-center justify-between rounded-lg border px-3 py-1.5 text-xs ${borderClass}`}>
       {/* Agent state */}
       <div className="flex items-center gap-2">
         {isActive && (
-          <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+          <span className={`h-2 w-2 animate-pulse rounded-full ${isAwaitingApproval ? 'bg-amber-400' : 'bg-blue-400'}`} />
         )}
         <span className={STATE_COLORS[agentState]}>
           {STATE_LABELS[agentState]}

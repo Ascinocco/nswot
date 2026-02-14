@@ -9,6 +9,10 @@ import type {
 
 const ANTHROPIC_MESSAGES_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_API_VERSION = '2023-06-01';
+/** Timeout for the initial HTTP connection (not the full stream). */
+const FETCH_TIMEOUT_MS = 30_000;
+/** Inactivity timeout for the SSE stream: abort if no data received within this period. */
+const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
 
 /**
  * Hardcoded model list for Anthropic.
@@ -41,13 +45,19 @@ const ANTHROPIC_MODELS: LlmModel[] = [
 interface AnthropicContentBlockDelta {
   type: 'content_block_delta';
   index: number;
-  delta: { type: 'text_delta'; text: string } | { type: 'input_json_delta'; partial_json: string };
+  delta:
+    | { type: 'text_delta'; text: string }
+    | { type: 'input_json_delta'; partial_json: string }
+    | { type: 'thinking_delta'; thinking: string };
 }
 
 interface AnthropicContentBlockStart {
   type: 'content_block_start';
   index: number;
-  content_block: { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: unknown };
+  content_block:
+    | { type: 'text'; text: string }
+    | { type: 'tool_use'; id: string; name: string; input: unknown }
+    | { type: 'thinking'; thinking: string };
 }
 
 interface AnthropicMessageDelta {
@@ -74,20 +84,44 @@ export class AnthropicProvider implements LLMProvider {
       max_tokens: request.maxTokens ?? 4096,
     };
     if (systemMessage) body['system'] = systemMessage;
-    if (request.temperature !== undefined) body['temperature'] = request.temperature;
+    if (request.thinkingBudget && request.thinkingBudget > 0) {
+      // Extended thinking: enable thinking and enforce Anthropic constraints
+      body['thinking'] = { type: 'enabled', budget_tokens: request.thinkingBudget };
+      // Anthropic requires temperature=1 (or omitted) when thinking is enabled
+      // max_tokens must be >= budget_tokens
+      const maxTokens = request.maxTokens ?? 4096;
+      if (maxTokens < request.thinkingBudget) {
+        body['max_tokens'] = request.thinkingBudget + 4096;
+      }
+    } else if (request.temperature !== undefined) {
+      body['temperature'] = request.temperature;
+    }
     if (request.tools && (request.tools as unknown[]).length > 0) {
       body['tools'] = mapToolsToAnthropic(request.tools);
     }
 
-    const response = await fetch(ANTHROPIC_MESSAGES_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': request.apiKey,
-        'anthropic-version': ANTHROPIC_API_VERSION,
-      },
-      body: JSON.stringify(body),
-    });
+    // Connection-phase timeout only — cleared once we receive response headers.
+    // The streaming body read uses a per-chunk inactivity timeout instead.
+    const controller = new AbortController();
+    const connectionTimeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(ANTHROPIC_MESSAGES_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': request.apiKey,
+          'anthropic-version': ANTHROPIC_API_VERSION,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(connectionTimeout);
+      throw e;
+    }
+    clearTimeout(connectionTimeout);
 
     if (!response.ok) {
       this.throwHttpError(response.status, await this.extractErrorDetail(response));
@@ -109,16 +143,30 @@ export class AnthropicProvider implements LLMProvider {
     const decoder = new TextDecoder();
     let buffer = '';
     const contentChunks: string[] = [];
+    const thinkingChunks: string[] = [];
     let tokenCount = 0;
     let finishReason: string | null = null;
     let lastProgressAt = 0;
+
+    // Track content block types by index: 'thinking' | 'text' | 'tool_use'
+    const blockTypeMap = new Map<number, string>();
 
     // Track tool_use blocks: index -> accumulated tool call
     const toolCallMap = new Map<number, { id: string; name: string; arguments: string }>();
 
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        // Race each read against an inactivity timeout — catches stalled streams
+        let inactivityTimer: ReturnType<typeof setTimeout>;
+        const { done, value } = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => {
+            inactivityTimer = setTimeout(
+              () => reject(new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'Anthropic stream stalled: no data received for 60s')),
+              STREAM_INACTIVITY_TIMEOUT_MS,
+            );
+          }),
+        ]).finally(() => clearTimeout(inactivityTimer!));
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -137,6 +185,7 @@ export class AnthropicProvider implements LLMProvider {
 
             if (event.type === 'content_block_start') {
               const cbs = event as AnthropicContentBlockStart;
+              blockTypeMap.set(cbs.index, cbs.content_block.type);
               if (cbs.content_block.type === 'tool_use') {
                 toolCallMap.set(cbs.index, {
                   id: cbs.content_block.id,
@@ -144,9 +193,12 @@ export class AnthropicProvider implements LLMProvider {
                   arguments: '',
                 });
               }
+              // 'thinking' blocks are tracked via blockTypeMap; deltas accumulate in thinkingChunks
             } else if (event.type === 'content_block_delta') {
               const cbd = event as AnthropicContentBlockDelta;
-              if (cbd.delta.type === 'text_delta') {
+              if (cbd.delta.type === 'thinking_delta') {
+                thinkingChunks.push(cbd.delta.thinking);
+              } else if (cbd.delta.type === 'text_delta') {
                 const text = cbd.delta.text;
                 contentChunks.push(text);
                 tokenCount++;
@@ -189,7 +241,8 @@ export class AnthropicProvider implements LLMProvider {
     }
 
     const fullContent = contentChunks.join('');
-    if (!fullContent && toolCallMap.size === 0) {
+    const fullThinking = thinkingChunks.join('');
+    if (!fullContent && !fullThinking && toolCallMap.size === 0) {
       throw new DomainError(ERROR_CODES.LLM_EMPTY_RESPONSE, 'Empty response from Anthropic');
     }
 
@@ -201,22 +254,29 @@ export class AnthropicProvider implements LLMProvider {
         ? Array.from(toolCallMap.values())
         : undefined;
 
-    return { content: fullContent, finishReason: mappedFinishReason, toolCalls };
+    return {
+      content: fullContent,
+      finishReason: mappedFinishReason,
+      toolCalls,
+      thinking: fullThinking || undefined,
+    };
   }
 
   private throwHttpError(status: number, detail: string): never {
     if (status === 401) {
-      throw new DomainError(ERROR_CODES.ANTHROPIC_AUTH_FAILED, detail || 'Invalid Anthropic API key');
+      throw new DomainError(ERROR_CODES.ANTHROPIC_AUTH_FAILED, detail || 'Invalid Anthropic API key', undefined, status);
     }
     if (status === 403) {
-      throw new DomainError(ERROR_CODES.ANTHROPIC_AUTH_FAILED, detail || 'Anthropic access denied');
+      throw new DomainError(ERROR_CODES.ANTHROPIC_AUTH_FAILED, detail || 'Anthropic access denied', undefined, status);
     }
     if (status === 429) {
-      throw new DomainError(ERROR_CODES.ANTHROPIC_RATE_LIMITED, detail || 'Rate limited by Anthropic');
+      throw new DomainError(ERROR_CODES.ANTHROPIC_RATE_LIMITED, detail || 'Rate limited by Anthropic', undefined, status);
     }
     throw new DomainError(
       ERROR_CODES.LLM_REQUEST_FAILED,
       detail || `Anthropic returned status ${status}`,
+      undefined,
+      status,
     );
   }
 
@@ -237,17 +297,19 @@ export class AnthropicProvider implements LLMProvider {
 function extractSystemMessage(
   messages: Array<{ role: string; content?: string }>,
 ): { systemMessage: string | null; conversationMessages: Array<{ role: string; content: string }> } {
-  let systemMessage: string | null = null;
+  const systemParts: string[] = [];
   const conversationMessages: Array<{ role: string; content: string }> = [];
 
   for (const msg of messages) {
     if (msg.role === 'system') {
-      systemMessage = msg.content ?? '';
+      const text = msg.content ?? '';
+      if (text) systemParts.push(text);
     } else {
       conversationMessages.push({ role: msg.role, content: msg.content ?? '' });
     }
   }
 
+  const systemMessage = systemParts.length > 0 ? systemParts.join('\n\n') : null;
   return { systemMessage, conversationMessages };
 }
 

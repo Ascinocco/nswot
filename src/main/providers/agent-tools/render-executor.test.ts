@@ -194,14 +194,18 @@ describe('RenderExecutor', () => {
   });
 
   describe('render_chart', () => {
+    const validSpec = {
+      data: {
+        labels: ['Q1', 'Q2', 'Q3'],
+        datasets: [{ data: [10, 20, 15] }],
+      },
+    };
+
     it('produces a chart content block', async () => {
       const result = await executor.execute('render_chart', {
         title: 'Issue Distribution',
         chartType: 'bar',
-        spec: {
-          labels: ['Q1', 'Q2', 'Q3'],
-          datasets: [{ data: [10, 20, 15] }],
-        },
+        spec: validSpec,
       });
 
       expect(result.block).toBeDefined();
@@ -217,7 +221,7 @@ describe('RenderExecutor', () => {
         const result = await executor.execute('render_chart', {
           title: `${chartType} chart`,
           chartType,
-          spec: {},
+          spec: validSpec,
         });
         expect(result.block).toBeDefined();
         expect(result.block!.type).toBe('chart');
@@ -228,7 +232,7 @@ describe('RenderExecutor', () => {
       const result = await executor.execute('render_chart', {
         title: 'Bad Chart',
         chartType: 'scatter',
-        spec: {},
+        spec: validSpec,
       });
 
       expect(result.block).toBeUndefined();
@@ -243,6 +247,50 @@ describe('RenderExecutor', () => {
 
       expect(result.block).toBeUndefined();
       expect(result.content).toContain('requires title, chartType, and spec');
+    });
+
+    it('returns error when spec has no data property', async () => {
+      const result = await executor.execute('render_chart', {
+        title: 'No data',
+        chartType: 'bar',
+        spec: { options: {} },
+      });
+
+      expect(result.block).toBeUndefined();
+      expect(result.content).toContain('spec.data is required');
+    });
+
+    it('returns error when spec.data.labels is missing', async () => {
+      const result = await executor.execute('render_chart', {
+        title: 'No labels',
+        chartType: 'bar',
+        spec: { data: { datasets: [{ data: [1] }] } },
+      });
+
+      expect(result.block).toBeUndefined();
+      expect(result.content).toContain('spec.data.labels must be an array');
+    });
+
+    it('returns error when spec.data.datasets is empty', async () => {
+      const result = await executor.execute('render_chart', {
+        title: 'Empty datasets',
+        chartType: 'bar',
+        spec: { data: { labels: ['A'], datasets: [] } },
+      });
+
+      expect(result.block).toBeUndefined();
+      expect(result.content).toContain('spec.data.datasets must be a non-empty array');
+    });
+
+    it('returns error when spec.data.datasets is not an array', async () => {
+      const result = await executor.execute('render_chart', {
+        title: 'Bad datasets',
+        chartType: 'pie',
+        spec: { data: { labels: ['A'], datasets: 'not-array' } },
+      });
+
+      expect(result.block).toBeUndefined();
+      expect(result.content).toContain('spec.data.datasets must be a non-empty array');
     });
   });
 

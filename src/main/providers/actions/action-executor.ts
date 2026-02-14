@@ -4,6 +4,7 @@ import type { ActionExecutorOptions } from './action.types';
 import { DEFAULT_ACTION_OPTIONS } from './action.types';
 import { isFileWriteTool } from './action-tools';
 import type { FileService } from '../../services/file.service';
+import { Logger } from '../../infrastructure/logger';
 
 export class ActionExecutor {
   private readonly options: ActionExecutorOptions;
@@ -17,6 +18,7 @@ export class ActionExecutor {
   async execute(
     toolName: ActionToolName,
     toolInput: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<ActionResult> {
     if (isFileWriteTool(toolName)) {
       return this.executeFileWrite(toolInput);
@@ -39,17 +41,29 @@ export class ActionExecutor {
       prompt,
     ];
 
+    Logger.getInstance().info('Executing action via CLI', { toolName, allowedTools, timeoutMs: this.options.timeoutMs });
+
     try {
       const { stdout, stderr, exitCode } = await this.spawnWithTimeout(
         'claude',
         args,
         undefined,
         this.options.timeoutMs,
+        signal,
       );
 
-      if (exitCode !== 0) {
-        return { success: false, error: classifyCliError(stderr, exitCode) };
+      // Always log stderr for diagnosability
+      if (stderr.trim()) {
+        Logger.getInstance().warn('CLI stderr output', { toolName, stderr: stderr.slice(0, 2000) });
       }
+
+      if (exitCode !== 0) {
+        const error = classifyCliError(stderr, exitCode);
+        Logger.getInstance().error('CLI action failed', { toolName, exitCode, error });
+        return { success: false, error };
+      }
+
+      Logger.getInstance().info('CLI action completed', { toolName, stdoutLength: stdout.length });
 
       if (toolName === 'create_jira_issues') {
         return this.parseBatchOutput(stdout);
@@ -61,8 +75,9 @@ export class ActionExecutor {
         if (isSpawnNotFoundError(err)) {
           return { success: false, error: 'Claude CLI not found. Install it from https://claude.ai/download' };
         }
-        if (err.message.includes('timed out')) {
-          return { success: false, error: `Action execution timed out after ${this.options.timeoutMs}ms` };
+        if (err.message.includes('timed out') || err.message.includes('aborted')) {
+          Logger.getInstance().warn('CLI action timed out or aborted', { toolName, timeoutMs: this.options.timeoutMs });
+          return { success: false, error: `Action execution timed out after ${Math.round(this.options.timeoutMs / 1000)}s. Try again or check MCP server configuration.` };
         }
       }
       throw err;
@@ -80,8 +95,8 @@ export class ActionExecutor {
     if (!path || typeof path !== 'string') {
       return { success: false, error: 'Missing required field: path' };
     }
-    if (path.includes('..')) {
-      return { success: false, error: 'Path traversal not allowed' };
+    if (path.includes('..') || path.startsWith('/') || /^[a-zA-Z]:/.test(path)) {
+      return { success: false, error: 'Path traversal not allowed: must be a relative path within the workspace' };
     }
     if (content === undefined || typeof content !== 'string') {
       return { success: false, error: 'Missing required field: content' };
@@ -292,16 +307,20 @@ export class ActionExecutor {
   }
 
   private getAllowedTools(toolName: ActionToolName): string {
+    const jiraPattern = `${this.options.mcpJiraPrefix}_*`;
+    const confluencePattern = `${this.options.mcpConfluencePrefix}_*`;
+    const githubPattern = `${this.options.mcpGithubPrefix}_*`;
+
     if (toolName.startsWith('create_jira') || toolName === 'add_jira_comment') {
-      return 'mcp__jira__*';
+      return jiraPattern;
     }
     if (toolName === 'create_confluence_page') {
-      return 'mcp__confluence__*';
+      return confluencePattern;
     }
     if (toolName.startsWith('create_github')) {
-      return 'mcp__github__*';
+      return githubPattern;
     }
-    return 'mcp__jira__*,mcp__confluence__*,mcp__github__*';
+    return `${jiraPattern},${confluencePattern},${githubPattern}`;
   }
 
   private spawnWithTimeout(
@@ -309,15 +328,32 @@ export class ActionExecutor {
     args: string[],
     cwd: string | undefined,
     timeoutMs: number,
+    externalSignal?: AbortSignal,
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+      // Forward external abort signal (from agent interrupt)
+      if (externalSignal) {
+        if (externalSignal.aborted) {
+          clearTimeout(timeout);
+          reject(new Error('Action aborted before execution'));
+          return;
+        }
+        const onAbort = (): void => {
+          controller.abort();
+        };
+        externalSignal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      // Use 'ignore' for stdin to prevent the child process from blocking
+      // on stdin reads. Claude CLI with --print -p reads the prompt from the
+      // -p arg, but an open stdin pipe can cause it to hang waiting for EOF.
       const child = spawn(command, args, {
         cwd,
         signal: controller.signal,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        stdio: ['ignore', 'pipe', 'pipe'],
       });
 
       let stdout = '';
@@ -331,12 +367,18 @@ export class ActionExecutor {
         stderr += chunk.toString();
       });
 
+      let settled = false;
+
       child.on('close', (code) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         resolve({ stdout, stderr, exitCode: code ?? 1 });
       });
 
       child.on('error', (err) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         if (err.name === 'AbortError') {
           reject(new Error(`Action execution timed out after ${timeoutMs}ms`));

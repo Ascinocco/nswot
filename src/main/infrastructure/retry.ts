@@ -61,6 +61,10 @@ function isRetryable(error: unknown): boolean {
     if (status >= 400 && status < 500) {
       return false;
     }
+    // 5xx are retryable
+    if (status >= 500) {
+      return true;
+    }
   }
 
   // Network errors are retryable
@@ -78,7 +82,8 @@ function isRetryable(error: unknown): boolean {
     }
   }
 
-  return true;
+  // Default: don't retry unknown errors (auth failures, parse errors, domain errors)
+  return false;
 }
 
 function computeDelay(attempt: number, cfg: RetryConfig, error: unknown): number {

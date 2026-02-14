@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface MemoryIndicatorProps {
   conversationId: string | null;
@@ -22,42 +22,104 @@ const TOOL_SHORT_LABELS: Record<string, string> = {
   write_file: 'File Write',
 };
 
+const BASE_POLL_MS = 5000;
+const MAX_POLL_MS = 60000;
+const MAX_CONSECUTIVE_ERRORS = 5;
+
 export default function MemoryIndicator({
   conversationId,
 }: MemoryIndicatorProps): React.JSX.Element | null {
   const [memories, setMemories] = useState<ApprovalMemoryEntry[]>([]);
+  const [hasError, setHasError] = useState(false);
+  const consecutiveErrorsRef = useRef(0);
+  const pollIntervalRef = useRef(BASE_POLL_MS);
 
+  // Initial fetch
   useEffect(() => {
     if (!conversationId) {
       setMemories([]);
+      setHasError(false);
+      consecutiveErrorsRef.current = 0;
+      pollIntervalRef.current = BASE_POLL_MS;
       return;
     }
 
+    let cancelled = false;
     window.nswot.approvalMemory
       .list(conversationId)
       .then((result) => {
+        if (cancelled) return;
         if (result.success && result.data) {
           setMemories(result.data.filter((m) => m.allowed));
+          setHasError(false);
+          consecutiveErrorsRef.current = 0;
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) consecutiveErrorsRef.current += 1;
+      });
+
+    return () => { cancelled = true; };
   }, [conversationId]);
 
-  // Re-fetch on approval memory changes (poll lightly)
+  // Polling with exponential backoff on errors
   useEffect(() => {
     if (!conversationId) return;
-    const interval = setInterval(() => {
-      window.nswot.approvalMemory
-        .list(conversationId)
-        .then((result) => {
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    function schedulePoll(): void {
+      timeoutId = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          const result = await window.nswot.approvalMemory.list(conversationId!);
+          if (cancelled) return;
           if (result.success && result.data) {
             setMemories(result.data.filter((m) => m.allowed));
+            setHasError(false);
+            consecutiveErrorsRef.current = 0;
+            pollIntervalRef.current = BASE_POLL_MS;
+          } else {
+            consecutiveErrorsRef.current += 1;
           }
-        })
-        .catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
+        } catch {
+          if (cancelled) return;
+          consecutiveErrorsRef.current += 1;
+        }
+
+        if (cancelled) return;
+
+        if (consecutiveErrorsRef.current >= MAX_CONSECUTIVE_ERRORS) {
+          setHasError(true);
+          return;
+        }
+
+        if (consecutiveErrorsRef.current > 0) {
+          pollIntervalRef.current = Math.min(
+            BASE_POLL_MS * Math.pow(2, consecutiveErrorsRef.current),
+            MAX_POLL_MS,
+          );
+        }
+
+        schedulePoll();
+      }, pollIntervalRef.current);
+    }
+
+    schedulePoll();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [conversationId]);
+
+  if (hasError) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg border border-red-800/30 bg-red-950/10 px-2 py-1">
+        <span className="text-[10px] text-red-400/70">Approval memory unavailable</span>
+      </div>
+    );
+  }
 
   if (memories.length === 0) return null;
 

@@ -1,4 +1,8 @@
 declare global {
+  type EvidenceSourceType = 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
+
+  type AgentState = 'idle' | 'thinking' | 'executing_tool' | 'awaiting_approval' | 'error';
+
   interface IPCResult<T> {
     success: boolean;
     data?: T;
@@ -58,7 +62,7 @@ declare global {
   }
 
   interface ThemeEvidenceRef {
-    sourceType: 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
+    sourceType: EvidenceSourceType;
     sourceId: string;
     quote: string;
   }
@@ -69,7 +73,7 @@ declare global {
     label: string;
     description: string;
     evidenceRefs: ThemeEvidenceRef[];
-    sourceTypes: string[];
+    sourceTypes: EvidenceSourceType[];
     frequency: number;
     createdAt: string;
   }
@@ -83,7 +87,7 @@ declare global {
   }
 
   interface EvidenceEntry {
-    sourceType: 'profile' | 'jira' | 'confluence' | 'github' | 'codebase';
+    sourceType: EvidenceSourceType;
     sourceId: string;
     sourceLabel: string;
     quote: string;
@@ -105,7 +109,7 @@ declare global {
   }
 
   interface SourceCoverageEntry {
-    sourceType: string;
+    sourceType: EvidenceSourceType;
     cited: number;
     total: number;
   }
@@ -304,7 +308,7 @@ declare global {
   }
 
   type SwotCategory = 'strengths' | 'weaknesses' | 'opportunities' | 'threats';
-  type DeltaKind = 'added' | 'removed' | 'changed';
+  type DeltaKind = 'added' | 'removed' | 'changed' | 'unchanged';
 
   interface ConfidenceDelta {
     before: 'high' | 'medium' | 'low';

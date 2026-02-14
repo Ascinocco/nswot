@@ -63,9 +63,24 @@ export class ReadExecutor {
       return { content: JSON.stringify({ error: 'Jira integration is not connected. Ask the user to connect Jira in Settings.' }) };
     }
 
-    const epics = await this.integrationCacheRepo.findByType(integration.id, JIRA_RESOURCE_TYPES.EPIC);
-    const stories = await this.integrationCacheRepo.findByType(integration.id, JIRA_RESOURCE_TYPES.STORY);
-    const comments = await this.integrationCacheRepo.findByType(integration.id, JIRA_RESOURCE_TYPES.COMMENT);
+    const projectKeys = Array.isArray(input.projectKeys)
+      ? new Set((input.projectKeys as string[]).map((k) => k.toUpperCase()))
+      : null;
+
+    let epics = await this.integrationCacheRepo.findByType(integration.id, JIRA_RESOURCE_TYPES.EPIC);
+    let stories = await this.integrationCacheRepo.findByType(integration.id, JIRA_RESOURCE_TYPES.STORY);
+    let comments = await this.integrationCacheRepo.findByType(integration.id, JIRA_RESOURCE_TYPES.COMMENT);
+
+    // Filter by project keys when specified (resourceId format: "PROJ-123")
+    if (projectKeys && projectKeys.size > 0) {
+      const matchesProject = (e: IntegrationCacheEntry) => {
+        const key = e.resourceId.split('-')[0]?.toUpperCase() ?? '';
+        return projectKeys.has(key);
+      };
+      epics = epics.filter(matchesProject);
+      stories = stories.filter(matchesProject);
+      comments = comments.filter(matchesProject);
+    }
 
     if (epics.length === 0 && stories.length === 0) {
       return { content: JSON.stringify({ message: 'No Jira data found in cache. The user may need to sync their Jira projects.' }) };
@@ -112,8 +127,22 @@ export class ReadExecutor {
       return { content: JSON.stringify({ error: 'Confluence integration is not connected. Ask the user to connect Confluence in Settings.' }) };
     }
 
-    const pages = await this.integrationCacheRepo.findByType(integration.id, CONFLUENCE_RESOURCE_TYPES.PAGE);
-    const comments = await this.integrationCacheRepo.findByType(integration.id, CONFLUENCE_RESOURCE_TYPES.COMMENT);
+    const spaceKeys = Array.isArray(input.spaceKeys)
+      ? new Set((input.spaceKeys as string[]).map((k) => k.toUpperCase()))
+      : null;
+
+    let pages = await this.integrationCacheRepo.findByType(integration.id, CONFLUENCE_RESOURCE_TYPES.PAGE);
+    let comments = await this.integrationCacheRepo.findByType(integration.id, CONFLUENCE_RESOURCE_TYPES.COMMENT);
+
+    // Filter by space keys when specified (resourceId format: "SPACEKEY:pageId")
+    if (spaceKeys && spaceKeys.size > 0) {
+      const matchesSpace = (e: IntegrationCacheEntry) => {
+        const key = e.resourceId.split(':')[0]?.toUpperCase() ?? '';
+        return spaceKeys.has(key);
+      };
+      pages = pages.filter(matchesSpace);
+      comments = comments.filter(matchesSpace);
+    }
 
     if (pages.length === 0) {
       return { content: JSON.stringify({ message: 'No Confluence data found in cache. The user may need to sync their Confluence spaces.' }) };
@@ -161,9 +190,24 @@ export class ReadExecutor {
       return { content: JSON.stringify({ error: 'GitHub integration is not connected. Ask the user to connect GitHub in Settings.' }) };
     }
 
-    const prs = await this.integrationCacheRepo.findByType(integration.id, GITHUB_RESOURCE_TYPES.PR);
-    const issues = await this.integrationCacheRepo.findByType(integration.id, GITHUB_RESOURCE_TYPES.ISSUE);
-    const prComments = await this.integrationCacheRepo.findByType(integration.id, GITHUB_RESOURCE_TYPES.PR_COMMENT);
+    const repos = Array.isArray(input.repos)
+      ? new Set((input.repos as string[]).map((r) => r.toLowerCase()))
+      : null;
+
+    let prs = await this.integrationCacheRepo.findByType(integration.id, GITHUB_RESOURCE_TYPES.PR);
+    let issues = await this.integrationCacheRepo.findByType(integration.id, GITHUB_RESOURCE_TYPES.ISSUE);
+    let prComments = await this.integrationCacheRepo.findByType(integration.id, GITHUB_RESOURCE_TYPES.PR_COMMENT);
+
+    // Filter by repos when specified (resourceId format: "owner/repo#123")
+    if (repos && repos.size > 0) {
+      const matchesRepo = (e: IntegrationCacheEntry) => {
+        const repoName = e.resourceId.split('#')[0]?.toLowerCase() ?? '';
+        return repos.has(repoName);
+      };
+      prs = prs.filter(matchesRepo);
+      issues = issues.filter(matchesRepo);
+      prComments = prComments.filter(matchesRepo);
+    }
 
     if (prs.length === 0 && issues.length === 0) {
       return { content: JSON.stringify({ message: 'No GitHub data found in cache. The user may need to sync their GitHub repos.' }) };

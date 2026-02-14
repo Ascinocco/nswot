@@ -104,8 +104,15 @@ function diffCategory(
             after: itemB.evidence.length,
           },
         });
+      } else {
+        deltas.push({
+          kind: 'unchanged',
+          category,
+          claim: itemA.claim,
+          matchedClaim: itemB.claim,
+          similarity: bestMatch.score,
+        });
       }
-      // If no changes detected, the item is unchanged — we skip it from deltas
     } else {
       deltas.push({
         kind: 'removed',

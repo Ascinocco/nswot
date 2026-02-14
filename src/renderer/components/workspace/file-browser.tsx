@@ -20,7 +20,7 @@ function DirectoryNode({
   selectedFile: string | null;
 }): React.JSX.Element {
   const [expanded, setExpanded] = useState(depth === 0);
-  const { data: entries } = useDirectory(path);
+  const { data: entries } = useDirectory(path, expanded);
 
   return (
     <div>

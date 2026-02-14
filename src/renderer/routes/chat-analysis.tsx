@@ -23,6 +23,7 @@ import {
   useStopAgent,
 } from '../hooks/use-agent';
 import type { ContentBlock } from '../hooks/use-agent';
+import { CONTENT_BLOCK_TYPES } from '../../main/domain/content-block.types';
 
 type PageState = 'list' | 'config' | 'running' | 'chat';
 
@@ -98,6 +99,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
   const [isRunning, setIsRunning] = useState(false);
   const [messages, setMessages] = useState<ChatMessageDisplay[]>([]);
   const [streamingText, setStreamingText] = useState('');
+  const [pageError, setPageError] = useState<string | null>(null);
 
   // Agent state (scoped to active conversation)
   const agentState = useAgentState(activeConversationId);
@@ -164,6 +166,12 @@ export default function ChatAnalysisPage(): React.JSX.Element {
       }
     }
 
+    // Safety: always clear streaming text when agent is in error state
+    // (covers edge cases where wasActive was false but stale text persists)
+    if (isNowError && streamingText.length > 0 && !wasActive) {
+      setStreamingText('');
+    }
+
     prevAgentStateRef.current = agentState;
   }, [agentState, agentBlocks, streamingText, clearBlocks]);
 
@@ -221,6 +229,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     let cancelled = false;
 
     (async () => {
+      try {
       // Find analyses linked to this conversation
       const analysisResult = await window.nswot.analysis.findByConversation(activeConversationId);
       if (cancelled || !analysisResult.success || !analysisResult.data) return;
@@ -255,17 +264,27 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         const msgResult = await window.nswot.chat.getMessages(analysis.id);
         if (cancelled) return;
         if (msgResult.success && msgResult.data) {
+          const validTypes = new Set<string>(CONTENT_BLOCK_TYPES);
           for (const msg of msgResult.data) {
             if (msg.contentFormat === 'blocks') {
               try {
-                const blocks = JSON.parse(msg.content) as Array<{ type: string; id: string; data: unknown }>;
+                const raw = JSON.parse(msg.content) as unknown[];
+                const blocks = raw.filter(
+                  (b): b is ContentBlock =>
+                    typeof b === 'object' &&
+                    b !== null &&
+                    typeof (b as Record<string, unknown>).type === 'string' &&
+                    validTypes.has((b as Record<string, unknown>).type as string) &&
+                    typeof (b as Record<string, unknown>).id === 'string',
+                );
                 allMessages.push({
                   id: msg.id,
                   role: msg.role,
                   blocks,
                   analysisId: analysis.id,
                 });
-              } catch {
+              } catch (err) {
+                console.error('[chat-analysis] Failed to parse block content for message', msg.id, err);
                 allMessages.push({ id: msg.id, role: msg.role, text: msg.content });
               }
             } else {
@@ -277,23 +296,34 @@ export default function ChatAnalysisPage(): React.JSX.Element {
       if (!cancelled) {
         setMessages(allMessages);
       }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[chat-analysis] Failed to load conversation history:', err);
+          setPageError('Failed to load conversation history');
+        }
+      }
     })();
 
     return () => { cancelled = true; };
   }, [activeConversationId, pageState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch model pricing for cost estimate
+  // Fetch model pricing for cost estimate — match the selected model
   useEffect(() => {
-    window.nswot.llm.listModels().then((result) => {
-      if (result.success && result.data) {
-        // Use the first model's pricing as default; actual model may differ
-        const model = result.data[0];
-        if (model?.pricing) {
-          setModelPricing(model.pricing);
+    window.nswot.llm.listModels()
+      .then((result) => {
+        if (result.success && result.data) {
+          const model = (selectedModelId
+            ? result.data.find((m) => m.id === selectedModelId)
+            : undefined) ?? result.data[0];
+          if (model?.pricing) {
+            setModelPricing(model.pricing);
+          }
         }
-      }
-    });
-  }, []);
+      })
+      .catch((err) => {
+        console.warn('[chat-analysis] Failed to fetch model pricing:', err);
+      });
+  }, [selectedModelId]);
 
   // Handle selecting a conversation from the list
   const handleSelectConversation = useCallback(
@@ -321,6 +351,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setIsFromHistory(false);
     setSavedAnalysisConfig(null);
     setAnalysisIds([]);
+    setPageError(null);
   }, []);
 
   // Derived state
@@ -402,7 +433,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         setIsRunning(false);
       }
     },
-    [activeConversationId, createConversation, navigate],
+    [activeConversationId, analysisIds, createConversation, navigate],
   );
 
   // Handle re-run: show config panel for re-configuration
@@ -428,12 +459,19 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setMessages((prev) => [...prev, userMsg]);
 
     const latestAnalysisId = analysisIds[analysisIds.length - 1]!;
-    await window.nswot.agent.send({
-      conversationId: activeConversationId,
-      analysisId: latestAnalysisId,
-      modelId: selectedModelId || 'anthropic/claude-sonnet-4-5-20250929',
-      content,
-    });
+    try {
+      const result = await window.nswot.agent.send({
+        conversationId: activeConversationId,
+        analysisId: latestAnalysisId,
+        modelId: selectedModelId || 'anthropic/claude-sonnet-4-5-20250929',
+        content,
+      });
+      if (!result.success) {
+        setPageError(result.error?.message ?? 'Failed to send message');
+      }
+    } catch (err) {
+      setPageError(err instanceof Error ? err.message : 'Failed to send message');
+    }
   }, [input, activeConversationId, analysisIds, selectedModelId]);
 
   // Handle keyboard shortcut for send
@@ -478,6 +516,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setPipelineVisible(false);
     setIsFromHistory(false);
     setSavedAnalysisConfig(null);
+    setPageError(null);
     navigate('/chat-analysis');
   }, [navigate]);
 
@@ -533,6 +572,19 @@ export default function ChatAnalysisPage(): React.JSX.Element {
           </button>
         )}
       </div>
+
+      {/* Page-level error banner */}
+      {pageError && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-red-800/50 bg-red-950/20 px-4 py-2.5 text-sm text-red-400">
+          <span>{pageError}</span>
+          <button
+            onClick={() => setPageError(null)}
+            className="ml-4 text-xs text-gray-500 hover:text-gray-300"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Config panel — only in config state */}
       {pageState === 'config' && (

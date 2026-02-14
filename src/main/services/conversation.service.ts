@@ -95,11 +95,9 @@ export class ConversationService {
       if (!conversation) {
         return err(new DomainError(ERROR_CODES.NOT_FOUND, `Conversation "${id}" not found`));
       }
-      // Clear conversation_id on linked analyses before deleting
-      if (this.analysisRepo) {
-        await this.analysisRepo.clearConversationId(id);
-      }
-      await this.conversationRepo.delete(id);
+      // Transactional cascade: deletes chat messages, chat actions, clears analysis links,
+      // and removes conversation + approval_memory in one atomic operation.
+      this.conversationRepo.deleteWithCascade(id);
       return ok(undefined);
     } catch (cause) {
       return err(new DomainError(ERROR_CODES.DB_ERROR, 'Failed to delete conversation', cause));
@@ -107,6 +105,10 @@ export class ConversationService {
   }
 
   async touch(id: string): Promise<void> {
-    await this.conversationRepo.updateTimestamp(id);
+    try {
+      await this.conversationRepo.updateTimestamp(id);
+    } catch {
+      // Non-critical — failing to touch the timestamp shouldn't break the caller
+    }
   }
 }

@@ -1,5 +1,5 @@
-import { watch, type FSWatcher } from 'fs';
-import { relative } from 'path';
+import { watch, existsSync, type FSWatcher } from 'fs';
+import { join, relative } from 'path';
 import { EventEmitter } from 'events';
 
 export interface FileChangeEvent {
@@ -29,7 +29,12 @@ export class FileWatcher extends EventEmitter {
       this.watcher = watch(rootPath, { recursive: true }, (eventType, filename) => {
         if (!filename) return;
         if (this.shouldIgnore(filename)) return;
-        this.debouncedEmit(filename, eventType === 'rename' ? 'add' : 'change');
+        if (eventType === 'rename') {
+          const fullPath = join(rootPath, filename);
+          this.debouncedEmit(filename, existsSync(fullPath) ? 'add' : 'unlink');
+        } else {
+          this.debouncedEmit(filename, 'change');
+        }
       });
 
       this.watcher.on('error', (error) => {

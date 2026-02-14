@@ -2,7 +2,7 @@ import type { SwotItem, EvidenceSourceType } from './types';
 
 export type SwotCategory = 'strengths' | 'weaknesses' | 'opportunities' | 'threats';
 
-export type DeltaKind = 'added' | 'removed' | 'changed';
+export type DeltaKind = 'added' | 'removed' | 'changed' | 'unchanged';
 
 export interface ConfidenceDelta {
   before: SwotItem['confidence'];

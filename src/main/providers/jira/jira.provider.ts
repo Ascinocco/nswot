@@ -81,6 +81,7 @@ export class JiraProvider {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       },
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {

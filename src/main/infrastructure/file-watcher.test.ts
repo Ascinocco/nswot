@@ -7,9 +7,11 @@ const mockWatch = vi.fn(() => ({
   on: mockOn,
   close: mockClose,
 }));
+const mockExistsSync = vi.fn(() => true);
 
 vi.mock('fs', () => ({
   watch: mockWatch,
+  existsSync: mockExistsSync,
 }));
 
 // Import after mock setup
@@ -24,6 +26,8 @@ describe('FileWatcher', () => {
     mockWatch.mockClear();
     mockOn.mockClear();
     mockClose.mockClear();
+    mockExistsSync.mockClear();
+    mockExistsSync.mockReturnValue(true);
     // Re-configure default return for watch
     mockWatch.mockReturnValue({ on: mockOn, close: mockClose });
   });
@@ -77,7 +81,8 @@ describe('FileWatcher', () => {
     expect(events[0]).toEqual({ type: 'change', path: 'src/app.ts' });
   });
 
-  it('maps rename events to add type', () => {
+  it('maps rename events to add type when file exists', () => {
+    mockExistsSync.mockReturnValue(true);
     watcher.start('/my/project');
     const fsCallback = (mockWatch.mock.calls[0] as unknown[])[2] as (eventType: string, filename: string | null) => void;
 
@@ -88,6 +93,20 @@ describe('FileWatcher', () => {
     vi.advanceTimersByTime(200);
 
     expect(events[0]!.type).toBe('add');
+  });
+
+  it('maps rename events to unlink type when file is gone', () => {
+    mockExistsSync.mockReturnValue(false);
+    watcher.start('/my/project');
+    const fsCallback = (mockWatch.mock.calls[0] as unknown[])[2] as (eventType: string, filename: string | null) => void;
+
+    const events: FileChangeEvent[] = [];
+    watcher.on('change', (event: FileChangeEvent) => events.push(event));
+
+    fsCallback('rename', 'src/deleted-file.ts');
+    vi.advanceTimersByTime(200);
+
+    expect(events[0]!.type).toBe('unlink');
   });
 
   it('debounces rapid events for the same file', () => {

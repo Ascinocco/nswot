@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useIntegration,
   useConnectJira,
@@ -33,8 +33,19 @@ function DisconnectedState(): React.JSX.Element {
   const setPreference = useSetPreference();
   const connectJira = useConnectJira();
 
-  const [clientId, setClientId] = useState(preferences?.['jiraClientId'] ?? '');
-  const [clientSecret, setClientSecret] = useState(preferences?.['jiraClientSecret'] ?? '');
+  const [clientId, setClientId] = useState('');
+  const [clientSecret, setClientSecret] = useState('');
+
+  // Sync state when preferences load (useState initial value only runs once on mount,
+  // but preferences is undefined at that point since it comes from an async query)
+  useEffect(() => {
+    if (preferences?.['jiraClientId']) {
+      setClientId((prev) => prev || (preferences['jiraClientId'] as string));
+    }
+    if (preferences?.['jiraClientSecret']) {
+      setClientSecret((prev) => prev || (preferences['jiraClientSecret'] as string));
+    }
+  }, [preferences]);
 
   const handleConnect = (): void => {
     if (!clientId.trim() || !clientSecret.trim()) return;

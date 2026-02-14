@@ -17,8 +17,12 @@ export default function ApiKeyStep({ onNext, onBack }: ApiKeyStepProps): React.J
     setApiKeyMutation.mutate(apiKey.trim(), {
       onSuccess: () => {
         // Also save the provider preference
-        window.nswot.settings.set('llmProviderType', provider);
-        window.nswot.llm.setProvider(provider);
+        window.nswot.settings.set('llmProviderType', provider).catch((err: unknown) => {
+          console.error('[api-key-step] Failed to save provider preference:', err);
+        });
+        window.nswot.llm.setProvider(provider).catch((err: unknown) => {
+          console.error('[api-key-step] Failed to set provider:', err);
+        });
         setApiKey('');
       },
     });

@@ -5,6 +5,7 @@ import type { LLMProvider } from '../providers/llm/llm-provider.interface';
 import type { LlmToolCall } from '../providers/llm/llm.types';
 import type { ToolRegistry, ToolCategory } from '../providers/agent-tools/tool-registry';
 import type { ContentBlock } from '../domain/content-block.types';
+import { Logger } from '../infrastructure/logger';
 
 // Re-export for consumers
 export type { ContentBlock };
@@ -62,6 +63,9 @@ interface ToolExecutionResult {
 /** Maximum number of agentic loop iterations to prevent infinite loops. */
 const MAX_LOOP_ITERATIONS = 25;
 
+/** Default thinking token budget for models that support extended thinking. */
+const DEFAULT_THINKING_BUDGET = 10000;
+
 /**
  * Agent harness: multi-turn execution loop for chat-driven agent experience.
  *
@@ -87,6 +91,7 @@ export class AgentService {
     modelId: string,
     messages: AgentMessage[],
     callbacks: AgentTurnCallbacks = {},
+    thinkingBudget: number = DEFAULT_THINKING_BUDGET,
   ): Promise<Result<AgentTurnResult, DomainError>> {
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
@@ -119,6 +124,7 @@ export class AgentService {
           modelId,
           messages: conversationMessages,
           tools: tools.length > 0 ? (tools as unknown[]) : undefined,
+          thinkingBudget: thinkingBudget > 0 ? thinkingBudget : undefined,
           onChunk: callbacks.onChunk,
           onToken: (count) => {
             outputTokensEstimated += count;
@@ -131,17 +137,33 @@ export class AgentService {
           inputTokens += response.usage.inputTokens;
           outputTokens += response.usage.outputTokens;
           outputTokensEstimated = outputTokens;
+          callbacks.onTokenCount?.(inputTokens, outputTokens);
         }
-        callbacks.onTokenCount?.(inputTokens, outputTokens);
+        // If no usage reported, keep the estimate — don't reset to 0
 
         if (signal.aborted) {
           interrupted = true;
-          finalContent += response.content;
+          // Still extract thinking even on abort so partial thinking is captured
+          const { thinking: abortThinking, cleanContent: abortClean } = extractThinking(
+            response.content,
+            response.thinking,
+          );
+          if (abortThinking) {
+            const thinkingBlock: ContentBlock = {
+              type: 'thinking',
+              id: generateBlockId(),
+              data: { thinking: abortThinking },
+            };
+            blocks.push(thinkingBlock);
+            callbacks.onThinking?.(abortThinking);
+            callbacks.onBlock?.(thinkingBlock);
+          }
+          finalContent += abortClean;
           break;
         }
 
-        // Extract thinking from response content
-        const { thinking, cleanContent } = extractThinking(response.content);
+        // Extract thinking from response (structured field or fallback regex)
+        const { thinking, cleanContent } = extractThinking(response.content, response.thinking);
         if (thinking) {
           const thinkingBlock: ContentBlock = {
             type: 'thinking',
@@ -191,7 +213,25 @@ export class AgentService {
 
         if (signal.aborted) {
           interrupted = true;
-          finalContent += cleanContent;
+          // Push partial tool results + stubs for missing ones so conversation
+          // history remains valid (every tool_call needs a matching tool result).
+          const resultIds = new Set(toolResults.map((r) => r.toolCallId));
+          for (const result of toolResults) {
+            conversationMessages.push({
+              role: 'tool',
+              tool_call_id: result.toolCallId,
+              content: result.content,
+            });
+          }
+          for (const tc of response.toolCalls) {
+            if (!resultIds.has(tc.id)) {
+              conversationMessages.push({
+                role: 'tool',
+                tool_call_id: tc.id,
+                content: '[Interrupted by user before this tool could execute.]',
+              });
+            }
+          }
           break;
         }
 
@@ -208,15 +248,30 @@ export class AgentService {
         callbacks.onStateChange?.('thinking');
       }
 
+      // If we exhausted all iterations without a final response, treat as interrupted
+      if (!interrupted && finalContent === '' && blocks.length === 0) {
+        // Likely fell through the loop limit
+        interrupted = true;
+      }
+      if (interrupted && !signal.aborted) {
+        // Loop limit reached (not user-initiated abort)
+        Logger.tryGetInstance()?.warn('Agent loop reached MAX_LOOP_ITERATIONS', {
+          maxIterations: MAX_LOOP_ITERATIONS,
+        });
+        finalContent += '\n\n[Agent reached the maximum number of iterations and stopped. Some work may be incomplete.]';
+      }
+
       callbacks.onStateChange?.('idle');
-      callbacks.onTokenCount?.(inputTokens, outputTokens);
+      // Use outputTokensEstimated when provider didn't report final usage
+      const finalOutputTokens = outputTokens > 0 ? outputTokens : outputTokensEstimated;
+      callbacks.onTokenCount?.(inputTokens, finalOutputTokens);
 
       return ok({
         content: finalContent,
         blocks,
         interrupted,
         inputTokens,
-        outputTokens,
+        outputTokens: finalOutputTokens,
       });
     } catch (cause) {
       callbacks.onStateChange?.('error');
@@ -308,10 +363,16 @@ export class AgentService {
         result = await this.toolExecutor.execute(tc.name, category, toolInput);
         callbacks.onToolActivity?.(tc.name, 'completed');
       } catch (toolError) {
-        callbacks.onToolActivity?.(tc.name, 'error', toolError instanceof Error ? toolError.message : 'Unknown error');
+        const errorMessage = toolError instanceof Error ? toolError.message : 'Tool execution failed';
+        Logger.getInstance().error('Tool execution failed', {
+          toolName: tc.name,
+          category,
+          error: errorMessage,
+        });
+        callbacks.onToolActivity?.(tc.name, 'error', errorMessage);
         results.push({
           toolCallId: tc.id,
-          content: JSON.stringify({ error: toolError instanceof Error ? toolError.message : 'Tool execution failed' }),
+          content: JSON.stringify({ error: errorMessage }),
         });
         continue;
       }
@@ -396,22 +457,29 @@ export function resetBlockIdCounter(): void {
 }
 
 /**
- * Extract thinking content from LLM response.
+ * Extract thinking content from an LLM response.
  *
- * Anthropic's extended thinking returns thinking blocks as part of the response.
- * The Anthropic provider may embed thinking in the content with markers,
- * or the LlmResponse type may be extended to carry thinking separately.
- *
- * For Sprint 36, we support a simple convention:
- * - If content starts with `<thinking>...</thinking>`, extract it.
- * - Otherwise, return the content as-is.
- *
- * This will be refined when thinking is surfaced natively through the LLM provider.
+ * Anthropic's extended thinking returns thinking as a structured field on the
+ * response (populated by the Anthropic provider from `thinking_delta` SSE events).
+ * If no structured thinking is present, falls back to regex extraction of
+ * `<thinking>...</thinking>` tags for providers that embed thinking in text.
  */
-export function extractThinking(content: string): {
+export function extractThinking(
+  content: string,
+  structuredThinking?: string,
+): {
   thinking: string | null;
   cleanContent: string;
 } {
+  // Prefer structured thinking from the provider (Anthropic extended thinking)
+  if (structuredThinking) {
+    return {
+      thinking: structuredThinking,
+      cleanContent: content,
+    };
+  }
+
+  // Fallback: regex extraction for providers that embed thinking in XML tags
   const thinkingRegex = /^<thinking>([\s\S]*?)<\/thinking>\s*/;
   const match = content.match(thinkingRegex);
 

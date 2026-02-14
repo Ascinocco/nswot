@@ -11,6 +11,7 @@ import { getToolsByIntegration, FILE_WRITE_TOOLS } from '../providers/actions/ac
 import type { ActionToolDefinition } from '../providers/actions/action-tools';
 import { estimateTokens, trimToTokenBudget } from '../analysis/token-budget';
 import type { LLMProvider } from '../providers/llm/llm-provider.interface';
+import { Logger } from '../infrastructure/logger';
 
 const CHAT_TEMPERATURE = 0.3;
 const CHAT_MAX_TOKENS = 2048;
@@ -64,7 +65,12 @@ export function buildChatSystemPrompt(
   hasWorkspace?: boolean,
   editorContext?: EditorContext | null,
 ): string {
-  const role = analysis.role === 'staff_engineer' ? 'Staff Engineer' : 'Senior Engineering Manager';
+  const ROLE_LABELS: Record<string, string> = {
+    staff_engineer: 'Staff Engineer',
+    senior_em: 'Senior Engineering Manager',
+    vp_engineering: 'VP of Engineering',
+  };
+  const role = ROLE_LABELS[analysis.role] ?? analysis.role;
   const swot = analysis.swotOutput;
   const summaries = analysis.summariesOutput;
 
@@ -480,55 +486,75 @@ export class ChatService {
     if (!this.chatActionRepo) return;
 
     const apiKey = this.settingsService.getActiveApiKey();
-    if (!apiKey) return;
-
-    const analysis = await this.analysisRepo.findById(analysisId);
-    if (!analysis) return;
-
-    // Get all resolved actions for this assistant message
-    const allActions = await this.chatActionRepo.findByAnalysis(analysisId);
-    const resolvedActions = allActions.filter((a) => a.chatMessageId === chatMessageId);
-
-    const connectedIntegrations = getConnectedIntegrations(analysis);
-    const systemPrompt = buildChatSystemPrompt(
-      analysis,
-      connectedIntegrations.length > 0 ? connectedIntegrations : undefined,
-      this.hasWorkspace,
-      this.editorContext,
-    );
-    const history = await this.chatRepo.findByAnalysis(analysisId);
-
-    const contextWindow = 128_000;
-    const budget = calculateChatTokenBudget(contextWindow);
-
-    let trimmedSystemPrompt = systemPrompt;
-    if (estimateTokens(systemPrompt) > budget.systemPrompt) {
-      trimmedSystemPrompt = trimToTokenBudget(systemPrompt, budget.systemPrompt);
+    if (!apiKey) {
+      Logger.tryGetInstance()?.error('Cannot continue after tool results: API key is not configured', { analysisId });
+      // Store a system-level error message so the user sees feedback
+      await this.chatRepo.insert(
+        analysisId,
+        'assistant',
+        'Unable to continue the conversation: API key is not configured. Please set your API key in settings.',
+      ).catch(() => {});
+      return;
     }
 
-    // Build messages: history up to but not including the assistant tool-call message,
-    // then the assistant message with tool_calls, then tool results
-    const messages = buildChatMessagesWithToolResults(
-      trimmedSystemPrompt,
-      history,
-      resolvedActions,
-      chatMessageId,
-      budget.chatHistory,
-    );
+    try {
+      const analysis = await this.analysisRepo.findById(analysisId);
+      if (!analysis) return;
 
-    // Stream continuation
-    const integrationTools = connectedIntegrations.length > 0
-      ? getToolsByIntegration(connectedIntegrations)
-      : [];
-    const fileTools = this.hasWorkspace ? FILE_WRITE_TOOLS : [];
-    const allTools = [...integrationTools, ...fileTools];
-    const tools = allTools.length > 0 ? allTools : undefined;
+      // Get all resolved actions for this assistant message
+      const allActions = await this.chatActionRepo.findByAnalysis(analysisId);
+      const resolvedActions = allActions.filter((a) => a.chatMessageId === chatMessageId);
 
-    const continuation = await this.streamCompletion(apiKey, analysis.modelId, messages, onChunk, tools);
+      const connectedIntegrations = getConnectedIntegrations(analysis);
+      const systemPrompt = buildChatSystemPrompt(
+        analysis,
+        connectedIntegrations.length > 0 ? connectedIntegrations : undefined,
+        this.hasWorkspace,
+        this.editorContext,
+      );
+      const history = await this.chatRepo.findByAnalysis(analysisId);
 
-    // Store the continuation as a new assistant message
-    if (continuation.content) {
-      await this.chatRepo.insert(analysisId, 'assistant', continuation.content);
+      const contextWindow = 128_000;
+      const budget = calculateChatTokenBudget(contextWindow);
+
+      let trimmedSystemPrompt = systemPrompt;
+      if (estimateTokens(systemPrompt) > budget.systemPrompt) {
+        trimmedSystemPrompt = trimToTokenBudget(systemPrompt, budget.systemPrompt);
+      }
+
+      // Build messages: history up to but not including the assistant tool-call message,
+      // then the assistant message with tool_calls, then tool results
+      const messages = buildChatMessagesWithToolResults(
+        trimmedSystemPrompt,
+        history,
+        resolvedActions,
+        chatMessageId,
+        budget.chatHistory,
+      );
+
+      // Stream continuation
+      const integrationTools = connectedIntegrations.length > 0
+        ? getToolsByIntegration(connectedIntegrations)
+        : [];
+      const fileTools = this.hasWorkspace ? FILE_WRITE_TOOLS : [];
+      const allTools = [...integrationTools, ...fileTools];
+      const tools = allTools.length > 0 ? allTools : undefined;
+
+      const continuation = await this.streamCompletion(apiKey, analysis.modelId, messages, onChunk, tools);
+
+      // Store the continuation as a new assistant message
+      if (continuation.content) {
+        await this.chatRepo.insert(analysisId, 'assistant', continuation.content);
+      }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unknown error';
+      Logger.tryGetInstance()?.error('continueAfterToolResults failed', { analysisId, error: message });
+      // Store error as assistant message so user gets feedback
+      await this.chatRepo.insert(
+        analysisId,
+        'assistant',
+        `I encountered an error while continuing after tool execution: ${message}. You may need to resend your message.`,
+      ).catch(() => {});
     }
   }
 

@@ -188,6 +188,13 @@ describe('buildChatSystemPrompt', () => {
     expect(prompt).toContain('Senior Engineering Manager');
   });
 
+  it('includes role context for VP of Engineering', () => {
+    const analysis = makeCompletedAnalysis({ role: 'vp_engineering' as Analysis['role'] });
+    const prompt = buildChatSystemPrompt(analysis);
+    expect(prompt).toContain('VP of Engineering');
+    expect(prompt).not.toContain('Senior Engineering Manager');
+  });
+
   it('includes SWOT data', () => {
     const analysis = makeCompletedAnalysis();
     const prompt = buildChatSystemPrompt(analysis);
@@ -826,7 +833,7 @@ describe('ChatService file-write integration', () => {
 
     expect(chatActionRepo.updateStatus).toHaveBeenCalledWith('file-action-1', 'failed', {
       success: false,
-      error: 'Path traversal not allowed',
+      error: 'Path traversal not allowed: must be a relative path within the workspace',
     });
   });
 

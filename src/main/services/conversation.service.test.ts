@@ -18,6 +18,7 @@ function makeMockConversationRepo(): ConversationRepository {
     updateTitle: vi.fn().mockResolvedValue(undefined),
     updateTimestamp: vi.fn().mockResolvedValue(undefined),
     delete: vi.fn().mockResolvedValue(undefined),
+    deleteWithCascade: vi.fn(),
   } as unknown as ConversationRepository;
 }
 
@@ -134,7 +135,7 @@ describe('ConversationService', () => {
 
       const result = await service.delete('c1');
       expect(result.ok).toBe(true);
-      expect(repo.delete).toHaveBeenCalledWith('c1');
+      expect(repo.deleteWithCascade).toHaveBeenCalledWith('c1');
     });
 
     it('returns error for nonexistent conversation', async () => {

@@ -26,6 +26,7 @@ export function useSendMessage(analysisId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.messages(analysisId) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.actions(analysisId) });
     },
   });
 }

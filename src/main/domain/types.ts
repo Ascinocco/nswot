@@ -184,9 +184,12 @@ export interface ChatMessage {
   id: string;
   analysisId: string;
   role: 'user' | 'assistant';
+  /** Raw content string. For contentFormat 'blocks', this is JSON-serialized ContentBlock[]. */
   content: string;
   contentFormat: 'text' | 'blocks';
   createdAt: string;
+  /** Parsed blocks when contentFormat is 'blocks'. Populated by repository toDomain(). */
+  blocks?: import('../domain/content-block.types').ContentBlock[];
 }
 
 export interface Preference {
@@ -197,6 +200,7 @@ export interface Preference {
 export type ActionStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'rejected';
 
 export type ActionToolName =
+  // Phase 3c action tools (external service write via CLI subprocess)
   | 'create_jira_issue'
   | 'create_jira_issues'
   | 'add_jira_comment'
@@ -205,7 +209,20 @@ export type ActionToolName =
   | 'create_github_pr'
   | 'write_markdown_file'
   | 'write_csv_file'
-  | 'write_mermaid_file';
+  | 'write_mermaid_file'
+  // Phase 4 agent tools (read)
+  | 'fetch_jira_data'
+  | 'fetch_confluence_data'
+  | 'fetch_github_data'
+  | 'run_codebase_analysis'
+  | 'search_profiles'
+  // Phase 4 agent tools (render)
+  | 'render_swot_analysis'
+  | 'render_mermaid'
+  | 'render_chart'
+  | 'render_data_table'
+  // Phase 4 agent tools (write)
+  | 'write_file';
 
 export interface ActionResult {
   success: boolean;

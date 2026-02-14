@@ -1,5 +1,6 @@
 import { readdir, readFile as fsReadFile, writeFile as fsWriteFile } from 'fs/promises';
-import { resolve, relative, join, basename } from 'path';
+import { realpathSync } from 'fs';
+import { resolve, relative, join, basename, isAbsolute } from 'path';
 import { DomainError, ERROR_CODES } from '../domain/errors';
 
 export interface FileEntry {
@@ -25,7 +26,40 @@ export function validateWorkspacePath(workspaceRoot: string, targetPath: string)
       `Path "${targetPath}" resolves outside workspace root`,
     );
   }
+
+  // Resolve symlinks to prevent symlink-based traversal.
+  // Use realpathSync on workspace root and the nearest existing ancestor of the target.
+  const realRoot = realpathSync(workspaceRoot);
+  const realTarget = resolveNearestRealPath(resolved);
+  if (realTarget) {
+    const realRel = relative(realRoot, realTarget);
+    if (realRel.startsWith('..')) {
+      throw new DomainError(
+        ERROR_CODES.WORKSPACE_PATH_INVALID,
+        `Path "${targetPath}" resolves outside workspace root via symlink`,
+      );
+    }
+  }
+
   return resolved;
+}
+
+/**
+ * Resolve the real path of a target, or its nearest existing ancestor.
+ * Used to detect symlinks that escape the workspace boundary.
+ */
+function resolveNearestRealPath(targetPath: string): string | null {
+  let current = targetPath;
+  while (true) {
+    try {
+      return realpathSync(current);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') return null;
+      const parent = resolve(current, '..');
+      if (parent === current) return null;
+      current = parent;
+    }
+  }
 }
 
 export async function readDirectory(

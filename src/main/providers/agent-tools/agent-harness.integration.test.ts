@@ -116,7 +116,7 @@ describe('Agent Harness Integration', () => {
             arguments: JSON.stringify({
               title: 'Sprint Velocity',
               chartType: 'bar',
-              spec: { labels: ['S1', 'S2'], datasets: [{ data: [10, 15] }] },
+              spec: { data: { labels: ['S1', 'S2'], datasets: [{ data: [10, 15] }] } },
             }),
           },
         ],

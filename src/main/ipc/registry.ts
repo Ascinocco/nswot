@@ -68,7 +68,7 @@ export function registerIpcHandlers(context: IpcContext): void {
   registerFileHandlers(context.fileService);
   registerProfileHandlers(context.profileService);
   registerAnalysisHandlers(context.analysisRepo, context.analysisService, context.workspaceService, context.chatRepo);
-  registerChatHandlers(context.chatService);
+  registerChatHandlers(context.chatService, context.approvalMemoryService);
   registerExportHandlers(context.exportService);
   registerIntegrationHandlers(context.integrationService);
   if (context.confluenceService) registerConfluenceHandlers(context.confluenceService);

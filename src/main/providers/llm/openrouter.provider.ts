@@ -10,6 +10,9 @@ import type {
 
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const FETCH_TIMEOUT_MS = 30_000;
+/** Inactivity timeout for the SSE stream: abort if no data received within this period. */
+const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
 
 export class OpenRouterProvider implements LLMProvider {
   readonly name = 'openrouter';
@@ -19,6 +22,7 @@ export class OpenRouterProvider implements LLMProvider {
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -50,16 +54,29 @@ export class OpenRouterProvider implements LLMProvider {
     if (request.maxTokens !== undefined) body['max_tokens'] = request.maxTokens;
     if (request.tools && (request.tools as unknown[]).length > 0) body['tools'] = request.tools;
 
-    const response = await fetch(OPENROUTER_CHAT_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${request.apiKey}`,
-        'HTTP-Referer': 'https://nswot.app',
-        'X-Title': 'nswot',
-      },
-      body: JSON.stringify(body),
-    });
+    // Connection-phase timeout only — cleared once we receive response headers.
+    // The streaming body read uses a per-chunk inactivity timeout instead.
+    const controller = new AbortController();
+    const connectionTimeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(OPENROUTER_CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${request.apiKey}`,
+          'HTTP-Referer': 'https://nswot.app',
+          'X-Title': 'nswot',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      clearTimeout(connectionTimeout);
+      throw e;
+    }
+    clearTimeout(connectionTimeout);
 
     if (!response.ok) {
       this.throwHttpError(response.status, await this.extractErrorDetail(response));
@@ -88,7 +105,17 @@ export class OpenRouterProvider implements LLMProvider {
 
     try {
       while (true) {
-        const { done, value } = await reader.read();
+        // Race each read against an inactivity timeout — catches stalled streams
+        let inactivityTimer: ReturnType<typeof setTimeout>;
+        const { done, value } = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => {
+            inactivityTimer = setTimeout(
+              () => reject(new DomainError(ERROR_CODES.LLM_REQUEST_FAILED, 'OpenRouter stream stalled: no data received for 60s')),
+              STREAM_INACTIVITY_TIMEOUT_MS,
+            );
+          }),
+        ]).finally(() => clearTimeout(inactivityTimer!));
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -190,14 +217,16 @@ export class OpenRouterProvider implements LLMProvider {
 
   private throwHttpError(status: number, detail: string): never {
     if (status === 401 || status === 403) {
-      throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, detail || 'Invalid API key');
+      throw new DomainError(ERROR_CODES.LLM_AUTH_FAILED, detail || 'Invalid API key', undefined, status);
     }
     if (status === 429) {
-      throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, detail || 'Rate limited by OpenRouter');
+      throw new DomainError(ERROR_CODES.LLM_RATE_LIMITED, detail || 'Rate limited by OpenRouter', undefined, status);
     }
     throw new DomainError(
       ERROR_CODES.LLM_REQUEST_FAILED,
       detail || `OpenRouter returned status ${status}`,
+      undefined,
+      status,
     );
   }
 

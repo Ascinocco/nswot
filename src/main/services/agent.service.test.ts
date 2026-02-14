@@ -971,7 +971,7 @@ describe('AgentService', () => {
   });
 
   describe('executeTurn — MAX_LOOP_ITERATIONS guard', () => {
-    it('stops after MAX_LOOP_ITERATIONS to prevent infinite loops', async () => {
+    it('stops after MAX_LOOP_ITERATIONS and marks as interrupted with notice', async () => {
       registry.register(makeTool('fetch_data'), 'read');
 
       // Always return a tool call — never stop
@@ -994,6 +994,12 @@ describe('AgentService', () => {
       );
 
       expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Should be marked as interrupted
+        expect(result.value.interrupted).toBe(true);
+        // Should include truncation notice
+        expect(result.value.content).toContain('maximum number of iterations');
+      }
       // Should have stopped at MAX_LOOP_ITERATIONS (25)
       expect(provider.createChatCompletion).toHaveBeenCalledTimes(25);
     });

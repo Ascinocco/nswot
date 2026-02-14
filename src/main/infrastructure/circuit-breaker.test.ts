@@ -85,7 +85,7 @@ describe('CircuitBreaker', () => {
     vi.advanceTimersByTime(1001);
     expect(breaker.getState()).toBe('HALF_OPEN');
 
-    await expect(breaker.execute(() => Promise.reject(new Error('still broken')))).rejects.toThrow();
+    await expect(breaker.execute(() => Promise.reject(new Error('connection timeout')))).rejects.toThrow();
     expect(breaker.getState()).toBe('OPEN');
 
     vi.useRealTimers();

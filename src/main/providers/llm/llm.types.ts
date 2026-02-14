@@ -24,6 +24,8 @@ export interface LlmResponse {
   finishReason: string | null;
   toolCalls?: LlmToolCall[];
   usage?: LlmUsage;
+  /** Thinking text from extended thinking (Anthropic). */
+  thinking?: string;
 }
 
 export interface LlmCompletionRequest {
@@ -33,6 +35,8 @@ export interface LlmCompletionRequest {
   tools?: unknown[];
   temperature?: number;
   maxTokens?: number;
+  /** Enable extended thinking with the given token budget (Anthropic only). */
+  thinkingBudget?: number;
   onChunk?: (chunk: string) => void;
   onToken?: (tokenCount: number) => void;
 }

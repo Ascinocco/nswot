@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useProfiles } from '../../hooks/use-profiles';
 import { usePreferences, useModels } from '../../hooks/use-settings';
 import {
@@ -70,10 +70,12 @@ export default function AnalysisConfigPanel({
 
   const defaultModelId = preferences?.selectedModelId ?? '';
   const [modelId, setModelId] = useState(defaultModelId);
-  // Sync default when preferences load
-  if (!modelId && defaultModelId) {
-    setModelId(defaultModelId);
-  }
+  // Sync default when preferences load (useEffect avoids setState during render)
+  useEffect(() => {
+    if (!modelId && defaultModelId) {
+      setModelId(defaultModelId);
+    }
+  }, [modelId, defaultModelId]);
 
   const handleProfileToggle = useCallback((id: string) => {
     setSelectedProfileIds((prev) =>

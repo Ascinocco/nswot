@@ -8,6 +8,17 @@ vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
+vi.mock('../../infrastructure/logger', () => ({
+  Logger: {
+    getInstance: () => ({
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    }),
+  },
+}));
+
 import { spawn } from 'child_process';
 
 function createMockChildProcess() {
@@ -171,11 +182,11 @@ describe('ActionExecutor', () => {
           '--output-format',
           'json',
           '--allowedTools',
-          'mcp__jira__*',
+          'mcp__mcp-atlassian__jira_*',
           '--model',
           'sonnet',
           '--max-turns',
-          '5',
+          '15',
         ]),
         expect.anything(),
       );
@@ -205,7 +216,7 @@ describe('ActionExecutor', () => {
 
       expect(spawn).toHaveBeenCalledWith(
         'claude',
-        expect.arrayContaining(['--allowedTools', 'mcp__confluence__*']),
+        expect.arrayContaining(['--allowedTools', 'mcp__mcp-atlassian__confluence_*']),
         expect.anything(),
       );
     });
@@ -234,7 +245,7 @@ describe('ActionExecutor', () => {
 
       expect(spawn).toHaveBeenCalledWith(
         'claude',
-        expect.arrayContaining(['--allowedTools', 'mcp__github__*']),
+        expect.arrayContaining(['--allowedTools', 'mcp__github_*']),
         expect.anything(),
       );
     });
@@ -357,7 +368,7 @@ describe('ActionExecutor', () => {
     });
 
     it('respects custom options', async () => {
-      const customExecutor = new ActionExecutor({ model: 'opus', maxTurns: 10, timeoutMs: 120_000 });
+      const customExecutor = new ActionExecutor({ model: 'opus', maxTurns: 10 });
       const child = createMockChildProcess();
       vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
 
@@ -379,7 +390,7 @@ describe('ActionExecutor', () => {
 
       expect(spawn).toHaveBeenCalledWith(
         'claude',
-        expect.arrayContaining(['--model', 'opus', '--max-turns', '10']),
+        expect.arrayContaining(['--model', 'opus', '--max-turns', '10', '--allowedTools', 'mcp__mcp-atlassian__jira_*']),
         expect.anything(),
       );
     });

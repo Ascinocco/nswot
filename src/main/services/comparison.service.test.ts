@@ -136,7 +136,7 @@ describe('ComparisonService', () => {
     }
   });
 
-  it('produces empty deltas for identical analyses', async () => {
+  it('produces unchanged deltas for identical analyses', async () => {
     const swot: SwotOutput = {
       strengths: [makeSwotItem({ claim: 'Good testing practices' })],
       weaknesses: [],
@@ -149,10 +149,12 @@ describe('ComparisonService', () => {
     const result = await service.compare('a1', 'b1');
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.deltas).toHaveLength(0);
+      expect(result.value.deltas).toHaveLength(1);
+      expect(result.value.deltas[0]!.kind).toBe('unchanged');
       expect(result.value.summary.totalAdded).toBe(0);
       expect(result.value.summary.totalRemoved).toBe(0);
       expect(result.value.summary.totalChanged).toBe(0);
+      expect(result.value.summary.totalUnchanged).toBe(1);
     }
   });
 
@@ -320,10 +322,13 @@ describe('ComparisonService', () => {
     const result = await service.compare('a1', 'b1');
     expect(result.ok).toBe(true);
     if (result.ok) {
+      expect(result.value.summary.strengths.unchanged).toBe(1);
       expect(result.value.summary.weaknesses.removed).toBe(1);
       expect(result.value.summary.opportunities.added).toBe(1);
+      expect(result.value.summary.threats.unchanged).toBe(1);
       expect(result.value.summary.totalAdded).toBe(1);
       expect(result.value.summary.totalRemoved).toBe(1);
+      expect(result.value.summary.totalUnchanged).toBe(2);
     }
   });
 

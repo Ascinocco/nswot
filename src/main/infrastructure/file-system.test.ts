@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync, symlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
@@ -44,6 +44,32 @@ describe('file-system', () => {
 
     it('rejects paths that resolve outside workspace via symlink-like traversal', () => {
       expect(() => validateWorkspacePath(workspaceRoot, 'foo/../../..')).toThrow(DomainError);
+    });
+
+    it('rejects symlinks that point outside the workspace', () => {
+      // Create a symlink inside workspace that points to /tmp (outside workspace)
+      const outsideDir = join(tmpdir(), `nswot-outside-${randomUUID()}`);
+      mkdirSync(outsideDir, { recursive: true });
+      writeFileSync(join(outsideDir, 'secret.txt'), 'secret data');
+
+      try {
+        symlinkSync(outsideDir, join(workspaceRoot, 'evil-link'));
+        expect(() => validateWorkspacePath(workspaceRoot, 'evil-link/secret.txt')).toThrow(DomainError);
+        expect(() => validateWorkspacePath(workspaceRoot, 'evil-link/secret.txt')).toThrow(
+          /symlink/,
+        );
+      } finally {
+        rmSync(outsideDir, { recursive: true, force: true });
+      }
+    });
+
+    it('allows symlinks that stay within the workspace', () => {
+      mkdirSync(join(workspaceRoot, 'real-dir'));
+      writeFileSync(join(workspaceRoot, 'real-dir', 'file.txt'), 'ok');
+      symlinkSync(join(workspaceRoot, 'real-dir'), join(workspaceRoot, 'link-dir'));
+
+      const result = validateWorkspacePath(workspaceRoot, 'link-dir/file.txt');
+      expect(result).toBe(join(workspaceRoot, 'link-dir/file.txt'));
     });
   });
 

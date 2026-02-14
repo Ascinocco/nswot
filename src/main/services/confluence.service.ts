@@ -18,6 +18,8 @@ const TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000;
 const MAX_PAGES_PER_SPACE = 200;
 
 export class ConfluenceService {
+  private refreshPromise: Promise<JiraOAuthTokens | null> | null = null;
+
   constructor(
     private readonly integrationRepo: IntegrationRepository,
     private readonly cacheRepo: IntegrationCacheRepository,
@@ -374,29 +376,44 @@ export class ConfluenceService {
     const tokens = JSON.parse(raw) as JiraOAuthTokens;
 
     if (tokens.expiresAt - TOKEN_EXPIRY_BUFFER_MS < Date.now()) {
-      // Token needs refresh — delegate to Jira's refresh mechanism
-      // by importing JiraAuthProvider
-      const oauthRaw = this.secureStorage.retrieve(`jira_oauth_${workspaceId}`);
-      if (!oauthRaw) return null;
+      // Use mutex to prevent concurrent refresh attempts
+      if (this.refreshPromise) {
+        return this.refreshPromise;
+      }
 
-      const { clientId, clientSecret } = JSON.parse(oauthRaw) as {
-        clientId: string;
-        clientSecret: string;
-      };
-
-      const { JiraAuthProvider } = await import('../providers/jira/jira-auth');
-      const authProvider = new JiraAuthProvider(clientId, clientSecret);
-      const refreshed = await authProvider.refreshAccessToken(tokens.refreshToken);
-
-      this.secureStorage.store(
-        `jira_tokens_${workspaceId}`,
-        JSON.stringify(refreshed),
-      );
-
-      return refreshed;
+      this.refreshPromise = this.refreshTokensInternal(workspaceId, tokens.refreshToken);
+      try {
+        return await this.refreshPromise;
+      } finally {
+        this.refreshPromise = null;
+      }
     }
 
     return tokens;
+  }
+
+  private async refreshTokensInternal(
+    workspaceId: string,
+    refreshToken: string,
+  ): Promise<JiraOAuthTokens | null> {
+    const oauthRaw = this.secureStorage.retrieve(`jira_oauth_${workspaceId}`);
+    if (!oauthRaw) return null;
+
+    const { clientId, clientSecret } = JSON.parse(oauthRaw) as {
+      clientId: string;
+      clientSecret: string;
+    };
+
+    const { JiraAuthProvider } = await import('../providers/jira/jira-auth');
+    const authProvider = new JiraAuthProvider(clientId, clientSecret);
+    const refreshed = await authProvider.refreshAccessToken(refreshToken);
+
+    this.secureStorage.store(
+      `jira_tokens_${workspaceId}`,
+      JSON.stringify(refreshed),
+    );
+
+    return refreshed;
   }
 
   private mapError(cause: unknown): DomainError {

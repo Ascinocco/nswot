@@ -44,6 +44,11 @@ export class Logger {
     return Logger.instance;
   }
 
+  /** Returns the Logger instance if initialized, or null otherwise. Safe for optional logging. */
+  static tryGetInstance(): Logger | null {
+    return Logger.instance;
+  }
+
   /** Exposed for testing only */
   static resetForTesting(): void {
     Logger.instance = null;

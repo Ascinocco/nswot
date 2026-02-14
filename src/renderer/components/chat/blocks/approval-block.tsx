@@ -18,15 +18,22 @@ export default function ApprovalBlock({
   const [isRejecting, setIsRejecting] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [resolved, setResolved] = useState(data.status !== 'pending');
+  const [error, setError] = useState<string | null>(null);
 
   const analysisId = data.analysisId;
-  const actionId = data.id;
 
   const handleApprove = useCallback(async (id: string) => {
     setIsApproving(true);
+    setError(null);
     try {
-      await window.nswot.chat.actions.approve(analysisId, id);
-      setResolved(true);
+      const result = await window.nswot.chat.actions.approve(analysisId, id);
+      if (result.success) {
+        setResolved(true);
+      } else {
+        setError(result.error?.message ?? 'Failed to approve action');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve action');
     } finally {
       setIsApproving(false);
     }
@@ -34,12 +41,22 @@ export default function ApprovalBlock({
 
   const handleApproveAndRemember = useCallback(async (id: string) => {
     setIsApproving(true);
+    setError(null);
     try {
-      await window.nswot.chat.actions.approve(analysisId, id);
+      const result = await window.nswot.chat.actions.approve(analysisId, id);
+      if (!result.success) {
+        setError(result.error?.message ?? 'Failed to approve action');
+        return;
+      }
       if (conversationId) {
-        await window.nswot.approvalMemory.set(conversationId, data.toolName, true);
+        const memResult = await window.nswot.approvalMemory.set(conversationId, data.toolName, true);
+        if (!memResult.success) {
+          console.warn('[approval-block] Failed to save approval memory:', memResult.error);
+        }
       }
       setResolved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve action');
     } finally {
       setIsApproving(false);
     }
@@ -47,9 +64,16 @@ export default function ApprovalBlock({
 
   const handleReject = useCallback(async (id: string) => {
     setIsRejecting(true);
+    setError(null);
     try {
-      await window.nswot.chat.actions.reject(analysisId, id);
-      setResolved(true);
+      const result = await window.nswot.chat.actions.reject(analysisId, id);
+      if (result.success) {
+        setResolved(true);
+      } else {
+        setError(result.error?.message ?? 'Failed to reject action');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reject action');
     } finally {
       setIsRejecting(false);
     }
@@ -57,8 +81,14 @@ export default function ApprovalBlock({
 
   const handleEdit = useCallback(async (id: string, editedInput: Record<string, unknown>) => {
     setIsSavingEdit(true);
+    setError(null);
     try {
-      await window.nswot.chat.actions.edit(id, editedInput);
+      const result = await window.nswot.chat.actions.edit(id, editedInput);
+      if (!result.success) {
+        setError(result.error?.message ?? 'Failed to save edit');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save edit');
     } finally {
       setIsSavingEdit(false);
     }
@@ -76,22 +106,18 @@ export default function ApprovalBlock({
 
   const isFileTool = FILE_TOOLS.has(data.toolName);
 
-  if (isFileTool) {
-    return (
-      <FileApprovalCard
-        action={data}
-        onApprove={handleApprove}
-        onApproveAndRemember={conversationId ? handleApproveAndRemember : undefined}
-        onReject={handleReject}
-        onEdit={handleEdit}
-        isApproving={isApproving}
-        isRejecting={isRejecting}
-        isEditing={isSavingEdit}
-      />
-    );
-  }
-
-  return (
+  const card = isFileTool ? (
+    <FileApprovalCard
+      action={data}
+      onApprove={handleApprove}
+      onApproveAndRemember={conversationId ? handleApproveAndRemember : undefined}
+      onReject={handleReject}
+      onEdit={handleEdit}
+      isApproving={isApproving}
+      isRejecting={isRejecting}
+      isEditing={isSavingEdit}
+    />
+  ) : (
     <ApprovalCard
       action={data}
       onApprove={handleApprove}
@@ -102,5 +128,22 @@ export default function ApprovalBlock({
       isRejecting={isRejecting}
       isEditing={isSavingEdit}
     />
+  );
+
+  return (
+    <>
+      {card}
+      {error && (
+        <div className="mt-1 rounded border border-red-800/50 bg-red-950/20 px-3 py-1.5 text-xs text-red-400">
+          {error}
+          <button
+            onClick={() => setError(null)}
+            className="ml-2 text-gray-500 hover:text-gray-300"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+    </>
   );
 }

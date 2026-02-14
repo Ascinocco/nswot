@@ -86,9 +86,15 @@ export class CircuitBreaker {
   }
 
   private shouldTrip(error: unknown): boolean {
-    // Only 5xx, timeouts, and connection errors trip the circuit
-    // 4xx errors do NOT trip
+    // Only 5xx, timeouts, and connection errors trip the circuit.
+    // Auth failures (4xx) and domain logic errors do NOT trip.
     if (error instanceof CircuitOpenError) return false;
+
+    // Domain errors with known non-transient codes should not trip
+    if (isDomainLikeError(error)) {
+      const code = (error as { code: string }).code;
+      if (NON_TRANSIENT_ERROR_CODES.has(code)) return false;
+    }
 
     if (error instanceof Error) {
       const msg = error.message.toLowerCase();
@@ -107,8 +113,8 @@ export class CircuitBreaker {
       return error.status >= 500;
     }
 
-    // Default: assume it's a transient error
-    return true;
+    // Default: don't trip on unknown errors (conservative — avoid false circuit opens)
+    return false;
   }
 
   /** Exposed for testing */
@@ -138,3 +144,26 @@ function isHttpError(error: unknown): error is HttpError {
     typeof (error as HttpError).status === 'number'
   );
 }
+
+function isDomainLikeError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string'
+  );
+}
+
+/** Error codes that represent non-transient failures (auth, validation, domain logic). */
+const NON_TRANSIENT_ERROR_CODES = new Set([
+  'ANTHROPIC_AUTH_FAILED',
+  'LLM_AUTH_FAILED',
+  'LLM_PARSE_ERROR',
+  'JIRA_AUTH_FAILED',
+  'CONFLUENCE_AUTH_FAILED',
+  'GITHUB_AUTH_FAILED',
+  'PROFILE_LIMIT',
+  'VALIDATION_ERROR',
+  'ACTION_NOT_FOUND',
+  'ACTION_INVALID_STATUS',
+]);

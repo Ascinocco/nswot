@@ -69,4 +69,30 @@ export class ConversationRepository {
   async delete(id: string): Promise<void> {
     this.db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
   }
+
+  /**
+   * Delete a conversation and cascade-clean related data in a single transaction:
+   * - Delete chat_messages and chat_actions for linked analyses
+   * - Clear conversation_id on linked analyses (keep the analyses themselves)
+   * - Delete the conversation row (approval_memory cascades via FK)
+   */
+  deleteWithCascade(id: string): void {
+    const run = this.db.transaction(() => {
+      const rows = this.db
+        .prepare('SELECT id FROM analyses WHERE conversation_id = ?')
+        .all(id) as { id: string }[];
+
+      for (const row of rows) {
+        this.db.prepare('DELETE FROM chat_messages WHERE analysis_id = ?').run(row.id);
+        this.db.prepare('DELETE FROM chat_actions WHERE analysis_id = ?').run(row.id);
+      }
+
+      this.db
+        .prepare('UPDATE analyses SET conversation_id = NULL WHERE conversation_id = ?')
+        .run(id);
+
+      this.db.prepare('DELETE FROM conversations WHERE id = ?').run(id);
+    });
+    run();
+  }
 }

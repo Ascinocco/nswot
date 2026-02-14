@@ -94,33 +94,38 @@ export function registerAnalysisHandlers(
       const result = await analysisService.runAnalysis(input, onProgress);
       if (result.ok) {
         // Create initial chat message with analysis results as content blocks
+        // Wrapped in try-catch so a DB error here doesn't hide the successful analysis
         if (chatRepo && result.value.swotOutput) {
-          const blocks: Array<{ type: string; id: string; data: unknown }> = [];
-          blocks.push({
-            type: 'swot_analysis',
-            id: generateBlockId(),
-            data: result.value.swotOutput,
-          });
-          if (result.value.summariesOutput) {
+          try {
+            const blocks: Array<{ type: string; id: string; data: unknown }> = [];
             blocks.push({
-              type: 'summary_cards',
+              type: 'swot_analysis',
               id: generateBlockId(),
-              data: result.value.summariesOutput,
+              data: result.value.swotOutput,
             });
+            if (result.value.summariesOutput) {
+              blocks.push({
+                type: 'summary_cards',
+                id: generateBlockId(),
+                data: result.value.summariesOutput,
+              });
+            }
+            if (result.value.qualityMetrics) {
+              blocks.push({
+                type: 'quality_metrics',
+                id: generateBlockId(),
+                data: result.value.qualityMetrics,
+              });
+            }
+            await chatRepo.insert(
+              result.value.id,
+              'assistant',
+              JSON.stringify(blocks),
+              'blocks',
+            );
+          } catch {
+            // Non-critical: analysis succeeded, but initial chat message couldn't be stored
           }
-          if (result.value.qualityMetrics) {
-            blocks.push({
-              type: 'quality_metrics',
-              id: generateBlockId(),
-              data: result.value.qualityMetrics,
-            });
-          }
-          await chatRepo.insert(
-            result.value.id,
-            'assistant',
-            JSON.stringify(blocks),
-            'blocks',
-          );
         }
         return toIpcResult(result.value);
       }

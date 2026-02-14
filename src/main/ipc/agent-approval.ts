@@ -10,31 +10,62 @@
  * CHAT_ACTION_APPROVE/REJECT channels that Agent B's frontend already calls).
  */
 
-const pendingApprovals = new Map<string, { resolve: (approved: boolean) => void }>();
+export interface ApprovalResult {
+  approved: boolean;
+  remember: boolean;
+}
+
+/** Default timeout for pending approvals (5 minutes). */
+const APPROVAL_TIMEOUT_MS = 5 * 60 * 1000;
+
+interface PendingApproval {
+  resolve: (result: ApprovalResult) => void;
+  timer: ReturnType<typeof setTimeout>;
+  metadata: { conversationId: string; toolName: string };
+}
+
+const pendingApprovals = new Map<string, PendingApproval>();
 
 /**
  * Register a pending approval and return a Promise that resolves
  * when the user approves (true) or rejects (false).
+ * Automatically rejects after the timeout period.
  */
-export function registerPendingApproval(approvalId: string): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
-    pendingApprovals.set(approvalId, { resolve });
+export function registerPendingApproval(
+  approvalId: string,
+  metadata: { conversationId: string; toolName: string },
+  timeoutMs: number = APPROVAL_TIMEOUT_MS,
+): Promise<ApprovalResult> {
+  return new Promise<ApprovalResult>((resolve) => {
+    const timer = setTimeout(() => {
+      // Auto-reject on timeout
+      pendingApprovals.delete(approvalId);
+      resolve({ approved: false, remember: false });
+    }, timeoutMs);
+
+    pendingApprovals.set(approvalId, { resolve, timer, metadata });
   });
 }
 
 /**
- * Resolve a pending agent approval. Returns true if this was an agent
- * approval (and was resolved), false if the ID was not found (meaning
+ * Resolve a pending agent approval. Returns the metadata if this was an agent
+ * approval (and was resolved), null if the ID was not found (meaning
  * it's a Phase 3c approval that should go through the normal flow).
  */
-export function resolveAgentApproval(approvalId: string, approved: boolean): boolean {
+export function resolveAgentApproval(
+  approvalId: string,
+  approved: boolean,
+  remember: boolean = false,
+): { conversationId: string; toolName: string } | null {
   const pending = pendingApprovals.get(approvalId);
   if (pending) {
-    pending.resolve(approved);
+    clearTimeout(pending.timer);
+    pending.resolve({ approved, remember });
+    const metadata = pending.metadata;
     pendingApprovals.delete(approvalId);
-    return true;
+    return metadata;
   }
-  return false;
+  return null;
 }
 
 /**

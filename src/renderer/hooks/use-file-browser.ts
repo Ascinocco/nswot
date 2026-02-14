@@ -7,13 +7,14 @@ const QUERY_KEYS = {
   fileContent: (path: string) => ['fileContent', path] as const,
 };
 
-export function useDirectory(path: string) {
+export function useDirectory(path: string, enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.directory(path),
     queryFn: async () => {
       const result = await window.nswot.file.readDir(path);
       return unwrapResult(result);
     },
+    enabled,
   });
 }
 
