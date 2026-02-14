@@ -4,7 +4,7 @@
 
 nswot is a local-first Electron desktop app that turns stakeholder interview notes and Jira signals into evidence-backed SWOT analyses. Primary user: staff engineers in org-level problem-solving roles.
 
-**Current phase**: Phase 3e complete (Platform Maturity & Multi-Provider). Phases 1-3d complete. Phase 4 (Chat-Driven Agent Experience) planned next.
+**Current phase**: Phases 1-4 complete. Phase 4 (Chat-Driven Agent Experience) delivered chat-primary UI, conversation management, agent harness with tool registry, and LLM thinking/reasoning display.
 
 ## Documentation
 
@@ -123,6 +123,6 @@ result.match({
 - **No writes outside workspace.** All fs operations validate resolved path starts with workspace root.
 - **No secrets in SQLite or plaintext.** API keys and OAuth tokens go through safeStorage only.
 - **No evidence, no claim.** SWOT items without concrete evidence are omitted or marked low confidence.
-- **Current scope: Phase 3 complete, Phase 4 next.** Phases 1-3e are complete. Phase 4 transforms nswot into a chat-primary agent experience: "Chat Analysis" replaces the Analysis + History pages, conversations are first-class entities (browse, resume, delete), config-to-chat happens on one page, pipeline progress is visible, and LLM thinking/reasoning is displayed. Agent harness with tool registry (render/read/write) drives multi-turn interactions. Sprints 36–41 with two-agent parallel execution. See `docs/18-phase4-chat-experience-plan.md` and `docs/04-phases-roadmap.md`.
+- **Current scope: Phases 1-4 complete.** All planned phases are delivered. The app is a chat-primary agent experience with conversation management, agent harness (render/read/write tool registry), pipeline progress visibility, and LLM thinking/reasoning display. See `docs/18-phase4-chat-experience-plan.md` and `docs/04-phases-roadmap.md`.
 - **Structured logging.** Use `Logger` singleton (`src/main/infrastructure/logger.ts`) — `logger.info()`, `logger.warn()`, `logger.error()`, `logger.debug()`. Logs to console and `~/.nswot/logs/nswot-YYYY-MM-DD.log` with daily rotation.
 - **Multi-provider pattern.** LLM and codebase providers are selected via factory based on user preference. Add new providers by implementing `LLMProvider` or `CodebaseProviderInterface` and registering in the factory. Provider type stored as preference (`llmProviderType`, `codebaseProviderType`).
