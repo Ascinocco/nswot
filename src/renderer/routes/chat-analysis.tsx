@@ -17,10 +17,10 @@ import {
 import {
   useAgentState,
   useTokenCount,
-  useAgentBlocks,
   useAgentThinking,
   useToolActivity,
   useStopAgent,
+  useStreamSegments,
 } from '../hooks/use-agent';
 import type { ContentBlock } from '../hooks/use-agent';
 import { CONTENT_BLOCK_TYPES } from '../../main/domain/content-block.types';
@@ -98,13 +98,11 @@ export default function ChatAnalysisPage(): React.JSX.Element {
   const [configCollapsed, setConfigCollapsed] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [messages, setMessages] = useState<ChatMessageDisplay[]>([]);
-  const [streamingText, setStreamingText] = useState('');
   const [pageError, setPageError] = useState<string | null>(null);
 
   // Agent state (scoped to active conversation)
   const agentState = useAgentState(activeConversationId);
   const tokenCount = useTokenCount(activeConversationId);
-  const { blocks: agentBlocks, clearBlocks } = useAgentBlocks(activeConversationId);
   const agentThinking = useAgentThinking(activeConversationId);
   const toolActivity = useToolActivity(activeConversationId);
   const stopAgent = useStopAgent();
@@ -127,6 +125,14 @@ export default function ChatAnalysisPage(): React.JSX.Element {
 
   // Analysis IDs for pinned summaries (multiple re-runs within conversation)
   const [analysisIds, setAnalysisIds] = useState<string[]>([]);
+
+  // Ordered streaming segments: interleaved text + blocks in arrival order
+  const {
+    segments: streamSegments,
+    activeText: streamingText,
+    allBlocks: agentBlocks,
+    clear: clearStreamSegments,
+  } = useStreamSegments(activeConversationId, analysisIds);
 
   // Model pricing for cost estimate
   const [modelPricing, setModelPricing] = useState<{ prompt: number; completion: number } | null>(null);
@@ -151,34 +157,37 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     if (wasActive && (isNowIdle || isNowError)) {
       const hasBlocks = agentBlocks.length > 0;
       const hasText = streamingText.trim().length > 0;
+      // Collect all text from frozen segments + active text for the finalized message
+      const allText = [
+        ...streamSegments.filter((s) => s.type === 'text').map((s) => s.type === 'text' ? s.content : ''),
+        streamingText,
+      ].join('').trim();
 
-      if (hasBlocks || hasText || isNowError) {
+      if (hasBlocks || hasText || allText.length > 0 || isNowError) {
         const assistantMsg: ChatMessageDisplay = {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           blocks: hasBlocks ? [...agentBlocks] : undefined,
-          text: hasText ? streamingText : undefined,
+          text: allText || undefined,
           error: isNowError ? 'The agent encountered an error during this turn.' : undefined,
         };
         setMessages((prev) => [...prev, assistantMsg]);
-        setStreamingText('');
-        clearBlocks();
+        clearStreamSegments();
       }
     }
 
-    // Safety: always clear streaming text when agent is in error state
-    // (covers edge cases where wasActive was false but stale text persists)
-    if (isNowError && streamingText.length > 0 && !wasActive) {
-      setStreamingText('');
+    // Safety: always clear streaming segments when agent is in error state
+    if (isNowError && (streamingText.length > 0 || streamSegments.length > 0) && !wasActive) {
+      clearStreamSegments();
     }
 
     prevAgentStateRef.current = agentState;
-  }, [agentState, agentBlocks, streamingText, clearBlocks]);
+  }, [agentState, agentBlocks, streamingText, streamSegments, clearStreamSegments]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingText, agentBlocks, agentThinking]);
+  }, [messages, streamingText, streamSegments, agentThinking]);
 
   // Listen for pipeline progress events
   useEffect(() => {
@@ -201,15 +210,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     return () => clearTimeout(timer);
   }, [completedStages, isFromHistory]);
 
-  // Listen for streaming chunks (scoped to current conversation's analyses)
-  useEffect(() => {
-    const cleanup = window.nswot.chat.onChunk((data) => {
-      if (analysisIds.length === 0 || analysisIds.includes(data.analysisId)) {
-        setStreamingText((prev) => prev + data.chunk);
-      }
-    });
-    return cleanup;
-  }, [analysisIds]);
+  // Streaming chunks are now handled by useStreamSegments hook
 
   // Sync URL param to state
   useEffect(() => {
@@ -342,7 +343,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setPageState('config');
     setConfigCollapsed(false);
     setMessages([]);
-    setStreamingText('');
+    clearStreamSegments();
     setCurrentStage(null);
     setCompletedStages([]);
     setPipelineError(null);
@@ -352,7 +353,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setSavedAnalysisConfig(null);
     setAnalysisIds([]);
     setPageError(null);
-  }, []);
+  }, [clearStreamSegments]);
 
   // Derived state
   const isAgentActive = agentState !== 'idle' && agentState !== 'error';
@@ -389,7 +390,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         setPipelineVisible(true);
         setIsFromHistory(false);
         setSavedAnalysisConfig(null);
-        setStreamingText('');
+        clearStreamSegments();
 
         // Create conversation if this is a new one
         let convId = activeConversationId;
@@ -433,7 +434,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
         setIsRunning(false);
       }
     },
-    [activeConversationId, analysisIds, createConversation, navigate],
+    [activeConversationId, analysisIds, createConversation, navigate, clearStreamSegments],
   );
 
   // Handle re-run: show config panel for re-configuration
@@ -449,7 +450,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     if (!content || !activeConversationId || analysisIds.length === 0) return;
 
     setInput('');
-    setStreamingText('');
+    clearStreamSegments();
 
     const userMsg: ChatMessageDisplay = {
       id: `user-${Date.now()}`,
@@ -472,7 +473,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     } catch (err) {
       setPageError(err instanceof Error ? err.message : 'Failed to send message');
     }
-  }, [input, activeConversationId, analysisIds, selectedModelId]);
+  }, [input, activeConversationId, analysisIds, selectedModelId, clearStreamSegments]);
 
   // Handle keyboard shortcut for send
   const handleKeyDown = useCallback(
@@ -511,14 +512,14 @@ export default function ChatAnalysisPage(): React.JSX.Element {
     setActiveConversationId(null);
     setPageState('list');
     setMessages([]);
-    setStreamingText('');
+    clearStreamSegments();
     setAnalysisIds([]);
     setPipelineVisible(false);
     setIsFromHistory(false);
     setSavedAnalysisConfig(null);
     setPageError(null);
     navigate('/chat-analysis');
-  }, [navigate]);
+  }, [navigate, clearStreamSegments]);
 
   // Handle jump to results
   const handleJumpToResults = useCallback((analysisId: string) => {
@@ -531,7 +532,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
   // --- Render ---
 
   const hasCurrentTurnContent =
-    agentBlocks.length > 0 || streamingText.length > 0 || agentThinking != null;
+    agentBlocks.length > 0 || streamingText.length > 0 || streamSegments.length > 0 || agentThinking != null;
 
   // State: conversation list
   if (pageState === 'list') {
@@ -675,7 +676,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
                         // Retry: re-send the last user message before this error
                         const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
                         if (lastUserMsg?.text && activeConversationId && analysisIds.length > 0) {
-                          setStreamingText('');
+                          clearStreamSegments();
                           const latestAnalysisId = analysisIds[analysisIds.length - 1]!;
                           window.nswot.agent.send({
                             conversationId: activeConversationId,
@@ -698,7 +699,7 @@ export default function ChatAnalysisPage(): React.JSX.Element {
             {(isAgentActive || hasCurrentTurnContent) && (
               <RichMessage
                 role="assistant"
-                blocks={agentBlocks.length > 0 ? agentBlocks : undefined}
+                segments={streamSegments.length > 0 ? streamSegments : undefined}
                 streamingThinking={agentThinking ?? undefined}
                 toolActivity={toolActivity ?? undefined}
                 streamingText={streamingText || undefined}

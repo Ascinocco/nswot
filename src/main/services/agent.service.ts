@@ -181,9 +181,15 @@ export class AgentService {
           break;
         }
 
-        // Accumulate text from iterations that also have tool calls
+        // Accumulate text from iterations that also have tool calls.
+        // Emit a paragraph break so text from successive tool iterations
+        // doesn't run together on one line (e.g. "Issue #1 created!Issue #2 created!").
         if (cleanContent) {
           finalContent += cleanContent;
+        }
+        if (finalContent.length > 0 && !finalContent.endsWith('\n\n')) {
+          finalContent += '\n\n';
+          callbacks.onChunk?.('\n\n');
         }
 
         // Process tool calls

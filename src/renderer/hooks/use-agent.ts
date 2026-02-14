@@ -13,6 +13,11 @@ export interface TokenCount {
 // Re-export the real discriminated union from domain — never redefine locally
 export type { ContentBlock } from '../../main/domain/content-block.types';
 
+/** A frozen segment: either text or a content block, in arrival order. */
+export type StreamSegment =
+  | { type: 'text'; content: string }
+  | { type: 'block'; block: ContentBlock };
+
 const VALID_BLOCK_TYPES = new Set<string>(CONTENT_BLOCK_TYPES);
 
 /** Validate that an IPC payload looks like a ContentBlock before accepting it. */
@@ -160,4 +165,106 @@ export function useStopAgent(): () => void {
   return useCallback(() => {
     window.nswot.agent.interrupt();
   }, []);
+}
+
+/**
+ * Tracks interleaved text + block segments in arrival order during streaming.
+ *
+ * When text chunks arrive, they accumulate in `activeText`.
+ * When a block arrives, the current `activeText` is frozen into a text segment,
+ * the block is added as a block segment, and `activeText` resets.
+ * This preserves the natural ordering so blocks appear inline where produced.
+ */
+export function useStreamSegments(
+  conversationId: string | null,
+  analysisIds: string[],
+): {
+  /** Frozen segments (text and blocks) in arrival order. */
+  segments: StreamSegment[];
+  /** Currently streaming text (not yet frozen). Renders after all segments. */
+  activeText: string;
+  /** All blocks extracted from segments (for finalization into messages). */
+  allBlocks: ContentBlock[];
+  /** Clear everything (on turn completion or new turn). */
+  clear: () => void;
+} {
+  const [segments, setSegments] = useState<StreamSegment[]>([]);
+  const [activeText, setActiveText] = useState('');
+  const activeTextRef = useRef('');
+  const analysisIdsRef = useRef(analysisIds);
+  analysisIdsRef.current = analysisIds;
+
+  // Clear on new turn start (idle → thinking)
+  const prevStateRef = useRef<string>('idle');
+  useEffect(() => {
+    if (!conversationId) return;
+    const cleanup = window.nswot.agent.onState((data) => {
+      if (data.conversationId === conversationId) {
+        if (data.state === 'thinking' && prevStateRef.current === 'idle') {
+          setSegments([]);
+          setActiveText('');
+          activeTextRef.current = '';
+        }
+        prevStateRef.current = data.state as string;
+      }
+    });
+    return cleanup;
+  }, [conversationId]);
+
+  // Reset when conversation changes
+  useEffect(() => {
+    setSegments([]);
+    setActiveText('');
+    activeTextRef.current = '';
+    prevStateRef.current = 'idle';
+  }, [conversationId]);
+
+  // Listen for text chunks
+  useEffect(() => {
+    const cleanup = window.nswot.chat.onChunk((data) => {
+      const ids = analysisIdsRef.current;
+      if (ids.length === 0 || ids.includes(data.analysisId)) {
+        setActiveText((prev) => {
+          const next = prev + data.chunk;
+          activeTextRef.current = next;
+          return next;
+        });
+      }
+    });
+    return cleanup;
+  }, []); // analysisIds tracked via ref to avoid re-subscribing
+
+  // Listen for blocks — freeze current text, add block, reset active text
+  useEffect(() => {
+    if (!conversationId) return;
+    const cleanup = window.nswot.agent.onBlock((data) => {
+      if (data.conversationId === conversationId && isValidBlock(data.block)) {
+        setSegments((prev) => {
+          const next = [...prev];
+          // Freeze current active text as a segment if non-empty
+          if (activeTextRef.current) {
+            next.push({ type: 'text', content: activeTextRef.current });
+          }
+          next.push({ type: 'block', block: data.block as ContentBlock });
+          return next;
+        });
+        setActiveText('');
+        activeTextRef.current = '';
+      }
+    });
+    return cleanup;
+  }, [conversationId]);
+
+  const clear = useCallback(() => {
+    setSegments([]);
+    setActiveText('');
+    activeTextRef.current = '';
+  }, []);
+
+  // Extract all blocks for finalization
+  const allBlocks = segments
+    .filter((s): s is StreamSegment & { type: 'block' } => s.type === 'block')
+    .map((s) => s.block);
+
+  return { segments, activeText, allBlocks, clear };
 }
