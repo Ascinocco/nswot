@@ -307,9 +307,12 @@ export class ActionExecutor {
   }
 
   private getAllowedTools(toolName: ActionToolName): string {
+    // Atlassian tools have a family prefix (jira_, confluence_) so the separator
+    // between the MCP prefix and tool name is a single underscore.
+    // GitHub tools have NO family prefix, so we need the full __ namespace separator.
     const jiraPattern = `${this.options.mcpJiraPrefix}_*`;
     const confluencePattern = `${this.options.mcpConfluencePrefix}_*`;
-    const githubPattern = `${this.options.mcpGithubPrefix}_*`;
+    const githubPattern = `${this.options.mcpGithubPrefix}__*`;
 
     if (toolName.startsWith('create_jira') || toolName === 'add_jira_comment') {
       return jiraPattern;

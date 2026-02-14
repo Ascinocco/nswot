@@ -245,7 +245,7 @@ describe('ActionExecutor', () => {
 
       expect(spawn).toHaveBeenCalledWith(
         'claude',
-        expect.arrayContaining(['--allowedTools', 'mcp__github_*']),
+        expect.arrayContaining(['--allowedTools', 'mcp__github__*']),
         expect.anything(),
       );
     });
